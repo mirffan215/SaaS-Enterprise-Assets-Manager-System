@@ -1,0 +1,30 @@
+@model LicenseFormViewModel
+@using AMGH.ITInventory.Domain.Enums
+@{ ViewData["Title"] = Model.LicenseId is null ? "Add licence" : "Edit licence"; var f = Model.Form; string D(DateOnly? v) => v?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? ""; string? S(int? v) => v?.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+<div class="page-head"><h1 class="page-title">@ViewData["Title"]</h1><a class="btn btn-link" asp-action="Index">Cancel</a></div>
+<form asp-action="Save" asp-route-licenseId="@Model.LicenseId" method="post" class="panel" novalidate autocomplete="off">
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <input type="hidden" name="Form.RowVersion" value="@f.RowVersion" />
+    <div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="Form_SoftwareName">Software *</label><input class="form-control" id="Form_SoftwareName" name="Form.SoftwareName" value="@f.SoftwareName" maxlength="200" /></div>
+        <div class="col-md-2"><label class="form-label" for="Form_SoftwareVersion">Version</label><input class="form-control" id="Form_SoftwareVersion" name="Form.SoftwareVersion" value="@f.SoftwareVersion" maxlength="50" /></div>
+        <div class="col-md-4"><label class="form-label" for="Form_LicenseType">Licence type</label>
+            <select class="form-select" id="Form_LicenseType" name="Form.LicenseType">@foreach (var t in Enum.GetValues<LicenseType>()) { <option value="@t" selected="@(t == f.LicenseType)">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(t.ToString())</option> }</select></div>
+        <partial name="_SelectField" model='new SelectFieldModel("Form.PublisherManufacturerId", "Publisher", Model.Publishers, S(f.PublisherManufacturerId), CssClass: "col-md-4")' />
+        <partial name="_SelectField" model='new SelectFieldModel("Form.VendorId", "Reseller / vendor", Model.Vendors, S(f.VendorId), CssClass: "col-md-4")' />
+        <div class="col-md-4"><label class="form-label" for="Form_TotalSeats">Seats purchased</label><input class="form-control" type="number" min="1" id="Form_TotalSeats" name="Form.TotalSeats" value="@f.TotalSeats" placeholder="empty = unlimited" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_PurchaseDate">Purchased</label><input class="form-control" type="date" id="Form_PurchaseDate" name="Form.PurchaseDate" value="@D(f.PurchaseDate)" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_StartDate">Start</label><input class="form-control" type="date" id="Form_StartDate" name="Form.StartDate" value="@D(f.StartDate)" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_ExpiryDate">Expiry</label><input class="form-control" type="date" id="Form_ExpiryDate" name="Form.ExpiryDate" value="@D(f.ExpiryDate)" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_RenewalReminderDays">Renewal reminder (days)</label><input class="form-control" type="number" min="0" max="365" id="Form_RenewalReminderDays" name="Form.RenewalReminderDays" value="@f.RenewalReminderDays" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_PurchaseOrderNumber">PO no.</label><input class="form-control" id="Form_PurchaseOrderNumber" name="Form.PurchaseOrderNumber" value="@f.PurchaseOrderNumber" maxlength="50" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_InvoiceNumber">Invoice no.</label><input class="form-control" id="Form_InvoiceNumber" name="Form.InvoiceNumber" value="@f.InvoiceNumber" maxlength="50" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_Cost">Cost</label><input class="form-control" type="number" min="0" step="0.01" id="Form_Cost" name="Form.Cost" value="@f.Cost" /></div>
+        <partial name="_SelectField" model='new SelectFieldModel("Form.CurrencyId", "Currency", Model.Currencies, S(f.CurrencyId), CssClass: "col-md-3")' />
+        <partial name="_SelectField" model='new SelectFieldModel("Form.ContractOwnerEmployeeId", "Owner", Model.Employees, S(f.ContractOwnerEmployeeId), CssClass: "col-md-6")' />
+        <div class="col-md-6"><label class="form-label" for="Form_LicenseKey">Licence key @(Model.LicenseId is null ? "" : "(leave empty to keep the stored key)")</label>
+            <input class="form-control font-monospace" type="password" id="Form_LicenseKey" name="Form.LicenseKey" autocomplete="new-password" maxlength="4000" /><div class="form-text">Encrypted in the database (AES-256); never shown in lists.</div></div>
+        <div class="col-12"><label class="form-label" for="Form_Notes">Notes</label><textarea class="form-control" id="Form_Notes" name="Form.Notes" rows="2" maxlength="2000">@f.Notes</textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save licence</button></div>
+</form>

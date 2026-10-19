@@ -1,0 +1,217 @@
+@model AssetIndexViewModel
+@inject IDisplayTime Time
+@{
+    ViewData["Title"] = "Assets";
+    var c = Model.Criteria;
+    var r = Model.Results;
+    var l = Model.Lookups;
+    string? S(int? v) => v?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    Dictionary<string, string> Route(Action<Dictionary<string, string?>>? change = null)
+    {
+        var d = new Dictionary<string, string?>
+        {
+            ["SearchText"] = c.SearchText, ["CategoryId"] = S(c.CategoryId), ["StatusId"] = S(c.StatusId), ["DepartmentId"] = S(c.DepartmentId),
+            ["LocationId"] = S(c.LocationId), ["ManufacturerId"] = S(c.ManufacturerId), ["ClassificationId"] = S(c.ClassificationId),
+            ["CriticalityId"] = S(c.CriticalityId), ["OnlyUnassigned"] = c.OnlyUnassigned ? "true" : null,
+            ["IncludeDisposed"] = c.IncludeDisposed ? "true" : null, ["Sort"] = c.Sort, ["Descending"] = c.Descending ? "true" : null,
+            ["PageSize"] = S(c.PageSize), ["Page"] = S(r.PageNumber),
+            ["BuildingId"] = S(c.BuildingId), ["RiskLevelId"] = S(c.RiskLevelId), ["Focus"] = c.Focus
+        };
+        change?.Invoke(d);
+        return d.Where(kv => !string.IsNullOrEmpty(kv.Value)).ToDictionary(kv => kv.Key, kv => kv.Value!);
+    }
+    Dictionary<string, string> SortRoute(string col) => Route(d =>
+    {
+        d["Descending"] = (c.Sort ?? "number") == col && !c.Descending ? "true" : null;
+        d["Sort"] = col; d["Page"] = null;
+    });
+    string SortMark(string col) => (c.Sort ?? "number") != col ? "" : c.Descending ? " ▼" : " ▲";
+    string? AriaSort(string col) => (c.Sort ?? "number") != col ? null : c.Descending ? "descending" : "ascending";
+}
+<div class="page-head">
+    <h1 class="page-title">Assets</h1>
+    <div class="d-flex flex-wrap gap-2">
+        @if (Model.CanExport)
+        {
+            <a class="btn btn-outline-primary" asp-action="Export" asp-all-route-data='Route(d => d["Page"] = null)'><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Export to Excel</a>
+        }
+        @if (Model.CanImport)
+        {
+            <a class="btn btn-outline-primary" asp-action="Import"><i class="bi bi-upload" aria-hidden="true"></i> Import</a>
+        }
+        @if (Model.CanCreate)
+        {
+            <a class="btn btn-primary" asp-action="Create"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add an asset</a>
+        }
+    </div>
+</div>
+
+@if (c.Focus is { Length: > 0 } focus && AMGH.ITInventory.Application.Assets.AssetFocus.Titles.TryGetValue(focus, out var focusTitle))
+{
+    <div class="focus-banner" role="status">
+        <i class="bi bi-funnel" aria-hidden="true"></i> Showing: <strong>@focusTitle</strong> (from the dashboard)
+        <a class="ms-auto" asp-action="Index" asp-all-route-data="@Route(d => { d["Focus"] = null; d["Page"] = null; })">Show all assets</a>
+    </div>
+}
+<form method="get" asp-action="Index" class="panel filter-bar asset-filters" role="search">
+    @if (c.Focus is not null) { <input type="hidden" name="Focus" value="@c.Focus" /> }
+    @if (c.BuildingId is not null) { <input type="hidden" name="BuildingId" value="@c.BuildingId" /> }
+    @if (c.RiskLevelId is not null) { <input type="hidden" name="RiskLevelId" value="@c.RiskLevelId" /> }
+    <div class="filter-search">
+        <label for="SearchText" class="form-label">Search</label>
+        <input id="SearchText" name="SearchText" value="@c.SearchText" class="form-control" placeholder="Number, name, serial, hostname, user…" />
+    </div>
+    <partial name="_SelectField" model='new SelectFieldModel("CategoryId", "Category", l.Categories, S(c.CategoryId), EmptyText: "All", CssClass: null)' />
+    <partial name="_SelectField" model='new SelectFieldModel("StatusId", "Status", l.Statuses, S(c.StatusId), EmptyText: "All in service", CssClass: null)' />
+    <partial name="_SelectField" model='new SelectFieldModel("DepartmentId", "Department", l.Departments, S(c.DepartmentId), EmptyText: "All", CssClass: null)' />
+    <partial name="_SelectField" model='new SelectFieldModel("LocationId", "Location", l.Locations, S(c.LocationId), EmptyText: "All", CssClass: null)' />
+    <details class="filter-more" open="@Model.HasAdvancedFilter">
+        <summary>More filters</summary>
+        <div class="filter-bar">
+            <partial name="_SelectField" model='new SelectFieldModel("ManufacturerId", "Manufacturer", l.Manufacturers, S(c.ManufacturerId), EmptyText: "All", CssClass: null)' />
+            <partial name="_SelectField" model='new SelectFieldModel("ClassificationId", "Classification", l.Classifications, S(c.ClassificationId), EmptyText: "All", CssClass: null)' />
+            <partial name="_SelectField" model='new SelectFieldModel("CriticalityId", "Criticality", l.Criticalities, S(c.CriticalityId), EmptyText: "All", CssClass: null)' />
+            <div class="filter-checks">
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="OnlyUnassigned" name="OnlyUnassigned" value="true" checked="@c.OnlyUnassigned" /><label class="form-check-label" for="OnlyUnassigned">Available to assign</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="IncludeDisposed" name="IncludeDisposed" value="true" checked="@c.IncludeDisposed" /><label class="form-check-label" for="IncludeDisposed">Include disposed</label></div>
+            </div>
+        </div>
+    </details>
+    <input type="hidden" name="Sort" value="@c.Sort" />
+    <input type="hidden" name="Descending" value="@(c.Descending ? "true" : "false")" />
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-primary">Search</button>
+        <a asp-action="Index" class="btn btn-link">Clear</a>
+    </div>
+</form>
+
+<p class="small text-body-secondary">@r.TotalCount.ToString("N0") asset(s)@(r.TotalCount > 0 ? $", page {r.PageNumber} of {r.TotalPages}" : "").</p>
+
+<div class="list-tools">
+    <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"><i class="bi bi-layout-three-columns" aria-hidden="true"></i> Columns</button>
+        <form method="get" asp-action="Index" class="dropdown-menu column-menu" id="columnForm">
+            @foreach (var kv in Route(d => { d["Page"] = null; })) { <input type="hidden" name="@kv.Key" value="@kv.Value" /> }
+            <input type="hidden" name="cols" id="colsValue" value="@string.Join(",", Model.Columns.Select(c => c.Key))" />
+            <p class="small text-body-secondary mb-2">Asset number and name are always shown.</p>
+            @foreach (var col in AMGH.ITInventory.Web.Models.AssetColumns.All)
+            {
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="col_@col.Key" value="@col.Key" data-col-choice="true" checked="@Model.Columns.Any(c => c.Key == col.Key)" />
+                    <label class="form-check-label small" for="col_@col.Key">@col.Header</label></div>
+            }
+            <div class="d-flex gap-2 mt-2"><button class="btn btn-sm btn-primary" type="submit">Apply</button>
+                <a class="btn btn-sm btn-link" asp-action="Index" asp-route-cols="@string.Join(",", AMGH.ITInventory.Web.Models.AssetColumns.Defaults)">Reset</a></div>
+        </form>
+    </div>
+    <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"><i class="bi bi-bookmark-star" aria-hidden="true"></i> Views@(Model.Views.Count > 0 ? $" ({Model.Views.Count})" : "")</button>
+        <div class="dropdown-menu views-menu p-2">
+            @foreach (var v in Model.Views)
+            {
+                <div class="d-flex align-items-center gap-2 px-2">
+                    <a class="dropdown-item px-0 flex-grow-1" href="@(Url.Action("Index") + "?" + v.QueryString)">@v.Name @if (v.IsShared) { <span class="badge text-bg-light">shared</span> }</a>
+                    @if (v.IsMine) { <form asp-action="DeleteView" asp-route-id="@v.Id" method="post" data-confirm="Delete the view '@v.Name'?"><button class="btn btn-link btn-sm text-danger p-0" type="submit" aria-label="Delete view @v.Name"><i class="bi bi-trash" aria-hidden="true"></i></button></form> }
+                </div>
+            }
+            @if (Model.Views.Count == 0) { <p class="small text-body-secondary px-2 mb-2">No saved views yet.</p> }
+            <div class="dropdown-divider"></div>
+            <form asp-action="SaveView" method="post" class="px-2">
+                <input type="hidden" name="query" value="@Model.QueryString" />
+                <label class="form-label small mb-1" for="viewName">Save the current filters, sort and columns</label>
+                <input class="form-control form-control-sm mb-1" id="viewName" name="name" maxlength="100" placeholder="e.g. Laptops in Finance" required />
+                <div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="viewShared" name="shared" value="true" /><label class="form-check-label small" for="viewShared">Share with colleagues</label></div>
+                <button class="btn btn-sm btn-primary" type="submit">Save view</button>
+            </form>
+        </div>
+    </div>
+</div>
+@if (r.TotalCount == 0)
+{
+    <div class="panel empty-state">
+        @if (string.IsNullOrEmpty(c.SearchText) && c.CategoryId is null && c.StatusId is null)
+        {
+            <h2 class="h5">The register is empty</h2>
+            <p>Add assets one at a time, or import many at once from Excel.</p>
+            @if (Model.CanCreate) { <a class="btn btn-primary" asp-action="Create">Add an asset</a> }
+            @if (Model.CanImport) { <a class="btn btn-outline-primary" asp-action="Import">Import from Excel</a> }
+        }
+        else
+        {
+            <h2 class="h5">No assets match these filters</h2>
+            <p>Try fewer filters or a shorter search term.</p>
+            <a class="btn btn-outline-primary" asp-action="Index">Clear filters</a>
+        }
+    </div>
+}
+else
+{
+    <form method="get" action="@Url.Action("Index", "Labels")" id="labelForm">
+    @if (Model.CanPrintLabels)
+    {
+        <div class="selection-bar">
+            <button type="submit" name="design" value="AssetTag" class="btn btn-sm btn-primary" data-requires-selection="true" disabled><i class="bi bi-upc" aria-hidden="true"></i> Generate asset tags</button>
+            <button type="submit" name="design" value="QrLabel" class="btn btn-sm btn-outline-primary" data-requires-selection="true" disabled><i class="bi bi-qr-code" aria-hidden="true"></i> Print QR labels</button>
+            <span class="small text-body-secondary" data-selection-count="true"></span>
+        </div>
+    }
+    <div class="table-responsive panel p-0">
+        <table class="table table-hover align-middle mb-0 asset-table">
+            <thead>
+                <tr>
+                    @if (Model.CanPrintLabels) { <th scope="col" class="select-col"><input type="checkbox" class="form-check-input" data-select-all="true" aria-label="Select all on this page" /></th> }
+                    <th scope="col" aria-sort="@AriaSort("number")"><a asp-action="Index" asp-all-route-data='SortRoute("number")'>Asset number@(SortMark("number"))</a></th>
+                    <th scope="col" aria-sort="@AriaSort("name")"><a asp-action="Index" asp-all-route-data='SortRoute("name")'>Name@(SortMark("name"))</a></th>
+                    @foreach (var col in Model.Columns)
+                    {
+                        if (col.SortKey is { } sk) { <th scope="col" aria-sort="@AriaSort(sk)"><a asp-action="Index" asp-all-route-data='SortRoute(sk)'>@col.Header@(SortMark(sk))</a></th> }
+                        else { <th scope="col">@col.Header</th> }
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in r.Items)
+                {
+                    <tr>
+                        @if (Model.CanPrintLabels) { <td class="select-col"><input type="checkbox" class="form-check-input" name="ids" value="@a.AssetId" aria-label="Select @a.AssetNumber" /></td> }
+                        <td class="text-nowrap"><a class="fw-semibold" asp-action="Details" asp-route-id="@a.AssetId">@a.AssetNumber</a></td>
+                        <td>@a.AssetName@if (!Model.Columns.Any(c => c.Key == "manufacturer")) {<div class="small text-body-secondary">@string.Join(" ", new[] { a.ManufacturerName, a.ModelName }.Where(x => x is not null))</div>}</td>
+                        @foreach (var col in Model.Columns)
+                        {
+                            if (col.Key == "status") { <td><span class="status status-@a.StatusCode.ToLowerInvariant()">@a.StatusName</span></td> }
+                            else { <td class="@(col.Small ? "small" : "")">@(col.Value(a) is { Length: > 0 } v ? v : "—")</td> }
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    </form>
+
+    @if (r.TotalPages > 1)
+    {
+        <nav aria-label="Pages" class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+            <ul class="pagination mb-0">
+                <li class="page-item @(r.HasPrevious ? "" : "disabled")"><a class="page-link" asp-action="Index" asp-all-route-data='Route(d => d["Page"] = S(r.PageNumber - 1))'>Previous</a></li>
+                @for (var p = Math.Max(1, r.PageNumber - 2); p <= Math.Min(r.TotalPages, r.PageNumber + 2); p++)
+                {
+                    var pageNo = p;
+                    <li class="page-item @(p == r.PageNumber ? "active" : "")"><a class="page-link" asp-action="Index" asp-all-route-data='Route(d => d["Page"] = S(pageNo))'>@p</a></li>
+                }
+                <li class="page-item @(r.HasNext ? "" : "disabled")"><a class="page-link" asp-action="Index" asp-all-route-data='Route(d => d["Page"] = S(r.PageNumber + 1))'>Next</a></li>
+            </ul>
+            <form method="get" asp-action="Index" class="d-flex align-items-center gap-2">
+                @foreach (var kv in Route(d => { d["PageSize"] = null; d["Page"] = null; }))
+                {
+                    <input type="hidden" name="@kv.Key" value="@kv.Value" />
+                }
+                <label for="PageSize" class="small text-body-secondary">Rows per page</label>
+                <select id="PageSize" name="PageSize" class="form-select form-select-sm w-auto" data-autosubmit="true">
+                    @foreach (var size in new[] { 10, 25, 50, 100 })
+                    {
+                        <option value="@size" selected="@(size == r.PageSize)">@size</option>
+                    }
+                </select>
+            </form>
+        </nav>
+    }
+}

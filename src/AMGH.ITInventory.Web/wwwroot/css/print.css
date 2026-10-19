@@ -1,0 +1,118 @@
+/* Shared print-page styles: labels and A4 documents. */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+.print-body { font-family: "Segoe UI", Arial, sans-serif; color: #000; background: #E9EEEF; }
+.print-toolbar {
+    position: sticky; top: 0; z-index: 10; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
+    background: #0E3B43; color: #fff; padding: .6rem 1rem; font-size: 14px;
+}
+.print-toolbar a { color: #fff; }
+.print-btn { background: #E8604C; color: #fff; border: 0; border-radius: 4px; padding: .4rem 1.2rem; font-size: 14px; font-weight: 600; cursor: pointer; }
+.print-tip { opacity: .85; font-size: 13px; }
+
+@media print {
+    .print-toolbar { display: none !important; }
+    .print-body { background: #fff; }
+}
+
+/* ---------------------------------------------------------------- labels (size set by labels-*.css) */
+.sheet { display: flex; flex-direction: column; align-items: center; gap: 8mm; padding: 8mm 0; }
+.label {
+    display: flex; align-items: center; overflow: hidden; background: #fff; color: #000;
+    width: var(--label-w); height: var(--label-h); padding: var(--label-pad); gap: var(--label-gap);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+    break-inside: avoid; page-break-inside: avoid;
+}
+.label-qr { flex: 0 0 var(--qr); width: var(--qr); height: var(--qr); }
+.label-qr svg { display: block; width: 100%; height: 100%; }
+.label-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
+.label-org { font-size: var(--org-size); text-transform: uppercase; letter-spacing: .03em; }
+.label-number { font-family: Consolas, "Cascadia Mono", "Courier New", monospace; font-weight: 700; font-size: var(--number-size); margin: .4mm 0; word-break: break-all; }
+.label-name, .label-meta, .label-help {
+    font-size: var(--text-size); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.label-name { font-weight: 600; }
+.label-help { margin-top: .6mm; font-style: italic; }
+
+@media print {
+    .sheet { display: block; padding: 0; gap: 0; }
+    .label { box-shadow: none; page-break-after: always; break-after: page; }
+    .label:last-child { page-break-after: auto; break-after: auto; }
+}
+
+/* ---------------------------------------------------------------- A4 documents */
+.doc { width: 210mm; min-height: 297mm; margin: 8mm auto; background: #fff; padding: 16mm 18mm; font-size: 10.5pt; line-height: 1.45; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); }
+.doc h1 { font-size: 15pt; margin: .2rem 0 0; }
+.doc h2 { font-size: 11pt; margin: 6mm 0 2mm; text-transform: uppercase; letter-spacing: .04em; color: #0E3B43; }
+.doc-head { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 2px solid #0E3B43; padding-bottom: 4mm; }
+.doc-org { margin: 0; font-size: 9pt; color: #444; }
+.doc-ref { text-align: right; font-size: 9pt; margin: 0; white-space: nowrap; }
+.doc-table { width: 100%; border-collapse: collapse; }
+.doc-table th, .doc-table td { border: 1px solid #9AA6A8; padding: 1.8mm 2.5mm; text-align: left; vertical-align: top; }
+.doc-table th { background: #EEF3F3; width: 22%; font-weight: 600; }
+.doc-terms li { margin-bottom: 1.2mm; }
+.doc-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 14mm; margin-top: 18mm; }
+.doc-signatures div { border-top: 1px solid #000; padding-top: 2mm; display: flex; justify-content: space-between; font-size: 9pt; }
+.doc-foot { margin-top: 14mm; font-size: 8pt; color: #555; border-top: 1px solid #ccc; padding-top: 2mm; }
+@media print {
+    .doc { margin: 0; box-shadow: none; width: auto; min-height: 0; padding: 0; }
+}
+
+/* ---------------------------------------------------------------- barcode asset tag (sample design)
+   Rounded black frame, company band (logo, PROPERTY OF, company, contact), Code 128 barcode, large number. */
+.tag {
+    width: var(--label-w); height: var(--label-h); padding: var(--tag-outer); background: #fff; color: #000;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .25); break-inside: avoid; page-break-inside: avoid;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.tag-frame {
+    height: 100%; border: var(--tag-border) solid #000; border-radius: var(--tag-radius); padding: var(--tag-inner);
+    display: flex; flex-direction: column; overflow: hidden;
+}
+.tag-band {
+    flex: 0 0 var(--tag-band-h); display: flex; align-items: center; justify-content: center; gap: var(--tag-gap);
+    background: #084E87; color: #fff; padding: 0 var(--tag-gap);
+}
+.tag-mono .tag-band { background: #000; }
+.tag-logo { height: calc(var(--tag-band-h) - 1.2mm); width: auto; border-radius: .4mm; }
+/* black & white tags use amgh-emblem-mono.png: white calligraphy, no grey (thermal printers cannot print grey) */
+.tag-band-text { text-align: center; line-height: 1.05; min-width: 0; }
+.tag-prop { font-size: var(--tag-prop-size); font-weight: 700; letter-spacing: .06em; }
+.tag-company { font-size: var(--tag-company-size); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag-contact { font-size: var(--tag-contact-size); font-weight: 600; white-space: nowrap; }
+.tag-colour .tag-prop { color: #E4C27A; } /* gold, from the emblem */
+.tag-barcode { flex: 1 1 auto; min-height: 0; padding: var(--tag-gap) 0 0; }
+.tag-barcode svg { display: block; width: 100%; height: 100%; }
+.tag-number {
+    flex: 0 0 auto; text-align: center; font-family: "Arial Black", "Segoe UI", Arial, sans-serif; font-weight: 900;
+    font-size: var(--tag-number-size); line-height: 1.1; letter-spacing: .02em; white-space: nowrap;
+}
+@media print {
+    .tag { box-shadow: none; page-break-after: always; break-after: page; }
+    .tag:last-child { page-break-after: auto; break-after: auto; }
+}
+
+/* uploaded company logos sit on a white tile so they read on any band colour; greyscale on thermal printers */
+.tag-logo-custom { background: #fff; padding: .4mm; }
+.tag-mono .tag-logo-custom { filter: grayscale(1) contrast(1.4); }
+
+/* ---------------------------------------------------------------- reports (print / Save as PDF) */
+.report-doc { background: #fff; margin: 8mm auto; padding: 10mm; max-width: 290mm; font-size: 9pt; color: #111; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); }
+.report-doc-head { display: flex; gap: 5mm; align-items: center; border-bottom: 2px solid #0E3B43; padding-bottom: 3mm; margin-bottom: 3mm; }
+.report-doc-logo { max-height: 16mm; max-width: 40mm; object-fit: contain; }
+.report-doc-company { margin: 0; font-size: 9pt; color: #444; font-weight: 600; }
+.report-doc h1 { margin: .5mm 0; font-size: 15pt; color: #0E3B43; }
+.report-doc-meta, .report-doc-filters { margin: 0 0 1.5mm; font-size: 8pt; color: #333; }
+.report-doc-summary { margin: 0 0 3mm; padding-left: 5mm; font-size: 8.5pt; }
+.report-doc-table { width: 100%; border-collapse: collapse; }
+.report-doc-table th { background: #0E3B43; color: #fff; text-align: left; padding: 1.2mm 1.5mm; font-size: 8pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.report-doc-table td { border-bottom: .3mm solid #D5DEDF; padding: 1mm 1.5mm; vertical-align: top; font-size: 8pt; }
+.report-doc-table .num { text-align: right; white-space: nowrap; }
+.report-doc-table .group-row td { background: #E3EEEF; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.report-doc-table thead { display: table-header-group; }   /* header row repeats on every page */
+.report-doc-table tr { break-inside: avoid; page-break-inside: avoid; }
+.report-doc::after { content: attr(data-confidentiality) " · " attr(data-title); display: block; margin-top: 4mm; font-size: 7.5pt; color: #555; }
+@media print {
+    .report-doc { margin: 0; padding: 0; box-shadow: none; max-width: none; }
+    .report-doc::after { position: fixed; bottom: -9mm; left: 0; margin: 0; }
+}

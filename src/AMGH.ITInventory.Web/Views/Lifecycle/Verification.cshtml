@@ -1,0 +1,75 @@
+@model VerificationViewModel
+@using AMGH.ITInventory.Domain.Enums
+@{ ViewData["Title"] = "Physical verification"; var t = Model.Target; var p = Model.Progress; string? S(int? v) => v?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+   var pct = p.ActiveAssets == 0 ? 0 : (int)Math.Round(100.0 * p.Checked / p.ActiveAssets); }
+<div class="page-head">
+    <div><h1 class="page-title">Physical verification</h1>
+        <p class="text-body-secondary mb-0">Scan each asset's label with a barcode scanner or the camera, check it, and record the result.</p></div>
+    <a class="btn btn-outline-secondary" asp-action="Exceptions"><i class="bi bi-exclamation-diamond" aria-hidden="true"></i> Exceptions</a>
+</div>
+<form method="get" class="panel scan-panel" id="scanForm" autocomplete="off">
+    <div class="row g-2 align-items-end">
+        <div class="col-sm-3"><label class="form-label small" for="cycle">Cycle</label><input class="form-control" id="cycle" name="cycle" value="@Model.Cycle" maxlength="20" /></div>
+        <div class="col-sm-6"><label class="form-label small" for="scan">Scan or type the asset number</label>
+            <input class="form-control form-control-lg" id="scan" name="scan" value="" placeholder="AMGH-IT-LAP-00001" autofocus /></div>
+        <div class="col-sm-3 d-flex gap-2">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-search" aria-hidden="true"></i> Find</button>
+            <button class="btn btn-outline-primary" type="button" id="cameraBtn" hidden><i class="bi bi-camera" aria-hidden="true"></i> Camera</button>
+        </div>
+    </div>
+    <input type="hidden" name="camera" id="cameraFlag" value="false" />
+    <video id="cameraView" class="camera-view" playsinline muted hidden></video>
+    <p class="small text-body-secondary mb-0 mt-1" id="cameraHint" hidden>Point the camera at the QR code or barcode.</p>
+</form>
+
+@if (Model.NotFound) { <div class="alert alert-warning">No asset found for "@Model.Scan" in this company.</div> }
+@if (t is not null)
+{
+    <section class="panel verify-card">
+        <div class="d-flex flex-wrap justify-content-between gap-2">
+            <div>
+                <p class="asset-number mb-0"><a asp-controller="Assets" asp-action="Details" asp-route-id="@t.AssetId">@t.AssetNumber</a></p>
+                <p class="fw-semibold mb-1">@t.AssetName <span class="badge text-bg-light">@t.Status</span></p>
+                <p class="mb-0 small">Expected at: <strong>@(t.ExpectedLocation ?? "no location recorded")</strong> · Custodian: <strong>@(t.Custodian ?? "none")</strong></p>
+                @if (t.LastResultInCycle is not null) { <p class="small text-warning-emphasis mb-0">Already checked in this cycle: @t.LastResultInCycle. Recording again replaces it; the earlier result stays in the asset's history.</p> }
+            </div>
+        </div>
+        @if (Model.CanPerform)
+        {
+            <form asp-action="Record" asp-route-assetId="@t.AssetId" method="post" class="mt-3">
+                <input type="hidden" name="Cycle" value="@Model.Cycle" />
+                <input type="hidden" name="ScanMethod" value="@Model.ScanMethod" />
+                <button class="btn btn-lg btn-success me-2 mb-2" type="submit" name="Result" value="@AuditResult.Verified"><i class="bi bi-check2-circle" aria-hidden="true"></i> Verified as expected</button>
+                <details class="mt-2"><summary class="small">Something is different…</summary>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-4"><label class="form-label small" for="Result">Finding</label>
+                            <select class="form-select form-select-sm" id="Result" name="ResultOther">
+                                @foreach (var r in Enum.GetValues<AuditResult>().Where(r => r != AuditResult.Verified)) { <option value="@r">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(r.ToString())</option> }
+                            </select></div>
+                        <partial name="_SelectField" model='new SelectFieldModel("FoundLocationId", "Found at location", Model.Locations, S(t.ExpectedLocationId), CssClass: "col-md-4")' />
+                        <partial name="_SelectField" model='new SelectFieldModel("FoundEmployeeId", "Found with", Model.Employees, S(t.CustodianId), CssClass: "col-md-4")' />
+                        <div class="col-12"><label class="form-label small" for="Remarks">What was found *</label><textarea class="form-control form-control-sm" id="Remarks" name="Remarks" rows="2" maxlength="1000"></textarea></div>
+                        <div class="col-12"><button class="btn btn-sm btn-warning" type="submit" data-submit-other="true">Record finding</button>
+                            <span class="small text-body-secondary ms-2">"Missing" sets the asset's status to Missing.</span></div>
+                    </div>
+                </details>
+            </form>
+        }
+    </section>
+}
+
+<section class="panel">
+    <h2 class="panel-title">Cycle @p.Cycle</h2>
+    <div class="progress mb-2" role="progressbar" aria-label="Verification progress" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" data-width="@pct"></div></div>
+    <p class="small mb-2"><strong>@p.Checked</strong> of @p.ActiveAssets assets checked (@pct%) · <span class="text-success">@p.Verified verified</span> · <span class="text-danger">@p.Exceptions with findings</span></p>
+    @if (p.NotYetChecked.Count > 0)
+    {
+        <details><summary class="small">Not yet checked (@(p.ActiveAssets - p.Checked)) — first @p.NotYetChecked.Count by location</summary>
+            <div class="table-responsive mt-2"><table class="table table-sm mb-0">
+                <thead><tr><th>Asset</th><th>Expected at</th><th>Custodian</th><th>Due</th></tr></thead>
+                <tbody>@foreach (var n in p.NotYetChecked) { <tr><td><a asp-action="Index" asp-route-cycle="@p.Cycle" asp-route-scan="@n.AssetNumber">@n.AssetNumber</a> <span class="small text-body-secondary">@n.AssetName</span></td><td class="small">@n.ExpectedLocation</td><td class="small">@n.Custodian</td><td class="small">@Time.Date(n.NextDue)</td></tr> }</tbody>
+            </table></div>
+        </details>
+    }
+</section>
+@section Scripts { <script src="~/js/verification.js" asp-append-version="true"></script> }

@@ -1,0 +1,5 @@
+@model LicenseKeyViewModel
+@{ ViewData["Title"] = "Licence key"; }
+<div class="page-head"><h1 class="page-title">@Model.License.SoftwareName — licence key</h1><a class="btn btn-link" asp-action="Details" asp-route-licenseId="@Model.License.SoftwareLicenseId">Done</a></div>
+<div class="alert alert-warning">This reveal has been recorded with your name and the time. Do not share the key by e-mail or chat.</div>
+<div class="input-group mb-3"><input class="form-control font-monospace" id="licenceKey" value="@Model.Key" readonly /><button class="btn btn-outline-secondary" type="button" data-copy-target="licenceKey">Copy</button></div>

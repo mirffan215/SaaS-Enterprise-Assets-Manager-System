@@ -1,0 +1,22 @@
+@model IReadOnlyList<AMGH.ITInventory.Security.Accounts.UserAccessSummary>
+@{ ViewData["Title"] = "Users and company access"; }
+<div class="page-head">
+    <div><h1 class="page-title">Users and company access</h1><p class="text-body-secondary mb-0">Everyone, in every company. Choose a person to give or change access per company.</p></div>
+    <a class="btn btn-outline-secondary" asp-action="Review"><i class="bi bi-clipboard-check" aria-hidden="true"></i> Access review</a>
+</div>
+<form method="get" class="filter-bar d-flex gap-2"><input class="form-control" name="q" value="@ViewData["Query"]" placeholder="Name, user name or e-mail" aria-label="Search" /><button class="btn btn-primary" type="submit">Search</button></form>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead><tr><th>User</th><th>Name</th><th>E-mail</th><th>Companies</th><th>Last sign-in</th><th>Status</th></tr></thead>
+        <tbody>
+            @foreach (var u in Model)
+            {
+                <tr><td><a class="fw-semibold" asp-action="Access" asp-route-id="@u.UserId">@u.Username</a>@if (u.IsPlatformAdmin) { <span class="badge text-bg-dark ms-1">platform admin</span> }</td>
+                    <td>@u.DisplayName</td><td class="small">@u.Email</td><td class="small">@u.Companies</td><td class="small">@Time.Format(u.LastLoginUtc)</td>
+                    <td><span class="badge @(u.IsActive ? "text-bg-success" : "text-bg-secondary")">@(u.IsActive ? "Active" : "Disabled")</span></td></tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="6" class="text-center text-body-secondary py-4">Nobody found.</td></tr> }
+        </tbody>
+    </table>
+</div>
+<p class="small text-body-secondary mt-2">New people are created inside a company (Users and roles); here they can be given access to more companies.</p>

@@ -1,0 +1,21 @@
+@model WarrantyFormViewModel
+@using AMGH.ITInventory.Domain.Enums
+@{ ViewData["Title"] = Model.WarrantyId is null ? "Add warranty" : "Edit warranty"; var f = Model.Form; string D(DateOnly? v) => v?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? ""; string? S(int? v) => v?.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+<div class="page-head"><h1 class="page-title">@ViewData["Title"]</h1><a class="btn btn-link" asp-controller="Assets" asp-action="Details" asp-route-id="@Model.Asset.AssetId" asp-route-tab="lifecycle">Cancel</a></div>
+<partial name="_AssetHeader" model="Model.Asset" />
+<form method="post" class="panel" novalidate>
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <div class="row g-3">
+        <div class="col-md-4"><label class="form-label" for="Form_WarrantyType">Type</label>
+            <select class="form-select" id="Form_WarrantyType" name="Form.WarrantyType">@foreach (var t in Enum.GetValues<WarrantyType>()) { <option value="@t" selected="@(t == f.WarrantyType)">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(t.ToString())</option> }</select></div>
+        <partial name="_SelectField" model='new SelectFieldModel("Form.ProviderVendorId", "Provider", Model.Vendors, S(f.ProviderVendorId), CssClass: "col-md-4")' />
+        <div class="col-md-4"><label class="form-label" for="Form_ContractNumber">Contract / service tag</label><input class="form-control" id="Form_ContractNumber" name="Form.ContractNumber" value="@f.ContractNumber" maxlength="100" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_StartDate">Start *</label><input class="form-control" type="date" id="Form_StartDate" name="Form.StartDate" value="@D(f.StartDate)" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_EndDate">End *</label><input class="form-control" type="date" id="Form_EndDate" name="Form.EndDate" value="@D(f.EndDate)" /></div>
+        <div class="col-md-6"><label class="form-label" for="Form_SupportLevel">Coverage</label><input class="form-control" id="Form_SupportLevel" name="Form.SupportLevel" value="@f.SupportLevel" maxlength="100" placeholder="e.g. Next business day on-site, parts and labour" /></div>
+        <div class="col-md-3"><label class="form-label" for="Form_Cost">Cost</label><input class="form-control" type="number" min="0" step="0.01" id="Form_Cost" name="Form.Cost" value="@f.Cost" /></div>
+        <partial name="_SelectField" model='new SelectFieldModel("Form.CurrencyId", "Currency", Model.Currencies, S(f.CurrencyId), CssClass: "col-md-3")' />
+        <div class="col-12"><label class="form-label" for="Form_Terms">Terms / notes</label><textarea class="form-control" id="Form_Terms" name="Form.Terms" rows="2" maxlength="2000">@f.Terms</textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save warranty</button></div>
+</form>

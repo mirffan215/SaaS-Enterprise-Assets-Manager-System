@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CA1716/CA1711: names fixed by the solution spec (Shared, Permission); CA1000: Result<T> factory pattern --><NoWarn>$(NoWarn);CS1591;CA1716;CA1711;CA1000</NoWarn>
+    <Company>AMGH</Company>
+    <Product>AMGH Inventory Management System</Product>
+    <Version>1.0.0</Version>
+    <Copyright>Copyright © AMGH</Copyright>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,85 @@
+@model MasterDataFormViewModel
+@using AMGH.ITInventory.Application.MasterData
+@{
+    ViewData["Title"] = (Model.IsEdit ? "Edit " : "Add ") + Model.Type.SingularTitle.ToLowerInvariant();
+    var listUrl = Url.Action("List", new { type = Model.Type.Key });
+    string Err(string name) => ViewData.ModelState.TryGetValue(name, out var e) ? string.Join(" ", e.Errors.Select(x => x.ErrorMessage)) : string.Empty;
+}
+<div class="page-head">
+    <div>
+        <a class="small" href="@listUrl">@Model.Type.Title</a>
+        <h1 class="page-title">@ViewData["Title"]</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <form method="post" class="panel" novalidate>
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+            <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+            <div class="row g-3">
+                @foreach (var f in Model.Fields)
+                {
+                    var id = "f_" + f.Name;
+                    var value = Model.Value(f.Name);
+                    var error = Err(f.Name);
+                    var invalid = error.Length > 0 ? "is-invalid" : "";
+                    var locked = Model.IsEdit && f.LockedOnEdit;
+                    var wide = f.Kind == FieldKind.TextArea ? "col-12" : "col-md-6";
+                    if (f.Kind == FieldKind.Boolean)
+                    {
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="@id" name="@f.Name" value="true" checked="@(value == "true")" />
+                                <label class="form-check-label" for="@id">@f.Label</label>
+                            </div>
+                            @if (f.Help is not null) { <div class="form-text">@f.Help</div> }
+                        </div>
+                        continue;
+                    }
+                    <div class="@wide">
+                        <label class="form-label" for="@id">@f.Label@(f.Required ? " *" : "")</label>
+                        @switch (f.Kind)
+                        {
+                            case FieldKind.TextArea:
+                                <textarea class="form-control @invalid" id="@id" name="@f.Name" rows="3" maxlength="@(f.MaxLength > 0 ? f.MaxLength : (int?)null)">@value</textarea>
+                                break;
+                            case FieldKind.Select:
+                            case FieldKind.EnumSelect:
+                                var opts = Model.Options.TryGetValue(f.Name, out var o) ? o : Array.Empty<AMGH.ITInventory.Application.Common.LookupOption>();
+                                <select class="form-select @invalid" id="@id" name="@f.Name" disabled="@locked">
+                                    <option value="">— Select —</option>
+                                    @foreach (var opt in opts)
+                                    {
+                                        var optValue = f.Kind == FieldKind.EnumSelect ? opt.Code : opt.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                                        <option value="@optValue" selected="@(optValue == value)">@opt.Text</option>
+                                    }
+                                </select>
+                                break;
+                            default:
+                                var type = f.Kind switch { FieldKind.Email => "email", FieldKind.Url => "url", FieldKind.WholeNumber => "number", FieldKind.Date => "date", _ => "text" };
+                                <input class="form-control @invalid" id="@id" name="@f.Name" type="@type" value="@value" readonly="@locked"
+                                       maxlength="@(f.MaxLength > 0 ? f.MaxLength : (int?)null)" step="@(type == "number" ? "1" : null)" />
+                                break;
+                        }
+                        @if (f.Help is not null) { <div class="form-text">@f.Help</div> }
+                        @if (error.Length > 0) { <div class="invalid-feedback d-block">@error</div> }
+                    </div>
+                }
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">@(Model.IsEdit ? "Save changes" : "Add")</button>
+                <a class="btn btn-link" href="@listUrl">Cancel</a>
+            </div>
+        </form>
+
+        @if (Model.IsEdit)
+        {
+            <form method="post" action="@Url.Action("Delete", new { type = Model.Type.Key, id = Model.Id })" class="mt-2"
+                  data-confirm="Delete this @Model.Type.SingularTitle.ToLowerInvariant()? Records that are in use cannot be deleted; mark them inactive instead.">
+                <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
+                <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+            </form>
+        }
+    </div>
+</div>

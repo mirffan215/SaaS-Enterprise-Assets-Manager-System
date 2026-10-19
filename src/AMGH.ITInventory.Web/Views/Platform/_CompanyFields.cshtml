@@ -1,0 +1,261 @@
+@model CompanyFieldsModel
+@{
+    var p = Model.Prefix;
+    var d = Model.Details;
+    string Id(string n) => (p + n).Replace(".", "_");
+    string Name(string n) => p + n;
+    string? Err(string n) => ViewData.ModelState.TryGetValue(p + n, out var e) && e.Errors.Count > 0 ? e.Errors[0].ErrorMessage : null;
+    string Cls(string n) => Err(n) is null ? "form-control" : "form-control is-invalid";
+}
+@if (Model.Section == "details")
+{
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("CompanyCode")">Company code *</label>
+            @if (Model.IsNew)
+            {
+                <input class="@Cls("CompanyCode")" id="@Id("CompanyCode")" name="@Name("CompanyCode")" value="@d.CompanyCode" maxlength="10" required
+                       data-uppercase="true" data-review="Company code" autocomplete="off" />
+                <div class="form-text">2-10 capitals or digits, e.g. XYZ. Used in sign-in links (/w/XYZ); cannot change later.</div>
+            }
+            else
+            {
+                <input class="form-control" id="@Id("CompanyCode")" value="@d.CompanyCode" readonly />
+            }
+            <div class="invalid-feedback">@Err("CompanyCode")</div>
+        </div>
+        <div class="col-md-8">
+            <label class="form-label" for="@Id("LegalName")">Legal name *</label>
+            <input class="@Cls("LegalName")" id="@Id("LegalName")" name="@Name("LegalName")" value="@d.LegalName" maxlength="200" required data-review="Legal name" />
+            <div class="invalid-feedback">@Err("LegalName")</div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="@Id("DisplayName")">Display name *</label>
+            <input class="@Cls("DisplayName")" id="@Id("DisplayName")" name="@Name("DisplayName")" value="@d.DisplayName" maxlength="100" required data-review="Display name" />
+            <div class="form-text">Shown on the company picker, the header and asset tags.</div>
+        <div class="col-md-6">
+            <label class="form-label" for="@Id("NameArabic")">Company name (Arabic)</label>
+            <input class="@Cls("NameArabic")" id="@Id("NameArabic")" name="@Name("NameArabic")" value="@d.NameArabic" maxlength="200" dir="rtl" lang="ar" />
+            @if (Err("NameArabic") is { } ea) { <div class="invalid-feedback">@ea</div> }
+        </div>
+            <div class="invalid-feedback">@Err("DisplayName")</div>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="@Id("RegistrationNo")">Registration no. (CR)</label>
+            <input class="form-control" id="@Id("RegistrationNo")" name="@Name("RegistrationNo")" value="@d.RegistrationNo" maxlength="50" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="@Id("VatNumber")">Tax / VAT number</label>
+            <input class="@Cls("VatNumber")" id="@Id("VatNumber")" name="@Name("VatNumber")" value="@d.VatNumber" maxlength="30" inputmode="numeric" />
+            @if (Err("VatNumber") is { } ev) { <div class="invalid-feedback">@ev</div> }
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="@Id("Industry")">Industry</label>
+            <input class="form-control" id="@Id("Industry")" name="@Name("Industry")" value="@d.Industry" maxlength="100" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="@Id("CompanyType")">Company type</label>
+            <select class="form-select" id="@Id("CompanyType")" name="@Name("CompanyType")"><option value="">—</option>
+                @foreach (var t in AMGH.ITInventory.Security.Platform.CompanyDetailsForm.CompanyTypes) { <option value="@t" selected="@(t == d.CompanyType)">@t</option> }</select>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="@Id("ParentCompanyId")">Parent company</label>
+            <select class="@(Err("ParentCompanyId") is null ? "form-select" : "form-select is-invalid")" id="@Id("ParentCompanyId")" name="@Name("ParentCompanyId")"><option value="">— none (top level) —</option>
+                @foreach (var c in Model.Companies ?? Array.Empty<(int Id, string Name)>()) { <option value="@c.Id" selected="@(c.Id == d.ParentCompanyId)">@c.Name</option> }</select>
+            @if (Err("ParentCompanyId") is { } ep) { <div class="invalid-feedback">@ep</div> }
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("Email")">Company e-mail</label>
+            <input class="@Cls("Email")" id="@Id("Email")" name="@Name("Email")" value="@d.Email" type="email" maxlength="256" />
+            <div class="invalid-feedback">@Err("Email")</div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("Phone")">Contact number</label>
+            <input class="@Cls("Phone")" id="@Id("Phone")" name="@Name("Phone")" value="@d.Phone" maxlength="30" data-review="Contact number" />
+            <div class="form-text">Printed on asset tags.</div>
+            <div class="invalid-feedback">@Err("Phone")</div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("Website")">Website</label>
+            <input class="@Cls("Website")" id="@Id("Website")" name="@Name("Website")" value="@d.Website" maxlength="250" placeholder="https://" />
+            <div class="invalid-feedback">@Err("Website")</div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("Country")">Country</label>
+            <input class="form-control" id="@Id("Country")" name="@Name("Country")" value="@d.Country" maxlength="100" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="@Id("Region")">Region</label>
+            <input class="form-control" id="@Id("Region")" name="@Name("Region")" value="@d.Region" maxlength="100" placeholder="e.g. Makkah Region" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("City")">City</label>
+            <input class="form-control" id="@Id("City")" name="@Name("City")" value="@d.City" maxlength="100" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("AddressLine")">Address</label>
+            <input class="form-control" id="@Id("AddressLine")" name="@Name("AddressLine")" value="@d.AddressLine" maxlength="500" />
+        </div>
+    </div>
+}
+else if (Model.Section == "branding")
+{
+    <div class="row g-3">
+        <div class="col-lg-7">
+            <label class="form-label" for="logo">Logo (PNG or JPEG, up to 512 KB)</label>
+            <input class="form-control @(ViewData.ModelState.TryGetValue("Logo", out var le) && le.Errors.Count > 0 ? "is-invalid" : "")" type="file" id="logo" name="logo" accept="image/png,image/jpeg" />
+            <div class="invalid-feedback">@(ViewData.ModelState.TryGetValue("Logo", out var le2) && le2.Errors.Count > 0 ? le2.Errors[0].ErrorMessage : null)</div>
+        <div class="col-12">
+            <label class="form-label" for="@Id("LogoUrl")">…or load the logo from an address</label>
+            <input class="@Cls("LogoUrl")" type="url" id="@Id("LogoUrl")" name="@Name("LogoUrl")" value="@d.LogoUrl" maxlength="500" placeholder="https://www.example.com/logo.png" />
+            <div class="form-text">PNG or JPEG over https, at most 512 KB. It is downloaded once and stored with the company (pages never load it from the other site).@if (!string.IsNullOrEmpty(d.LogoSourceUrl)) { <span> Current logo came from @d.LogoSourceUrl.</span> }</div>
+            @if (Err("LogoUrl") is { } eu) { <div class="invalid-feedback">@eu</div> }
+        </div>
+            @if (!Model.IsNew)
+            {
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="@Id("RemoveLogo")" name="@Name("RemoveLogo")" value="true" />
+                    <label class="form-check-label" for="@Id("RemoveLogo")">Remove the current logo</label>
+                </div>
+            }
+            <div class="row g-3 mt-1">
+                @foreach (var (field, label, value, help) in new[]
+                {
+                    ("HeaderColor", "Secondary colour", d.HeaderColor, "Header and sign-in background"),
+                    ("PrimaryColor", "Primary colour", d.PrimaryColor, "Buttons and links"),
+                    ("AccentColor", "Accent colour", d.AccentColor, "Highlights")
+                })
+                {
+                    <div class="col-sm-4">
+                        <label class="form-label" for="@Id(field)">@label</label>
+                        <div class="colour-field">
+                            <input type="color" value="@value" aria-label="@label picker" data-colour-for="@Id(field)" />
+                            <input class="@Cls(field)" id="@Id(field)" name="@Name(field)" value="@value" maxlength="7" data-colour-role="@field" />
+                        </div>
+                        <div class="form-text">@help</div>
+                        <div class="invalid-feedback d-block">@Err(field)</div>
+                    </div>
+                }
+            </div>
+            <div class="mt-3">
+                <label class="form-label" for="@Id("LoginTagline")">Sign-in page notice</label>
+                <input class="@Cls("LoginTagline")" id="@Id("LoginTagline")" name="@Name("LoginTagline")" value="@d.LoginTagline" maxlength="150"
+                       placeholder="For authorised users only. Sign-ins and changes are logged." />
+                <div class="invalid-feedback">@Err("LoginTagline")</div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <span class="form-label d-block">Preview</span>
+            <div class="brand-preview" aria-hidden="true">
+                <div class="brand-preview-bar" data-preview="HeaderColor">Company · EAMS</div>
+                <div class="brand-preview-body">
+                    <span class="brand-preview-btn" data-preview="PrimaryColor">Add an asset</span>
+                    <span class="brand-preview-accent" data-preview="AccentColor"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (Model.Section == "config")
+{
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("DateFormat")">Date format</label>
+            <select class="form-select" id="@Id("DateFormat")" name="@Name("DateFormat")">
+                @foreach (var f in AMGH.ITInventory.Security.Platform.CompanyDetailsForm.DateFormats) { <option value="@f" selected="@(f == d.DateFormat)">@f (@(new DateTime(2026, 10, 15).ToString(f, System.Globalization.CultureInfo.InvariantCulture)))</option> }
+            </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="@Id("NotificationsEnabled")" name="@Name("NotificationsEnabled")" value="true" checked="@d.NotificationsEnabled" />
+                <label class="form-check-label" for="@Id("NotificationsEnabled")">Notifications enabled</label></div>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="@Id("AssetAuditEnabled")" name="@Name("AssetAuditEnabled")" value="true" checked="@d.AssetAuditEnabled" />
+                <label class="form-check-label" for="@Id("AssetAuditEnabled")">Asset audit (physical verification) enabled</label></div>
+        </div>
+        <input type="hidden" name="@Name("NotificationsEnabled")" value="false" />
+        <input type="hidden" name="@Name("AssetAuditEnabled")" value="false" />
+        @{
+            var docCode = string.IsNullOrEmpty(d.CompanyCode) ? "XYZ" : d.CompanyCode;
+            var docSample = AMGH.ITInventory.Application.Documents.DocumentNumberFormat.Format(
+                new AMGH.ITInventory.Application.Documents.NumberingSettings(docCode, d.DocNumberingMode, d.FiscalYearStartMonth, d.DocYearFormat, d.DocNumberDigits),
+                "MOV", AMGH.ITInventory.Application.Documents.DocumentNumberFormat.Period(
+                    new AMGH.ITInventory.Application.Documents.NumberingSettings(docCode, d.DocNumberingMode, d.FiscalYearStartMonth, d.DocYearFormat, d.DocNumberDigits),
+                    DateOnly.FromDateTime(DateTime.UtcNow)), 123);
+        }
+        <fieldset class="col-12 doc-numbering" data-doc-numbering="true" data-company-code="@docCode">
+            <legend class="h6 mt-2 mb-1">Document numbering</legend>
+            <p class="small text-body-secondary mb-2">Numbers given to movements, maintenance jobs, disposals, assignments, verifications and warranties. Use <strong>Yearly</strong> to match an ERP that numbers documents per fiscal year (as SAP does). Changing this affects new documents only; numbers already issued never change.</p>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label" for="@Id("DocNumberingMode")">Numbering</label>
+                    <select class="form-select" id="@Id("DocNumberingMode")" name="@Name("DocNumberingMode")" data-doc="mode">
+                        <option value="Continuous" selected="@(d.DocNumberingMode == "Continuous")">Continuous</option>
+                        <option value="Yearly" selected="@(d.DocNumberingMode == "Yearly")">Yearly (restarts each fiscal year)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="@Id("FiscalYearStartMonth")">Fiscal year starts</label>
+                    <select class="form-select" id="@Id("FiscalYearStartMonth")" name="@Name("FiscalYearStartMonth")" data-doc="start">
+                        @for (var m = 1; m <= 12; m++) { <option value="@m" selected="@(m == d.FiscalYearStartMonth)">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option> }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="@Id("DocYearFormat")">Year shown as</label>
+                    <select class="form-select" id="@Id("DocYearFormat")" name="@Name("DocYearFormat")" data-doc="year">
+                        <option value="Year" selected="@(d.DocYearFormat == "Year")">2026</option>
+                        <option value="FY" selected="@(d.DocYearFormat == "FY")">FY26</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="@Id("DocNumberDigits")">Digits</label>
+                    <select class="form-select" id="@Id("DocNumberDigits")" name="@Name("DocNumberDigits")" data-doc="digits">
+                        @for (var n = 5; n <= 8; n++) { <option value="@n" selected="@(n == d.DocNumberDigits)">@n</option> }
+                    </select>
+                </div>
+                <div class="col-12 small">Example for a movement created today: <strong class="font-monospace" data-doc="sample">@docSample</strong>
+                    <span class="text-body-secondary">(with a fiscal year starting in a month other than January, the year shown is the year the fiscal year ends in)</span></div>
+            </div>
+        </fieldset>
+        <div class="col-12 small text-body-secondary">Asset approval workflow: set the approval stages for movements and disposals under Administration → Approval stages (in the company). Asset categories and numbering: Administration → Asset categories.</div>
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("AssetNumberPrefix")">Asset number prefix *</label>
+            @if (Model.IsNew)
+            {
+                <input class="@Cls("AssetNumberPrefix")" id="@Id("AssetNumberPrefix")" name="@Name("AssetNumberPrefix")" value="@d.AssetNumberPrefix" maxlength="20"
+                       required data-uppercase="true" data-review="Asset number prefix" placeholder="XYZ-IT" />
+                <div class="form-text">Asset numbers look like <strong>PREFIX-LAP-00001</strong>. Cannot change later (it is printed on tags).</div>
+            }
+            else
+            {
+                <input class="form-control" id="@Id("AssetNumberPrefix")" value="@d.AssetNumberPrefix" readonly />
+            }
+            <div class="invalid-feedback">@Err("AssetNumberPrefix")</div>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("BaseCurrencyId")">Default currency</label>
+            <select class="form-select" id="@Id("BaseCurrencyId")" name="@Name("BaseCurrencyId")">
+                <option value="">(not set)</option>
+                @foreach (var c in Model.Currencies)
+                {
+                    <option value="@c.Id" selected="@(c.Id == d.BaseCurrencyId)">@c.Text</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="@Id("TimeZone")">Time zone</label>
+            <select class="@(Err("TimeZone") is null ? "form-select" : "form-select is-invalid")" id="@Id("TimeZone")" name="@Name("TimeZone")">
+                @foreach (var (zid, zname) in Model.TimeZones)
+                {
+                    <option value="@zid" selected="@(zid == d.TimeZone)">@zname</option>
+                }
+            </select>
+            <div class="invalid-feedback">@Err("TimeZone")</div>
+        </div>
+        <input type="hidden" name="@Name("LanguageCode")" value="@d.LanguageCode" />
+        @if (!Model.IsNew)
+        {
+            <input type="hidden" name="@Name("RowVersion")" value="@d.RowVersion" />
+        }
+    </div>
+}

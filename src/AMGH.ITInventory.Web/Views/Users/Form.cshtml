@@ -1,0 +1,120 @@
+@model UserFormViewModel
+@inject IDisplayTime Time
+@{
+    ViewData["Title"] = Model.IsEdit ? $"Edit {Model.Username}" : "Add a user";
+}
+<div class="page-head">
+    <h1 class="page-title">@ViewData["Title"]</h1>
+    <a class="btn btn-link" asp-action="Index">Back to users</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <form asp-action="@(Model.IsEdit ? "Edit" : "Create")" asp-route-id="@(Model.IsEdit ? Model.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)" method="post" class="panel" novalidate>
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+            <input type="hidden" asp-for="RowVersion" />
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="Username" class="form-label"></label>
+                    @if (Model.IsEdit)
+                    {
+                        <input asp-for="Username" class="form-control" readonly />
+                        <div class="form-text">Usernames can't be changed.</div>
+                    }
+                    else
+                    {
+                        <input asp-for="Username" class="form-control" autocomplete="off" />
+                        <div class="form-text">For example j.smith. Letters, digits, '.', '_' or '-'.</div>
+                    }
+                    <span asp-validation-for="Username" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="DisplayName" class="form-label"></label>
+                    <input asp-for="DisplayName" class="form-control" />
+                    <span asp-validation-for="DisplayName" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Email" class="form-label"></label>
+                    <input asp-for="Email" class="form-control" type="email" />
+                    <span asp-validation-for="Email" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="EmployeeId" class="form-label"></label>
+                    <input asp-for="EmployeeId" class="form-control" />
+                    <div class="form-text">Optional. Links the account to an employee record.</div>
+                    <span asp-validation-for="EmployeeId" class="invalid-feedback d-block"></span>
+                </div>
+            </div>
+
+            <fieldset class="mt-4">
+                <legend class="h6">Roles</legend>
+                <span asp-validation-for="RoleIds" class="invalid-feedback d-block"></span>
+                @foreach (var role in Model.AvailableRoles)
+                {
+                    var id = $"role{role.RoleId}";
+                    <div class="form-check role-option">
+                        <input class="form-check-input" type="checkbox" name="RoleIds" value="@role.RoleId" id="@id"
+                               checked="@(Model.RoleIds.Contains(role.RoleId))" />
+                        <label class="form-check-label" for="@id">
+                            <span class="fw-semibold">@role.RoleName</span>
+                            <span class="d-block small text-body-secondary">@role.Description</span>
+                        </label>
+                    </div>
+                }
+            </fieldset>
+
+            @if (Model.IsEdit)
+            {
+                <div class="form-check form-switch mt-4">
+                    <input asp-for="IsActive" class="form-check-input" role="switch" />
+                    <label asp-for="IsActive" class="form-check-label"></label>
+                    <div class="form-text">Disabling signs the person out within a few minutes and blocks future sign-ins.</div>
+                </div>
+            }
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">@(Model.IsEdit ? "Save changes" : "Create user")</button>
+                <a class="btn btn-link" asp-action="Index">Cancel</a>
+            </div>
+            @if (!Model.IsEdit)
+            {
+                <p class="form-text mt-3 mb-0">A temporary password is generated and shown once. The person must change it at first sign-in.</p>
+            }
+        </form>
+    </div>
+
+    @if (Model.IsEdit)
+    {
+        <div class="col-lg-4">
+            <section class="panel">
+                <h2 class="panel-title">Account</h2>
+                <dl class="facts">
+                    <dt>Status</dt>
+                    <dd>
+                        @if (!Model.IsActive) { <span class="badge text-bg-secondary">Disabled</span> }
+                        else if (Model.IsLockedOut) { <span class="badge text-bg-danger">Locked until @Time.Format(Model.LockoutEndUtc, "HH:mm")</span> }
+                        else { <span class="badge text-bg-success">Active</span> }
+                    </dd>
+                    <dt>Last sign-in</dt><dd>@Time.Format(Model.LastLoginDateUtc) @(Model.LastLoginIp is null ? "" : $"from {Model.LastLoginIp}")</dd>
+                    <dt>Created</dt><dd>@Time.Format(Model.CreatedDateUtc) by @Model.CreatedBy</dd>
+                </dl>
+
+                @if (Model.IsLockedOut)
+                {
+                    <form asp-action="Unlock" asp-route-id="@Model.UserId" method="post" class="mb-2">
+                        <button type="submit" class="btn btn-outline-primary w-100">Unlock account</button>
+                    </form>
+                }
+                <form asp-action="ResetPassword" asp-route-id="@Model.UserId" method="post"
+                      data-confirm="Reset the password for @Model.Username? Their current password stops working and they are signed out.">
+                    <button type="submit" class="btn btn-outline-danger w-100">Reset password</button>
+                </form>
+            </section>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

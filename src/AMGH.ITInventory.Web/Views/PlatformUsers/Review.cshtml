@@ -1,0 +1,19 @@
+@model IReadOnlyList<AMGH.ITInventory.Security.Accounts.AccessReviewRow>
+@{ ViewData["Title"] = "Access review"; }
+<div class="page-head">
+    <div><h1 class="page-title">Access review</h1><p class="text-body-secondary mb-0">Who can access which company with which roles. Review it periodically with each company's owner (ISO 27001 A.5.18).</p></div>
+    <a class="btn btn-outline-primary" asp-action="Review" asp-route-format="csv"><i class="bi bi-filetype-csv" aria-hidden="true"></i> Export CSV</a>
+</div>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Company</th><th>User</th><th>Name</th><th>Roles</th><th>Access</th><th>Default</th><th>Last sign-in</th></tr></thead>
+        <tbody>
+            @foreach (var r in Model)
+            {
+                <tr class="@(!r.UserActive || !r.MembershipActive ? "text-body-secondary" : "")">
+                    <td>@r.CompanyCode</td><td>@r.Username @if (r.IsPlatformAdmin) { <span class="badge text-bg-dark">platform</span> }</td><td>@r.DisplayName</td><td class="small">@r.Roles</td>
+                    <td>@(!r.UserActive ? "Account disabled" : r.MembershipActive ? "Active" : "Suspended")</td><td>@(r.IsDefault ? "Yes" : "")</td><td class="small">@Time.Format(r.LastLoginUtc)</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

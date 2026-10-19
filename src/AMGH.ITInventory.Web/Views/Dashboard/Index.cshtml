@@ -1,0 +1,126 @@
+@model DashboardViewModel
+@using System.Text.Json
+@using AMGH.ITInventory.Application.Common
+@{
+    ViewData["Title"] = "Dashboard";
+    var f = Model.Filter;
+    var d = Model.Data;
+    string? D(DateOnly? v) => v?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var assetsUrl = Url.Action("Index", "Assets");
+    var chartJson = JsonSerializer.Serialize(new
+    {
+        assetsUrl,
+        charts = d.Charts.Select(c => new { c.Key, c.Title, c.Kind, c.Labels, c.Values, c.Colors, c.SecondValues, c.SecondLabel, c.DrillQueries })
+    }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+}
+<div class="page-head dashboard-head">
+    <div>
+        <h1 class="page-title">Executive dashboard</h1>
+        <p class="text-body-secondary mb-0">@User.GetCompanyName() · live data, generated @Time.Format(d.GeneratedUtc) (@Time.ZoneLabel)</p>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <a class="btn btn-outline-secondary" href="@(Context.Request.Path + Context.Request.QueryString)"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</a>
+        <button type="button" class="btn btn-outline-primary" data-print-page="true"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Print / PDF</button>
+    </div>
+</div>
+
+<form method="get" class="filter-bar dashboard-filters no-print" role="search" aria-label="Dashboard filters">
+    <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-2"><label class="form-label small" for="From">Acquired from</label><input type="date" class="form-control form-control-sm" id="From" name="From" value="@D(f.From)" /></div>
+        <div class="col-6 col-md-2"><label class="form-label small" for="To">to</label><input type="date" class="form-control form-control-sm" id="To" name="To" value="@D(f.To)" /></div>
+        <div class="col-6 col-md-2">
+            <label class="form-label small" for="DepartmentId">Department</label>
+            <select class="form-select form-select-sm" id="DepartmentId" name="DepartmentId"><option value="">All</option>
+                @foreach (var o in Model.Departments) { <option value="@o.Id" selected="@(o.Id == f.DepartmentId)">@o.Text</option> }</select>
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label small" for="BuildingId">Building</label>
+            <select class="form-select form-select-sm" id="BuildingId" name="BuildingId"><option value="">All</option>
+                @foreach (var o in Model.Buildings) { <option value="@o.Id" selected="@(o.Id == f.BuildingId)">@o.Text</option> }</select>
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label small" for="CategoryId">Category</label>
+            <select class="form-select form-select-sm" id="CategoryId" name="CategoryId"><option value="">All</option>
+                @foreach (var o in Model.Categories) { <option value="@o.Id" selected="@(o.Id == f.CategoryId)">@o.Text</option> }</select>
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label small" for="StatusId">Status</label>
+            <select class="form-select form-select-sm" id="StatusId" name="StatusId"><option value="">All</option>
+                @foreach (var o in Model.Statuses) { <option value="@o.Id" selected="@(o.Id == f.StatusId)">@o.Text</option> }</select>
+        </div>
+        <div class="col-12 d-flex gap-2 justify-content-end">
+            @if (!f.IsEmpty) { <a class="btn btn-sm btn-link" asp-action="Index">Clear filters</a> }
+            <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+        </div>
+    </div>
+</form>
+
+@if (!d.HasWarrantyData)
+{
+    <div class="alert alert-info small no-print" role="status">Warranty cards and charts show zero because no warranties are recorded yet. Add them from an asset's page (Actions → Add warranty).</div>
+}
+
+<section class="kpi-grid" aria-label="Key figures">
+    @foreach (var k in d.Kpis)
+    {
+        <a class="kpi-card kpi-@k.Tone" href="@(assetsUrl + k.DrillQuery)" title="@k.Definition">
+            <span class="kpi-icon" aria-hidden="true"><i class="bi @k.Icon"></i></span>
+            <span class="kpi-body">
+                <span class="kpi-title">@k.Title <i class="bi bi-info-circle kpi-info" aria-hidden="true"></i></span>
+                <span class="kpi-value">@k.Value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)</span>
+                @if (k.Note is not null) { <span class="kpi-note">@k.Note</span> }
+                <span class="visually-hidden">@k.Definition</span>
+            </span>
+        </a>
+    }
+</section>
+
+<section class="chart-grid" aria-label="Charts">
+    @foreach (var c in d.Charts)
+    {
+        <figure class="chart-card @(c.Kind == "line" ? "chart-wide" : "")">
+            <figcaption class="chart-title">@c.Title</figcaption>
+            @if (c.Values.All(v => v == 0))
+            {
+                <p class="chart-empty">No data for the current filters.</p>
+            }
+            else
+            {
+                <div class="chart-box @(c.Kind == "barH" ? "chart-box-tall" : "")"><canvas id="chart-@c.Key" aria-label="@c.Title" role="img"></canvas></div>
+            }
+            @if (c.Note is not null) { <p class="chart-note">@c.Note</p> }
+        </figure>
+    }
+</section>
+
+<section class="panel attention-panel">
+    <h2 class="panel-title"><i class="bi bi-flag" aria-hidden="true"></i> Assets requiring attention</h2>
+    @if (d.Attention.Count == 0)
+    {
+        <p class="text-body-secondary mb-0">Nothing needs attention for the current filters.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Asset</th><th>Name</th><th>Reason</th></tr></thead>
+                <tbody>
+                    @foreach (var a in d.Attention)
+                    {
+                        <tr>
+                            <td class="text-nowrap"><a asp-controller="Assets" asp-action="Details" asp-route-id="@a.AssetId">@a.AssetNumber</a></td>
+                            <td>@a.AssetName</td>
+                            <td><span class="attention-dot attention-@a.Severity" aria-hidden="true"></span> @a.Reason</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<script type="application/json" id="dashboardData">@Html.Raw(chartJson.Replace("<", "\\u003c"))</script>
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script src="~/js/dashboard.js" asp-append-version="true"></script>
+}

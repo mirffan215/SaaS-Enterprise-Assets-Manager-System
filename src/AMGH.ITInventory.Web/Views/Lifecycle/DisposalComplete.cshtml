@@ -1,0 +1,27 @@
+@model DisposalCompleteViewModel
+@{ ViewData["Title"] = "Record disposal"; var d = Model.Disposal; var f = Model.Form; string D(DateOnly? v) => v?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? ""; }
+<div class="page-head"><h1 class="page-title">Record disposal of @d.AssetNumber</h1><a class="btn btn-link" asp-action="Index">Cancel</a></div>
+<p>@d.AssetName · <strong>@d.Method</strong> · approved by @d.ApprovedBy</p>
+<form method="post" class="panel" novalidate>
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <div class="row g-3">
+        <div class="col-md-4"><label class="form-label" for="Form_DisposalDate">Disposal date *</label><input class="form-control" type="date" id="Form_DisposalDate" name="Form.DisposalDate" value="@D(f.DisposalDate)" /></div>
+        <div class="col-md-8"><label class="form-label" for="Form_RecipientName">Recipient (recycler, buyer, lessor)</label><input class="form-control" id="Form_RecipientName" name="Form.RecipientName" value="@f.RecipientName" maxlength="200" /></div>
+    </div>
+    <fieldset class="mt-3">
+        <legend class="h6">Data sanitisation @(d.NeedsSanitization ? "(required for this method)" : "(if the device held data)")</legend>
+        <div class="row g-3">
+            <div class="col-md-5"><label class="form-label" for="Form_SanitizationMethod">Method</label><input class="form-control" id="Form_SanitizationMethod" name="Form.SanitizationMethod" value="@f.SanitizationMethod" maxlength="200" placeholder="e.g. NIST SP 800-88 Purge, degaussing, shredding" /></div>
+            <div class="col-md-3"><label class="form-label" for="Form_SanitizationDate">Date</label><input class="form-control" type="date" id="Form_SanitizationDate" name="Form.SanitizationDate" value="@D(f.SanitizationDate)" /></div>
+            <div class="col-md-4"><label class="form-label" for="Form_SanitizationVerifiedBy">Verified by</label><input class="form-control" id="Form_SanitizationVerifiedBy" name="Form.SanitizationVerifiedBy" value="@f.SanitizationVerifiedBy" maxlength="100" /></div>
+        </div>
+    </fieldset>
+    <div class="row g-3 mt-1">
+        <div class="col-md-4"><label class="form-label" for="Form_CertificateNumber">Certificate no. @(d.NeedsCertificate ? "*" : "")</label><input class="form-control" id="Form_CertificateNumber" name="Form.CertificateNumber" value="@f.CertificateNumber" maxlength="100" /></div>
+        <div class="col-md-4"><label class="form-label" for="Form_SaleValue">Sale / residual value</label><input class="form-control" type="number" min="0" step="0.01" id="Form_SaleValue" name="Form.SaleValue" value="@f.SaleValue" /></div>
+        <partial name="_SelectField" model='new SelectFieldModel("Form.CurrencyId", "Currency", Model.Currencies, f.CurrencyId?.ToString(System.Globalization.CultureInfo.InvariantCulture), CssClass: "col-md-4")' />
+        <div class="col-12"><label class="form-label" for="Form_Remarks">Remarks</label><textarea class="form-control" id="Form_Remarks" name="Form.Remarks" rows="2" maxlength="1000">@f.Remarks</textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-danger" type="submit" data-confirm="Complete the disposal? The asset becomes Disposed, its licence seats are released and its QR code is retired.">Complete disposal</button></div>
+</form>
+<p class="small text-body-secondary">Attach the destruction or recycling certificate to the asset under Documents after completing.</p>

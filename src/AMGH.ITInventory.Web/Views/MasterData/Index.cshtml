@@ -1,0 +1,23 @@
+@model IReadOnlyList<AMGH.ITInventory.Application.MasterData.MasterDataTypeInfo>
+@{
+    ViewData["Title"] = "Master data";
+}
+<div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+    <h1 class="page-title">Master data</h1>
+    @if (User.HasPermission(Permissions.MasterData.Manage))
+    {
+        <a class="btn btn-outline-primary" asp-controller="MasterDataImport" asp-action="Index"><i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i> Import / export (Excel)</a>
+    }
+</div>
+<p class="text-body-secondary">Reference lists used when registering assets. Set these up before importing: employees, departments, locations and vendors.</p>
+<div class="row g-3">
+    @foreach (var t in Model)
+    {
+        <div class="col-md-6 col-lg-4">
+            <a class="panel md-card" href="@Url.Action("List", "MasterData", new { type = t.Key })">
+                <span class="md-card-title">@t.Title</span>
+                <span class="md-card-text">@t.Description</span>
+            </a>
+        </div>
+    }
+</div>

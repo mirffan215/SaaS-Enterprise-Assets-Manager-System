@@ -1,0 +1,299 @@
+@model AssetFormViewModel
+@{
+    var a = Model.Asset;
+    var l = Model.Lookups;
+    string? S(int? v) => v?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    ViewData["Title"] = Model.IsEdit ? $"Edit {a.AssetNumber}" : "Add an asset";
+    var statuses = Model.IsEdit
+        ? l.Statuses.Where(s => s.Id == a.AssetStatusId || AMGH.ITInventory.Application.Assets.AssetRules.ManualStatuses.Contains(s.Code ?? "")).ToList()
+        : l.Statuses.Where(s => AMGH.ITInventory.Application.Assets.AssetRules.InitialStatuses.Contains(s.Code ?? "")).ToList();
+    bool HasError(params string[] fields) => fields.Any(f => ViewData.ModelState.TryGetValue("Asset." + f, out var e) && e.Errors.Count > 0);
+}
+<div class="page-head">
+    <h1 class="page-title">@ViewData["Title"]</h1>
+    <a class="btn btn-link" asp-action="@(Model.IsEdit ? "Details" : "Index")" asp-route-id="@(Model.IsEdit ? S(a.AssetId) : null)">Cancel</a>
+</div>
+
+<form asp-action="@(Model.IsEdit ? "Edit" : "Create")" asp-route-id="@(Model.IsEdit ? S(a.AssetId) : null)" method="post" novalidate>
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <input type="hidden" asp-for="Asset.RowVersion" />
+
+    <ul class="nav nav-tabs form-tabs" role="tablist">
+        <li class="nav-item" role="presentation"><button class="nav-link active @(HasError("AssetName","AssetCategoryId","AssetStatusId","SerialNumber","AssetSubCategoryId") ? "tab-error" : "")" data-bs-toggle="tab" data-bs-target="#t-general" type="button" role="tab">General</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link @(HasError("Hostname","IpAddress","MacAddress","ImeiNumber","RamGb","StorageGb") ? "tab-error" : "")" data-bs-toggle="tab" data-bs-target="#t-technical" type="button" role="tab">Technical</button></li>
+        <li class="nav-item" role="presentation"><button class="nav-link @(HasError("LocationId","BuildingId","FloorId","RoomId") ? "tab-error" : "")" data-bs-toggle="tab" data-bs-target="#t-placement" type="button" role="tab">Placement</button></li>
+        @if (Model.Access.CanViewFinancials)
+        {
+            <li class="nav-item" role="presentation"><button class="nav-link @(HasError("PurchaseCost","SalvageValue","CurrencyId","UsefulLifeMonths","PurchaseDate") ? "tab-error" : "")" data-bs-toggle="tab" data-bs-target="#t-procurement" type="button" role="tab">Procurement</button></li>
+        }
+        @if (Model.Access.CanViewSecurityDetails)
+        {
+            <li class="nav-item" role="presentation"><button class="nav-link @(HasError("ClassificationId") ? "tab-error" : "")" data-bs-toggle="tab" data-bs-target="#t-security" type="button" role="tab">Information security</button></li>
+        }
+        <li class="nav-item" role="presentation"><button class="nav-link @(HasError("CommissionDate","EndOfLifeDate") ? "tab-error" : "")" data-bs-toggle="tab" data-bs-target="#t-lifecycle" type="button" role="tab">Lifecycle</button></li>
+    </ul>
+
+    <div class="tab-content panel form-panel">
+        <!-- General -->
+        <div class="tab-pane fade show active" id="t-general" role="tabpanel">
+            <div class="row g-3">
+                @if (Model.IsEdit)
+                {
+                    <div class="col-md-6">
+                        <label class="form-label">Asset number</label>
+                        <input class="form-control" value="@a.AssetNumber" readonly />
+                        <div class="form-text">Assigned automatically and never reused.</div>
+                    </div>
+                }
+                <div class="col-md-6">
+                    <label asp-for="Asset.AssetName" class="form-label">Asset name *</label>
+                    <input asp-for="Asset.AssetName" class="form-control" maxlength="200" required />
+                    <span asp-validation-for="Asset.AssetName" class="invalid-feedback d-block"></span>
+                </div>
+                <partial name="_SelectField" model='new SelectFieldModel("Asset.AssetCategoryId", "Category", l.Categories, S(a.AssetCategoryId), true, Disabled: Model.IsEdit, Help: Model.IsEdit ? "The category is fixed because it determines the asset number." : "Determines the asset number, e.g. Laptop → AMGH-IT-LAP-00001.")' />
+                @if (Model.IsEdit) { <input type="hidden" asp-for="Asset.AssetCategoryId" id="Asset_AssetCategoryId_locked" /> }
+                <partial name="_SelectField" model='new SelectFieldModel("Asset.AssetSubCategoryId", "Sub-category", l.SubCategories, S(a.AssetSubCategoryId), ParentSelectId: "Asset_AssetCategoryId")' />
+                <partial name="_SelectField" model='new SelectFieldModel("Asset.AssetStatusId", "Status", statuses, S(a.AssetStatusId), true, Disabled: a.StatusLocked, Help: a.StatusLocked ? "Set by the assignment or disposal workflow." : null)' />
+                @if (a.StatusLocked) { <input type="hidden" asp-for="Asset.AssetStatusId" id="Asset_AssetStatusId_locked" /> }
+                <partial name="_SelectField" model='new SelectFieldModel("Asset.ManufacturerId", "Manufacturer", l.Manufacturers, S(a.ManufacturerId))' />
+                <div class="col-md-6">
+                    <label asp-for="Asset.ModelName" class="form-label">Model</label>
+                    <input asp-for="Asset.ModelName" class="form-control" maxlength="150" />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Asset.SerialNumber" class="form-label">Serial number</label>
+                    <input asp-for="Asset.SerialNumber" class="form-control" maxlength="100" />
+                    <span asp-validation-for="Asset.SerialNumber" class="invalid-feedback d-block"></span>
+                </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.AssetCondition" class="form-label">Condition</label>
+                        <select asp-for="Asset.AssetCondition" class="form-select"><option value="">—</option>
+                            @foreach (var c in AMGH.ITInventory.Application.Assets.AssetEditModel.Conditions) { <option value="@c">@c</option> }</select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check"><input asp-for="Asset.MaintenanceRequired" class="form-check-input" type="checkbox" /><label asp-for="Asset.MaintenanceRequired" class="form-check-label">Maintenance required</label></div>
+                    </div>
+                <div class="col-md-6">
+                    <label asp-for="Asset.LegacyAssetTag" class="form-label">Legacy asset tag</label>
+                    <input asp-for="Asset.LegacyAssetTag" class="form-control" maxlength="50" />
+                    <div class="form-text">The old label number, if the asset had one before this system.</div>
+                </div>
+                <div class="col-12">
+                    <label asp-for="Asset.Description" class="form-label">Description</label>
+                    <textarea asp-for="Asset.Description" class="form-control" rows="2" maxlength="1000"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical -->
+        <div class="tab-pane fade" id="t-technical" role="tabpanel">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label asp-for="Asset.Hostname" class="form-label">Hostname</label>
+                    <input asp-for="Asset.Hostname" class="form-control" maxlength="100" />
+                    <span asp-validation-for="Asset.Hostname" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.IpAddress" class="form-label">IP address</label>
+                    <input asp-for="Asset.IpAddress" class="form-control" maxlength="45" />
+                    <span asp-validation-for="Asset.IpAddress" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.MacAddress" class="form-label">MAC address</label>
+                    <input asp-for="Asset.MacAddress" class="form-control" maxlength="17" placeholder="3C:52:82:1A:2B:3C" />
+                    <span asp-validation-for="Asset.MacAddress" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.OperatingSystem" class="form-label">Operating system</label>
+                    <input asp-for="Asset.OperatingSystem" class="form-control" maxlength="100" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.OsVersion" class="form-label">OS version</label>
+                    <input asp-for="Asset.OsVersion" class="form-control" maxlength="50" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.FirmwareVersion" class="form-label">Firmware version</label>
+                    <input asp-for="Asset.FirmwareVersion" class="form-control" maxlength="50" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.Processor" class="form-label">Processor</label>
+                    <input asp-for="Asset.Processor" class="form-control" maxlength="150" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.RamGb" class="form-label">RAM (GB)</label>
+                    <input asp-for="Asset.RamGb" class="form-control" type="number" min="0" step="0.01" />
+                    <span asp-validation-for="Asset.RamGb" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.StorageGb" class="form-label">Storage (GB)</label>
+                    <input asp-for="Asset.StorageGb" class="form-control" type="number" min="0" step="0.01" />
+                    <span asp-validation-for="Asset.StorageGb" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.ImeiNumber" class="form-label">IMEI (mobile devices)</label>
+                    <input asp-for="Asset.ImeiNumber" class="form-control" maxlength="20" inputmode="numeric" />
+                    <span asp-validation-for="Asset.ImeiNumber" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="Asset.PhoneNumber" class="form-label">Phone / extension</label>
+                    <input asp-for="Asset.PhoneNumber" class="form-control" maxlength="30" />
+                </div>
+            </div>
+        </div>
+
+        <!-- Placement -->
+        <div class="tab-pane fade" id="t-placement" role="tabpanel">
+            <p class="form-text mt-0">Where the asset is kept and which department it belongs to. The person using it is set with the <strong>Assign</strong> button on the asset's page after saving, so that the hand-over is documented.</p>
+            <div class="row g-3">
+                <partial name="_SelectField" model='new SelectFieldModel("Asset.DepartmentId", "Department", l.Departments, S(a.DepartmentId))' />
+                <div class="col-md-6"></div>
+                    <div class="col-md-4">
+                        <label asp-for="Asset.CostCenter" class="form-label">Cost centre</label>
+                        <input asp-for="Asset.CostCenter" class="form-control" maxlength="50" />
+                    </div>
+                <partial name="_SelectField" model='new SelectFieldModel("Asset.LocationId", "Location", l.Locations, S(a.LocationId), CssClass: "col-md-3")' />
+                <partial name="_SelectField" model='new SelectFieldModel("Asset.BuildingId", "Building", l.Buildings, S(a.BuildingId), ParentSelectId: "Asset_LocationId", CssClass: "col-md-3")' />
+                <partial name="_SelectField" model='new SelectFieldModel("Asset.FloorId", "Floor", l.Floors, S(a.FloorId), ParentSelectId: "Asset_BuildingId", CssClass: "col-md-3")' />
+                <partial name="_SelectField" model='new SelectFieldModel("Asset.RoomId", "Room", l.Rooms, S(a.RoomId), ParentSelectId: "Asset_FloorId", CssClass: "col-md-3")' />
+            </div>
+        </div>
+
+        @if (Model.Access.CanViewFinancials)
+        {
+            <!-- Procurement -->
+            <div class="tab-pane fade" id="t-procurement" role="tabpanel">
+                <div class="row g-3">
+                    <partial name="_SelectField" model='new SelectFieldModel("Asset.VendorId", "Vendor", l.Vendors, S(a.VendorId))' />
+                    <div class="col-md-3">
+                        <label asp-for="Asset.PurchaseOrderNumber" class="form-label">PO number</label>
+                        <input asp-for="Asset.PurchaseOrderNumber" class="form-control" maxlength="50" />
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.InvoiceNumber" class="form-label">Invoice number</label>
+                        <input asp-for="Asset.InvoiceNumber" class="form-control" maxlength="50" />
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.PurchaseDate" class="form-label">Purchase date</label>
+                        <input asp-for="Asset.PurchaseDate" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" />
+                        <span asp-validation-for="Asset.PurchaseDate" class="invalid-feedback d-block"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.PurchaseCost" class="form-label">Purchase cost</label>
+                        <input asp-for="Asset.PurchaseCost" class="form-control" type="number" min="0" step="0.01" />
+                        <span asp-validation-for="Asset.PurchaseCost" class="invalid-feedback d-block"></span>
+                    </div>
+                    <partial name="_SelectField" model='new SelectFieldModel("Asset.CurrencyId", "Currency", l.Currencies, S(a.CurrencyId), CssClass: "col-md-3")' />
+                    <div class="col-md-3">
+                        <label asp-for="Asset.UsefulLifeMonths" class="form-label">Useful life (months)</label>
+                        <input asp-for="Asset.UsefulLifeMonths" class="form-control" type="number" min="1" max="600" step="1" />
+                        <span asp-validation-for="Asset.UsefulLifeMonths" class="invalid-feedback d-block"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.SalvageValue" class="form-label">Salvage value</label>
+                        <input asp-for="Asset.SalvageValue" class="form-control" type="number" min="0" step="0.01" />
+                        <span asp-validation-for="Asset.SalvageValue" class="invalid-feedback d-block"></span>
+                    </div>
+                    <div class="col-12"><h3 class="h6 mt-2 mb-0">Fixed asset (accounting)</h3><p class="small text-body-secondary mb-0">Recorded values come from finance (D365). The system does not calculate depreciation.</p></div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.CapitalizationDate" class="form-label">Capitalisation date</label>
+                        <input asp-for="Asset.CapitalizationDate" class="form-control" type="date" />
+                        <span asp-validation-for="Asset.CapitalizationDate" class="invalid-feedback d-block"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.DepreciationMethod" class="form-label">Depreciation method</label>
+                        <select asp-for="Asset.DepreciationMethod" class="form-select"><option value="">—</option>
+                            @foreach (var dm in AMGH.ITInventory.Application.Assets.AssetEditModel.DepreciationMethods) { <option value="@dm">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(dm)</option> }</select>
+                        <span asp-validation-for="Asset.DepreciationMethod" class="invalid-feedback d-block"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.FixedAssetGroup" class="form-label">Fixed asset group</label>
+                        <input asp-for="Asset.FixedAssetGroup" class="form-control" maxlength="50" placeholder="e.g. COMP-EQUIP" />
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.ErpFixedAssetId" class="form-label">D365 fixed asset ID <span class="text-body-secondary small">(optional)</span></label>
+                        <input asp-for="Asset.ErpFixedAssetId" class="form-control font-monospace" maxlength="50" />
+                        <span asp-validation-for="Asset.ErpFixedAssetId" class="invalid-feedback d-block"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.RecordedBookValue" class="form-label">Book value (recorded)</label>
+                        <input asp-for="Asset.RecordedBookValue" class="form-control" type="number" min="0" step="0.01" />
+                        <span asp-validation-for="Asset.RecordedBookValue" class="invalid-feedback d-block"></span>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Asset.RecordedBookValueDate" class="form-label">Book value as of</label>
+                        <input asp-for="Asset.RecordedBookValueDate" class="form-control" type="date" />
+                        <span asp-validation-for="Asset.RecordedBookValueDate" class="invalid-feedback d-block"></span>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <input type="hidden" asp-for="Asset.PurchaseDate" asp-format="{0:yyyy-MM-dd}" />
+        }
+
+        @if (Model.Access.CanViewSecurityDetails)
+        {
+            <!-- Information security -->
+            <div class="tab-pane fade" id="t-security" role="tabpanel">
+                <div class="row g-3">
+                    <partial name="_SelectField" model='new SelectFieldModel("Asset.AssetOwnerEmployeeId", "Asset owner", l.Employees, S(a.AssetOwnerEmployeeId), Help: "The person accountable for this asset (ISO 27001 A.5.9), not necessarily its user.")' />
+                    <partial name="_SelectField" model='new SelectFieldModel("Asset.ClassificationId", "Information classification", l.Classifications, S(a.ClassificationId), Help: "Highest classification of information stored on or processed by the asset.")' />
+                    <partial name="_SelectField" model='new SelectFieldModel("Asset.CriticalityId", "Business criticality", l.Criticalities, S(a.CriticalityId))' />
+                    <partial name="_SelectField" model='new SelectFieldModel("Asset.RiskLevelId", "Risk level", l.RiskLevels, S(a.RiskLevelId))' />
+                    <div class="col-12">
+                        <fieldset class="check-grid">
+                            <legend class="form-label">Controls</legend>
+                            <div class="form-check"><input asp-for="Asset.StoresSensitiveData" class="form-check-input" /><label asp-for="Asset.StoresSensitiveData" class="form-check-label">Stores sensitive data</label></div>
+                            <div class="form-check"><input asp-for="Asset.IsDiskEncrypted" class="form-check-input" /><label asp-for="Asset.IsDiskEncrypted" class="form-check-label">Disk encrypted</label></div>
+                            <div class="form-check"><input asp-for="Asset.EndpointProtectionInstalled" class="form-check-input" /><label asp-for="Asset.EndpointProtectionInstalled" class="form-check-label">Endpoint protection installed</label></div>
+                            <div class="form-check"><input asp-for="Asset.IsMdmManaged" class="form-check-input" /><label asp-for="Asset.IsMdmManaged" class="form-check-label">Managed by MDM (Intune)</label></div>
+                            <div class="form-check"><input asp-for="Asset.BackupRequired" class="form-check-input" /><label asp-for="Asset.BackupRequired" class="form-check-label">Backup required</label></div>
+                        </fieldset>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="Asset.LastSecurityReviewDate" class="form-label">Last security review</label>
+                        <input asp-for="Asset.LastSecurityReviewDate" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" />
+                    </div>
+                    <div class="col-md-8">
+                        <label asp-for="Asset.SecurityNotes" class="form-label">Security notes</label>
+                        <textarea asp-for="Asset.SecurityNotes" class="form-control" rows="2" maxlength="1000"></textarea>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Lifecycle -->
+        <div class="tab-pane fade" id="t-lifecycle" role="tabpanel">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label asp-for="Asset.CommissionDate" class="form-label">In service since</label>
+                    <input asp-for="Asset.CommissionDate" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" />
+                    <span asp-validation-for="Asset.CommissionDate" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Asset.EndOfSupportDate" class="form-label">End of vendor support</label>
+                    <input asp-for="Asset.EndOfSupportDate" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Asset.EndOfLifeDate" class="form-label">Planned end of life</label>
+                    <input asp-for="Asset.EndOfLifeDate" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" />
+                    <span asp-validation-for="Asset.EndOfLifeDate" class="invalid-feedback d-block"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Asset.NextAuditDueDate" class="form-label">Next physical audit</label>
+                    <input asp-for="Asset.NextAuditDueDate" type="date" asp-format="{0:yyyy-MM-dd}" class="form-control" />
+                </div>
+                <div class="col-12">
+                    <label asp-for="Asset.Notes" class="form-label">Notes</label>
+                    <textarea asp-for="Asset.Notes" class="form-control" rows="3" maxlength="2000"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">@(Model.IsEdit ? "Save changes" : "Create asset")</button>
+        <a class="btn btn-link" asp-action="@(Model.IsEdit ? "Details" : "Index")" asp-route-id="@(Model.IsEdit ? S(a.AssetId) : null)">Cancel</a>
+    </div>
+</form>

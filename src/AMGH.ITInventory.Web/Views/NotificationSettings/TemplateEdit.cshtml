@@ -1,0 +1,36 @@
+@model TemplateEditViewModel
+@{ ViewData["Title"] = "Template: " + Model.Rule.Title; }
+<div class="page-head">
+    <div><h1 class="page-title">@Model.Rule.Title</h1><p class="text-body-secondary mb-0">@Model.Rule.Description · @(Model.IsCustom ? "your own wording" : "built-in wording")</p></div>
+    <a class="btn btn-link" asp-action="Index" asp-route-tab="templates">All templates</a>
+</div>
+<div class="row g-4">
+    <div class="col-lg-6">
+        <form asp-action="SaveTemplate" asp-route-key="@Model.Rule.Key" method="post" class="panel">
+            <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+            <label class="form-label" for="subject">Subject</label>
+            <input class="form-control mb-3" id="subject" name="subject" value="@Model.Subject" maxlength="200" />
+            <label class="form-label" for="bodyHtml">Message (HTML)</label>
+            <textarea class="form-control font-monospace" id="bodyHtml" name="bodyHtml" rows="12" maxlength="20000">@Model.BodyHtml</textarea>
+            <p class="small text-body-secondary mt-2 mb-1">Values you can use:</p>
+            <p class="small">@foreach (var p in Model.Rule.Placeholders) { <code class="me-2">{{@p}}</code> }</p>
+            <p class="small text-body-secondary">The company header, a button to open the page in EAMS, and the footer are added automatically. Scripts and forms are not allowed.</p>
+            <div class="d-flex gap-2"><button class="btn btn-primary" type="submit">Save</button></div>
+        </form>
+        @if (Model.IsCustom)
+        {
+            <form asp-action="ResetTemplate" asp-route-key="@Model.Rule.Key" method="post" class="mt-2" data-confirm="Go back to the built-in wording?"><button class="btn btn-sm btn-outline-secondary" type="submit">Reset to built-in wording</button></form>
+        }
+        <form asp-action="SendTest" method="post" class="panel mt-3">
+            <input type="hidden" name="template" value="@Model.Rule.Key" />
+            <label class="form-label small" for="testTo">Send this e-mail with sample values to</label>
+            <div class="d-flex gap-2"><input class="form-control form-control-sm" type="email" id="testTo" name="to" value="@User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value" required /><button class="btn btn-sm btn-outline-primary text-nowrap" type="submit">Send test</button></div>
+        </form>
+    </div>
+    <div class="col-lg-6">
+        <div class="panel p-2">
+            <p class="small text-body-secondary mb-2 px-1">Preview of the saved version with sample values</p>
+            <iframe class="email-preview" src="@Url.Action("Preview", new { key = Model.Rule.Key })" sandbox="" title="E-mail preview"></iframe>
+        </div>
+    </div>
+</div>

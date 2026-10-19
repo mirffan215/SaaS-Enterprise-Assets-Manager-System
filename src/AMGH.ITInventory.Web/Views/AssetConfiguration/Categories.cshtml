@@ -1,0 +1,38 @@
+@model IReadOnlyList<AMGH.ITInventory.Application.AssetConfiguration.CategoryOverview>
+@using AMGH.ITInventory.Application.AssetConfiguration
+@{ ViewData["Title"] = "Asset categories"; var have = Model.Select(c => c.Code).ToHashSet(StringComparer.OrdinalIgnoreCase); var missing = IStarterCategoryService.Templates.Where(t => !have.Contains(t.Code)).ToList(); var canManage = User.HasPermission(Permissions.MasterData.Manage); }
+<div class="page-head">
+    <div><h1 class="page-title">Asset categories</h1><p class="text-body-secondary mb-0">Categories of @User.GetCompanyName(). Each category numbers its assets with its own series.</p></div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" asp-controller="MasterData" asp-action="List" asp-route-type="subcategories">Sub-categories</a>
+        @if (canManage) { <a class="btn btn-primary" asp-controller="MasterData" asp-action="Create" asp-route-type="categories"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add category</a> }
+    </div>
+</div>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead><tr><th>Code</th><th>Category</th><th>Series</th><th>Next number</th><th class="text-end">Sub-categories</th><th class="text-end">Assets</th><th>Status</th></tr></thead>
+        <tbody>
+            @foreach (var c in Model)
+            {
+                <tr><td class="font-monospace">@c.Code</td><td><a asp-controller="MasterData" asp-action="Edit" asp-route-type="categories" asp-route-id="@c.Id">@c.Name</a></td>
+                    <td class="font-monospace small">@c.Series</td><td class="font-monospace small">@c.NextNumber</td><td class="text-end">@c.SubCategories</td><td class="text-end">@c.Assets</td>
+                    <td><span class="badge @(c.IsActive ? "text-bg-success" : "text-bg-secondary")">@(c.IsActive ? "Active" : "Inactive")</span></td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+@if (canManage && missing.Count > 0)
+{
+    <form asp-action="AddStarter" method="post" class="panel mt-3">
+        <h2 class="panel-title">Add standard categories</h2>
+        <p class="small text-body-secondary">Standard categories for any industry. The ones you choose are added to @User.GetCompanyName() only, each with its own number series (e.g. @(User.GetCompanyCode())-FA-00001). You can rename, change or deactivate them afterwards; existing categories are not touched.</p>
+        <div class="row g-1">
+            @foreach (var t in missing)
+            {
+                <div class="col-md-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="codes" value="@t.Code" id="tpl_@t.Code" checked />
+                    <label class="form-check-label" for="tpl_@t.Code"><span class="font-monospace">@t.Code</span> @t.Name @if (t.SubCategories.Count > 0) { <span class="small text-body-secondary">(@t.SubCategories.Count sub-categories)</span> }</label></div></div>
+            }
+        </div>
+        <button class="btn btn-primary mt-2" type="submit">Add the selected categories</button>
+    </form>
+}

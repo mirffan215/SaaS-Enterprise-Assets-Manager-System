@@ -1,0 +1,26 @@
+@model CompanyEditViewModel
+@{ ViewData["Title"] = "Edit company"; }
+<div class="page-head">
+    <h1 class="page-title">@Model.Details.DisplayName</h1>
+    <a class="btn btn-link" asp-action="Index">Back to companies</a>
+</div>
+<form asp-action="Edit" asp-route-id="@Model.CompanyId" method="post" enctype="multipart/form-data" novalidate id="companyEdit">
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+    <section class="panel">
+        <h2 class="panel-title">Company information</h2>
+        <partial name="_CompanyFields" model='new CompanyFieldsModel("Details.", Model.Details, false, Model.Currencies, Model.TimeZones, "details", Model.Companies)' />
+    </section>
+    <section class="panel">
+        <h2 class="panel-title">Branding</h2>
+        <partial name="_CompanyFields" model='new CompanyFieldsModel("Details.", Model.Details, false, Model.Currencies, Model.TimeZones, "branding")' />
+    </section>
+    <section class="panel">
+        <h2 class="panel-title">Configuration</h2>
+        <partial name="_CompanyFields" model='new CompanyFieldsModel("Details.", Model.Details, false, Model.Currencies, Model.TimeZones, "config")' />
+    </section>
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a class="btn btn-link" asp-action="Index">Cancel</a>
+    </div>
+</form>
+@section Scripts { <script src="~/js/platform.js" asp-append-version="true"></script> }

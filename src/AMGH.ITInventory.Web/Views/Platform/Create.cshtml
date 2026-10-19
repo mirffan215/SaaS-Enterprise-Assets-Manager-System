@@ -1,0 +1,113 @@
+@model CompanyWizardViewModel
+@{
+    ViewData["Title"] = "Create company";
+    var s = Model.Setup;
+    string? Err(string key) => ViewData.ModelState.TryGetValue(key, out var e) && e.Errors.Count > 0 ? e.Errors[0].ErrorMessage : null;
+    string Cls(string key) => Err(key) is null ? "form-control" : "form-control is-invalid";
+    var steps = new[] { "Company", "Branding", "Organisation", "Administrator", "Configuration", "Review" };
+}
+<div class="page-head">
+    <h1 class="page-title">Create company</h1>
+    <a class="btn btn-link" asp-action="Index">Cancel</a>
+</div>
+
+<ol class="wizard-steps" id="wizardSteps">
+    @for (var i = 0; i < steps.Length; i++) { <li data-step-tab="@i">@steps[i]</li> }
+</ol>
+
+<form asp-action="Create" method="post" enctype="multipart/form-data" novalidate id="companyWizard" class="panel">
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+    <fieldset data-step="0">
+        <legend class="panel-title">1. Company information</legend>
+        <partial name="_CompanyFields" model='new CompanyFieldsModel("Setup.Details.", s.Details, true, Model.Currencies, Model.TimeZones, "details", Model.Companies)' />
+    </fieldset>
+
+    <fieldset data-step="1" hidden>
+        <legend class="panel-title">2. Branding</legend>
+        <partial name="_CompanyFields" model='new CompanyFieldsModel("Setup.Details.", s.Details, true, Model.Currencies, Model.TimeZones, "branding")' />
+    </fieldset>
+
+    <fieldset data-step="2" hidden>
+        <legend class="panel-title">3. Organisation structure</legend>
+        <p class="text-body-secondary">Optional starting points. Buildings, floors, rooms, more departments and employees are added later under Master data.</p>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label" for="Setup_HeadOfficeName">Head office (first location)</label>
+                <input class="@Cls("Setup.HeadOfficeName")" id="Setup_HeadOfficeName" name="Setup.HeadOfficeName" value="@s.HeadOfficeName" maxlength="150" placeholder="e.g. Jeddah Head Office" data-review="Head office" />
+                <div class="invalid-feedback">@Err("Setup.HeadOfficeName")</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="Setup_FirstDepartmentName">IT department name</label>
+                <input class="@Cls("Setup.FirstDepartmentName")" id="Setup_FirstDepartmentName" name="Setup.FirstDepartmentName" value="@s.FirstDepartmentName" maxlength="150" placeholder="e.g. Information Technology" data-review="Department" />
+                <div class="invalid-feedback">@Err("Setup.FirstDepartmentName")</div>
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset data-step="3" hidden>
+        <legend class="panel-title">4. Company administrator</legend>
+        <p class="text-body-secondary">This person manages the company's users, settings and data (System Administrator role in the new company).</p>
+        <div class="mb-3">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="Setup.AdminMode" id="adminNew" value="new" checked="@(s.AdminMode != "existing")" data-admin-mode="true" />
+                <label class="form-check-label" for="adminNew">New account</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="Setup.AdminMode" id="adminExisting" value="existing" checked="@(s.AdminMode == "existing")" data-admin-mode="true" />
+                <label class="form-check-label" for="adminExisting">Existing user (e.g. yourself or a group IT manager)</label>
+            </div>
+        </div>
+        <div class="row g-3" data-admin-panel="new">
+            <div class="col-md-4">
+                <label class="form-label" for="Setup_NewUsername">Username *</label>
+                <input class="@Cls("Setup.NewUsername")" id="Setup_NewUsername" name="Setup.NewUsername" value="@s.NewUsername" maxlength="100" autocomplete="off" data-review="Administrator" />
+                <div class="invalid-feedback">@Err("Setup.NewUsername")</div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="Setup_NewDisplayName">Full name *</label>
+                <input class="@Cls("Setup.NewDisplayName")" id="Setup_NewDisplayName" name="Setup.NewDisplayName" value="@s.NewDisplayName" maxlength="200" />
+                <div class="invalid-feedback">@Err("Setup.NewDisplayName")</div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="Setup_NewEmail">E-mail *</label>
+                <input class="@Cls("Setup.NewEmail")" id="Setup_NewEmail" name="Setup.NewEmail" value="@s.NewEmail" type="email" maxlength="256" />
+                <div class="invalid-feedback">@Err("Setup.NewEmail")</div>
+            </div>
+            <div class="col-12 form-text">A temporary password is shown once after creation; the administrator must change it at first sign-in.</div>
+        </div>
+        <div class="row g-3" data-admin-panel="existing" hidden>
+            <div class="col-md-6">
+                <label class="form-label" for="Setup_ExistingUsername">Username of the existing account *</label>
+                <input class="@Cls("Setup.ExistingUsername")" id="Setup_ExistingUsername" name="Setup.ExistingUsername" value="@s.ExistingUsername" maxlength="100" autocomplete="off" data-review="Administrator (existing)" />
+                <div class="invalid-feedback">@Err("Setup.ExistingUsername")</div>
+                <div class="form-text">They keep their current companies and password, and gain access to this one.</div>
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset data-step="4" hidden>
+        <legend class="panel-title">5. Configuration</legend>
+        <partial name="_CompanyFields" model='new CompanyFieldsModel("Setup.Details.", s.Details, true, Model.Currencies, Model.TimeZones, "config")' />
+        <div class="rules-panel mt-3">
+            <h2 class="h6">Copied from AMGH as a starting point</h2>
+            <p class="small mb-0">Asset categories and sub-categories, number series (with this company's prefix, starting at 1), information
+                classifications, risk and criticality levels, manufacturers, and the 7 standard roles with their permissions. The new
+                company can then add, change or retire any of them without affecting AMGH. Assets, employees, vendors and locations are not copied.</p>
+        </div>
+    </fieldset>
+
+    <fieldset data-step="5" hidden>
+        <legend class="panel-title">6. Review and create</legend>
+        <dl class="row review-list" id="reviewList"></dl>
+        <p class="text-body-secondary small">Creating the company copies the base lists and creates the administrator in one step. The company appears on the sign-in picker immediately.</p>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="button" class="btn btn-outline-secondary" data-step-back="true">Back</button>
+        <button type="button" class="btn btn-primary" data-step-next="true">Next</button>
+        <button type="submit" class="btn btn-primary" data-step-submit="true" hidden><i class="bi bi-buildings" aria-hidden="true"></i> Create company</button>
+    </div>
+</form>
+
+@section Scripts { <script src="~/js/platform.js" asp-append-version="true"></script> }

@@ -1,0 +1,36 @@
+@model AMGH.ITInventory.Security.Accounts.UserAccess
+@{ ViewData["Title"] = "Access: " + Model.Username; string H(string n) => AMGH.ITInventory.Application.Common.DisplayText.Humanize(n); }
+<div class="page-head">
+    <div><h1 class="page-title">@Model.DisplayName <span class="text-body-secondary fs-6">(@Model.Username)</span></h1>
+        <p class="text-body-secondary mb-0">@Model.Email · last sign-in @Time.Format(Model.LastLoginUtc) @if (Model.IsPlatformAdmin) { <span class="badge text-bg-dark">platform administrator</span> } @if (!Model.IsActive) { <span class="badge text-bg-secondary">account disabled</span> }</p></div>
+    <a class="btn btn-link" asp-action="Index">All users</a>
+</div>
+<p class="small text-body-secondary">Each company has its own roles. A person sees only the companies where they have an active membership, and in each company only what that company's roles allow. Changes are recorded in each company's audit trail and reach open sessions within a few minutes.</p>
+<div class="row g-3">
+    @foreach (var c in Model.Companies)
+    {
+        <div class="col-xl-6">
+            <form asp-action="Membership" asp-route-id="@Model.UserId" method="post" class="panel h-100 @(c.IsMember && c.IsActive ? "membership-active" : "")">
+                <input type="hidden" name="CompanyId" value="@c.CompanyId" />
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div><h2 class="panel-title mb-0">@c.CompanyName <span class="text-body-secondary small">@c.CompanyCode</span></h2>
+                        <span class="small text-body-secondary">@(c.IsMember ? (c.IsActive ? "Has access" : "Access suspended") : "No access")@(c.CompanyStatus != "Active" ? " · company " + c.CompanyStatus.ToLowerInvariant() : "")</span></div>
+                    <div class="text-end">
+                        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="IsActive" value="true" id="act_@c.CompanyId" checked="@(c.IsMember ? c.IsActive : true)" /><label class="form-check-label small" for="act_@c.CompanyId">Access</label></div>
+                        <input type="hidden" name="IsActive" value="false" />
+                        <div class="form-check"><input class="form-check-input" type="checkbox" name="IsDefault" value="true" id="def_@c.CompanyId" checked="@c.IsDefault" /><label class="form-check-label small" for="def_@c.CompanyId">Default company</label></div>
+                        <input type="hidden" name="IsDefault" value="false" />
+                    </div>
+                </div>
+                <fieldset class="mt-2"><legend class="small fw-semibold">Roles in @c.CompanyCode</legend>
+                    @foreach (var r in c.AvailableRoles.Where(r => r.IsActive || c.RoleIds.Contains(r.RoleId)))
+                    {
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="RoleIds" value="@r.RoleId" id="r_@(c.CompanyId)_@r.RoleId" checked="@c.RoleIds.Contains(r.RoleId)" />
+                            <label class="form-check-label small" for="r_@(c.CompanyId)_@r.RoleId">@H(r.RoleName)</label></div>
+                    }
+                </fieldset>
+                <button class="btn btn-sm @(c.IsMember ? "btn-outline-primary" : "btn-primary") mt-2" type="submit">@(c.IsMember ? "Save access" : "Give access to " + c.CompanyCode)</button>
+            </form>
+        </div>
+    }
+</div>

@@ -1,0 +1,63 @@
+@* Sign-in illustration: the system's capabilities around the group emblem. Vector (SVG), so it is sharp on any screen;
+   decorative only (aria-hidden). Hidden on small screens. *@
+@{
+    var emblem = Url.Content("~/images/amgh-emblem.png");
+    var nodes = new (double X, double Y, string Icon, string Line1, string Line2)[]
+    {
+        (400, 120, "M-14,-8 h28 v18 h-28 z M-18,12 h36", "ASSET", "MANAGEMENT"),
+        (215, 205, "M0,-15 l4,5 6,-2 0,6 6,3 -4,5 4,5 -6,3 0,6 -6,-2 -4,5 -4,-5 -6,2 0,-6 -6,-3 4,-5 -4,-5 6,-3 0,-6 6,2 z", "MAINTENANCE", ""),
+        (585, 205, "M-15,10 a7,7 0 0 1 14,0 M1,10 a7,7 0 0 1 14,0 M-8,-6 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0 M8,-6 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0", "MULTI", "COMPANY"),
+        (165, 380, "M-14,-14 h10 v10 h-10 z M4,-14 h10 v10 h-10 z M-14,4 h10 v10 h-10 z M4,4 h4 v4 h-4 z M10,10 h4 v4 h-4 z", "QR", "TRACKING"),
+        (635, 380, "M-14,12 v-10 h7 v10 M-3,12 v-18 h7 v18 M8,12 v-26 h7 v26", "REAL-TIME", "REPORTING"),
+        (265, 540, "M-10,-15 h14 l6,6 v24 h-20 z M-5,-4 h12 M-5,2 h12 M-5,8 h8", "COMPLIANCE", ""),
+        (535, 540, "M0,-16 l14,5 v9 c0,10 -6,16 -14,19 c-8,-3 -14,-9 -14,-19 v-9 z M-6,1 l4,4 8,-9", "SECURITY", "")
+    };
+}
+<aside class="lp-hero" aria-hidden="true">
+    <svg viewBox="0 0 800 680" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" focusable="false">
+        <defs>
+            <radialGradient id="lpGlow" cx="50%" cy="55%" r="55%">
+                <stop offset="0" stop-color="#2E6BD6" stop-opacity=".55" />
+                <stop offset=".55" stop-color="#123A86" stop-opacity=".25" />
+                <stop offset="1" stop-color="#071D45" stop-opacity="0" />
+            </radialGradient>
+            <linearGradient id="lpGold" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#F3D58A" /><stop offset="1" stop-color="#B8862F" />
+            </linearGradient>
+            <linearGradient id="lpCube" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#5E9BFF" stop-opacity=".55" /><stop offset="1" stop-color="#1B4FB0" stop-opacity=".25" />
+            </linearGradient>
+            <pattern id="lpDots" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.1" fill="#7FA8FF" opacity=".22" /></pattern>
+        </defs>
+        <rect width="800" height="680" fill="url(#lpDots)" />
+        <ellipse cx="400" cy="400" rx="380" ry="300" fill="url(#lpGlow)" />
+        <!-- platform rings -->
+        <g fill="none" stroke="#69A4FF" stroke-opacity=".45">
+            <ellipse cx="400" cy="560" rx="210" ry="38" />
+            <ellipse cx="400" cy="560" rx="150" ry="26" stroke-dasharray="4 6" />
+            <ellipse cx="400" cy="560" rx="90" ry="15" stroke="#F3D58A" stroke-opacity=".7" />
+        </g>
+        <!-- connections -->
+        <g stroke="url(#lpGold)" stroke-width="1.6" fill="none" opacity=".85">
+            @foreach (var n in nodes) { <line x1="400" y1="370" x2="@n.X" y2="@n.Y" stroke-dasharray="2 5" /> }
+            <polyline points="215,205 400,120 585,205 635,380 535,540 265,540 165,380 215,205" stroke-dasharray="none" opacity=".55" />
+        </g>
+        <!-- cube with the emblem -->
+        <g transform="translate(400 380)">
+            <path d="M-95,-70 L0,-115 L95,-70 L95,60 L0,105 L-95,60 Z" fill="url(#lpCube)" stroke="#9CC2FF" stroke-opacity=".8" stroke-width="1.5" />
+            <path d="M-95,-70 L0,-25 L95,-70 M0,-25 L0,105" fill="none" stroke="#CFE1FF" stroke-opacity=".55" />
+            <image href="@emblem" x="-58" y="-48" width="116" height="116" opacity=".97" />
+            <rect x="-58" y="-48" width="116" height="116" fill="none" stroke="url(#lpGold)" stroke-width="1.2" opacity=".6" />
+        </g>
+        <!-- capability nodes -->
+        @foreach (var n in nodes)
+        {
+            <g transform="translate(@n.X @n.Y)">
+                <circle r="56" fill="#0A2459" fill-opacity=".85" stroke="url(#lpGold)" stroke-width="2.5" />
+                <circle r="50" fill="none" stroke="#F3D58A" stroke-opacity=".25" />
+                <g transform="translate(0 -13)"><path d="@n.Icon" fill="none" stroke="#F8F1DE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></g>
+                <text text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="700" font-family="Segoe UI, Arial, sans-serif" letter-spacing=".4"><tspan x="0" y="@(string.IsNullOrEmpty(n.Line2) ? 27 : 22)">@n.Line1</tspan>@if (!string.IsNullOrEmpty(n.Line2)) {<tspan x="0" y="35">@n.Line2</tspan>}</text>
+            </g>
+        }
+    </svg>
+</aside>

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AMGH.ITInventory.Shared</RootNamespace>
+    <Description>Cross-cutting primitives shared by every layer: permissions, results, error codes.</Description>
+  </PropertyGroup>
+</Project>

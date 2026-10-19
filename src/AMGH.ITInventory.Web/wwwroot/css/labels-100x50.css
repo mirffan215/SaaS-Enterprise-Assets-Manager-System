@@ -1,0 +1,5 @@
+/* 100 × 50 mm label */
+@page { size: 100mm 50mm; margin: 0; }
+:root { --label-w: 100mm; --label-h: 50mm; --label-pad: 2.5mm; --label-gap: 3.5mm; --qr: 45mm; --org-size: 6pt; --number-size: 12pt; --text-size: 8pt; }
+:root { --tag-outer: 1.2mm; --tag-border: .8mm; --tag-radius: 3mm; --tag-inner: 1.3mm; --tag-band-h: 16.5mm; --tag-gap: 1.8mm;
+        --tag-prop-size: 7pt; --tag-company-size: 13pt; --tag-contact-size: 8.5pt; --tag-number-size: 17pt; }

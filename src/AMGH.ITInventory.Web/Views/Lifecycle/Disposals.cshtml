@@ -1,0 +1,25 @@
+@model IReadOnlyList<AMGH.ITInventory.Application.Lifecycle.DisposalItem>
+@{ ViewData["Title"] = "Disposals"; var canComplete = User.HasPermission(Permissions.Disposals.Complete); }
+<div class="page-head"><div><h1 class="page-title">Disposals</h1>
+    <p class="text-body-secondary mb-0">Request a disposal from an asset's page (Actions → Request disposal). After approval, record the evidence to complete it.</p></div>
+    <a class="btn btn-outline-primary" asp-controller="Approvals" asp-action="Index"><i class="bi bi-inbox" aria-hidden="true"></i> Approval Center</a></div>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Document</th><th>Asset</th><th>Method</th><th>Status</th><th>Reason</th><th>Requested</th><th>Evidence</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>
+            @foreach (var d in Model)
+            {
+                <tr>
+                    <td class="text-nowrap"><partial name="_DocLink" model='(d.DocumentNumber, "DSP", d.AssetDisposalId)' /></td><td><a asp-controller="Assets" asp-action="Details" asp-route-id="@d.AssetId">@d.AssetNumber</a><div class="small text-body-secondary">@d.AssetName</div></td>
+                    <td class="small">@d.Method</td>
+                    <td><span class="badge wf-@d.Status.ToLowerInvariant()">@d.Status</span>@if (d.RejectionReason is not null) {<div class="small text-danger">@d.RejectionReason</div>}</td>
+                    <td class="small">@d.Reason</td>
+                    <td class="small">@Time.Format(d.RequestedUtc)<div class="text-body-secondary">@d.RequestedBy@(d.ApprovedBy is null ? "" : " · approved by " + d.ApprovedBy)</div></td>
+                    <td class="small">@if (d.Status == "Completed") {<span>@Time.Date(d.DisposalDate)</span>@if (d.CertificateNumber is not null) {<div>Cert. @d.CertificateNumber</div>}@if (d.SanitizationMethod is not null) {<div>@d.SanitizationMethod</div>}}</td>
+                    <td class="text-end">@if (d.Status == "Approved" && canComplete) { <a class="btn btn-sm btn-primary" asp-action="Complete" asp-route-disposalId="@d.AssetDisposalId">Record disposal</a> }</td>
+                </tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="8" class="text-center text-body-secondary py-4">No disposals.</td></tr> }
+        </tbody>
+    </table>
+</div>

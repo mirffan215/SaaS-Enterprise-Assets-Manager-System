@@ -1,0 +1,12 @@
+@model AMGH.ITInventory.Application.Assets.AssetHeader
+<div class="asset-header-card">
+    <div>
+        <p class="asset-number mb-0"><a asp-controller="Assets" asp-action="Details" asp-route-id="@Model.AssetId">@Model.AssetNumber</a></p>
+        <p class="fw-semibold mb-0">@Model.AssetName</p>
+    </div>
+    <div class="small text-body-secondary">
+        Status: <strong>@Model.StatusName</strong>
+        @if (Model.Location is not null) { <span> · @Model.Location</span> }
+        @if (Model.Custodian is not null) { <span> · with @Model.Custodian</span> }
+    </div>
+</div>

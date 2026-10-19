@@ -1,0 +1,38 @@
+@model IReadOnlyList<AMGH.ITInventory.Application.Lifecycle.MovementItem>
+@{ ViewData["Title"] = "Movements"; var view = ViewData["View"] as string; var canComplete = User.HasPermission(Permissions.Movements.Complete); }
+<div class="page-head">
+    <div><h1 class="page-title">Asset movements</h1>
+        <p class="text-body-secondary mb-0">Request a move from an asset's page (Actions → Request move). Approved moves are completed here once the asset has physically moved.</p></div>
+    <a class="btn btn-outline-primary" asp-controller="Approvals" asp-action="Index"><i class="bi bi-inbox" aria-hidden="true"></i> Approval Center</a>
+</div>
+<ul class="nav nav-pills mb-3">
+    <li class="nav-item"><a class="nav-link @(view == "approved" ? "active" : "")" asp-action="Index" asp-route-view="approved">Approved, to complete</a></li>
+    <li class="nav-item"><a class="nav-link @(view == "requested" ? "active" : "")" asp-action="Index" asp-route-view="requested">Waiting for approval</a></li>
+    <li class="nav-item"><a class="nav-link @(view == "all" ? "active" : "")" asp-action="Index">All</a></li>
+</ul>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Document</th><th>Asset</th><th>Type</th><th>From</th><th>To</th><th>Status</th><th>Requested</th><th>Approved</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>
+            @foreach (var m in Model)
+            {
+                <tr>
+                    <td class="text-nowrap"><partial name="_DocLink" model='(m.DocumentNumber, "MOV", m.AssetMovementId)' /></td><td><a asp-controller="Assets" asp-action="Details" asp-route-id="@m.AssetId">@m.AssetNumber</a><div class="small text-body-secondary">@m.AssetName</div></td>
+                    <td>@m.MovementType</td><td class="small">@m.From</td><td class="small">@m.To</td>
+                    <td><span class="badge wf-@m.Status.ToLowerInvariant()">@m.Status</span>@if (m.RejectionReason is not null) {<div class="small text-danger">@m.RejectionReason</div>}</td>
+                    <td class="small">@Time.Format(m.RequestedUtc)<div class="text-body-secondary">@m.RequestedBy · @m.Reason</div></td>
+                    <td class="small">@(m.ApprovedBy is null ? "" : m.ApprovedBy)</td>
+                    <td class="text-end">
+                        @if (m.Status == "Approved" && canComplete)
+                        {
+                            <form asp-action="Complete" asp-route-movementId="@m.AssetMovementId" method="post" data-confirm="Confirm that @m.AssetNumber has been moved to @m.To?">
+                                <button class="btn btn-sm btn-primary" type="submit">Mark as moved</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="9" class="text-center text-body-secondary py-4">No movements.</td></tr> }
+        </tbody>
+    </table>
+</div>

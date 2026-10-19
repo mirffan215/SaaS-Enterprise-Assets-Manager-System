@@ -1,0 +1,28 @@
+@model IReadOnlyList<AMGH.ITInventory.Application.Lifecycle.VerificationException>
+@{ ViewData["Title"] = "Verification exceptions"; var canPerform = User.HasPermission(Permissions.Audits.Perform); }
+<div class="page-head"><h1 class="page-title">Verification exceptions</h1><a class="btn btn-link" asp-action="Index">Back to scanning</a></div>
+<p class="text-body-secondary">Findings that need follow-up (missing, damaged, wrong location or custodian, label missing). Record the corrective action to close each one.</p>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Document</th><th>Asset</th><th>Finding</th><th>Cycle</th><th>Found</th><th>Remarks</th><th>Corrective action</th></tr></thead>
+        <tbody>
+            @foreach (var e in Model)
+            {
+                <tr>
+                    <td class="text-nowrap"><partial name="_DocLink" model='(e.DocumentNumber, "VER", e.AssetAuditId)' /></td><td><a asp-controller="Assets" asp-action="Details" asp-route-id="@e.AssetId">@e.AssetNumber</a><div class="small text-body-secondary">@e.AssetName</div></td>
+                    <td><span class="badge text-bg-warning">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(e.Result)</span></td>
+                    <td>@e.Cycle</td><td class="small">@Time.Format(e.AuditedUtc)<div class="text-body-secondary">by @e.AuditedBy@(e.FoundAt is null ? "" : " · at " + e.FoundAt)</div></td>
+                    <td class="small">@e.Remarks</td>
+                    <td>@if (canPerform)
+                        {
+                            <form asp-action="Resolve" asp-route-auditId="@e.AssetAuditId" method="post" class="d-flex gap-1">
+                                <input class="form-control form-control-sm" name="correctiveAction" maxlength="1000" placeholder="What was done" required />
+                                <button class="btn btn-sm btn-outline-success" type="submit">Resolve</button>
+                            </form>
+                        }</td>
+                </tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No open exceptions.</td></tr> }
+        </tbody>
+    </table>
+</div>

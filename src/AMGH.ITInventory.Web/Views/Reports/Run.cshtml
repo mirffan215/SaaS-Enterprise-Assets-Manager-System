@@ -1,0 +1,135 @@
+@model ReportRunViewModel
+@using AMGH.ITInventory.Application.Reports
+@{
+    var r = Model.Result;
+    var q = Model.Request;
+    ViewData["Title"] = r.Report.Title;
+    string? D(DateOnly? v) => v?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    var visible = r.Columns.Select(c => c.Key).ToHashSet();
+    var baseUrl = Url.Action("Run", new { code = r.Report.Code });
+    string PageUrl(int p) => baseUrl + "?" + Model.QueryString + (Model.QueryString.Length > 0 ? "&" : "") + "page=" + p;
+    var exportBase = Url.Action("Export", new { code = r.Report.Code }) + "?" + Model.QueryString + (Model.QueryString.Length > 0 ? "&" : "");
+    var groupIndex = r.GroupBy is null ? -1 : r.Columns.ToList().FindIndex(c => c.Key == r.GroupBy.Key);
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">@r.Report.Title</h1>
+        <p class="text-body-secondary mb-0">@r.Report.Description <span class="badge text-bg-light">@r.Report.Confidentiality</span></p>
+    </div>
+    <a class="btn btn-link" asp-action="Index">All reports</a>
+</div>
+
+<form method="get" class="filter-bar report-form" id="reportForm">
+    <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-2"><label class="form-label small" for="from">@r.Report.DateFilterLabel from</label><input type="date" class="form-control form-control-sm" id="from" name="from" value="@D(q.From)" /></div>
+        <div class="col-6 col-md-2"><label class="form-label small" for="to">to</label><input type="date" class="form-control form-control-sm" id="to" name="to" value="@D(q.To)" /></div>
+        @if (r.Report.UsesAssetFilters)
+        {
+            <div class="col-6 col-md-2"><label class="form-label small" for="categoryId">Category</label>
+                <select class="form-select form-select-sm" id="categoryId" name="categoryId"><option value="">All</option>@foreach (var o in Model.Categories) { <option value="@o.Id" selected="@(o.Id == q.CategoryId)">@o.Text</option> }</select></div>
+            <div class="col-6 col-md-2"><label class="form-label small" for="departmentId">Department</label>
+                <select class="form-select form-select-sm" id="departmentId" name="departmentId"><option value="">All</option>@foreach (var o in Model.Departments) { <option value="@o.Id" selected="@(o.Id == q.DepartmentId)">@o.Text</option> }</select></div>
+            <div class="col-6 col-md-2"><label class="form-label small" for="locationId">Location</label>
+                <select class="form-select form-select-sm" id="locationId" name="locationId"><option value="">All</option>@foreach (var o in Model.Locations) { <option value="@o.Id" selected="@(o.Id == q.LocationId)">@o.Text</option> }</select></div>
+            <div class="col-6 col-md-2"><label class="form-label small" for="statusId">Asset status</label>
+                <select class="form-select form-select-sm" id="statusId" name="statusId"><option value="">All except disposed</option>@foreach (var o in Model.Statuses) { <option value="@o.Id" selected="@(o.Id == q.StatusId)">@o.Text</option> }</select></div>
+            <div class="col-6 col-md-3"><label class="form-label small" for="buildingId">Building</label>
+                <select class="form-select form-select-sm" id="buildingId" name="buildingId"><option value="">All</option>@foreach (var o in Model.Buildings) { <option value="@o.Id" selected="@(o.Id == q.BuildingId)">@o.Text</option> }</select></div>
+        }
+        <div class="col-6 col-md-3"><label class="form-label small" for="search">Search</label><input type="search" class="form-control form-control-sm" id="search" name="search" value="@q.Search" placeholder="Any text in the report" /></div>
+        <div class="col-6 col-md-2"><label class="form-label small" for="sort">Sort by</label>
+            <select class="form-select form-select-sm" id="sort" name="sort"><option value="">Default</option>@foreach (var c in r.AvailableColumns) { <option value="@c.Key" selected="@(c.Key == q.Sort)">@c.Header</option> }</select></div>
+        <div class="col-6 col-md-1"><div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="descending" name="descending" value="true" checked="@q.Descending" /><label class="form-check-label small" for="descending">Descending</label></div></div>
+        <div class="col-6 col-md-2"><label class="form-label small" for="groupBy">Group by</label>
+            <select class="form-select form-select-sm" id="groupBy" name="groupBy"><option value="">No grouping</option>@foreach (var c in r.AvailableColumns.Where(c => c.Groupable)) { <option value="@c.Key" selected="@(c.Key == q.GroupBy)">@c.Header</option> }</select></div>
+        <div class="col-6 col-md-1"><label class="form-label small" for="pageSize">Rows/page</label>
+            <select class="form-select form-select-sm" id="pageSize" name="pageSize">@foreach (var n in new[] { 50, 100, 250, 500 }) { <option value="@n" selected="@(n == r.PageSize)">@n</option> }</select></div>
+    </div>
+    <details class="mt-2 column-chooser" @(q.Columns.Count > 0 ? "open" : "")>
+        <summary class="small">Columns (@r.Columns.Count of @r.AvailableColumns.Count shown)</summary>
+        <div class="column-list">
+            @foreach (var c in r.AvailableColumns)
+            {
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="columns" id="col_@c.Key" value="@c.Key" checked="@visible.Contains(c.Key)" />
+                    <label class="form-check-label small" for="col_@c.Key">@c.Header</label>
+                </div>
+            }
+        </div>
+    </details>
+    <div class="d-flex gap-2 justify-content-end mt-2">
+        <a class="btn btn-sm btn-link" href="@baseUrl">Reset</a>
+        <button type="submit" class="btn btn-sm btn-primary">Run report</button>
+    </div>
+</form>
+
+<div class="report-toolbar">
+    <div class="report-meta">
+        <strong>@r.TotalRows.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)</strong> row(s)
+        @foreach (var f in r.AppliedFilters) { <span class="filter-chip">@f.Key: @f.Value</span> }
+    </div>
+    @if (Model.CanExport)
+    {
+        <div class="btn-group btn-group-sm" role="group" aria-label="Export">
+            <a class="btn btn-outline-primary" href="@(exportBase + "format=excel")"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Excel</a>
+            <a class="btn btn-outline-primary" href="@(exportBase + "format=csv")"><i class="bi bi-filetype-csv" aria-hidden="true"></i> CSV</a>
+            <a class="btn btn-outline-primary" href="@(exportBase + "format=word")"><i class="bi bi-file-earmark-word" aria-hidden="true"></i> Word</a>
+            <a class="btn btn-outline-primary" href="@(Url.Action("Print", new { code = r.Report.Code }) + "?" + Model.QueryString)" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Print / PDF</a>
+        </div>
+    }
+</div>
+
+@if (r.Summary.Count > 0)
+{
+    <ul class="report-summary">@foreach (var s in r.Summary) { <li>@s</li> }</ul>
+}
+
+<div class="table-responsive panel p-0">
+    <table class="table table-sm table-hover align-middle mb-0 report-table">
+        <thead><tr>@foreach (var c in r.Columns) { <th class="@(c.Kind is ReportColumnKind.Number or ReportColumnKind.Money ? "text-end" : "")">@c.Header</th> }</tr></thead>
+        <tbody>
+            @{ object? lastGroup = null; var first = true; }
+            @foreach (var row in r.Rows)
+            {
+                if (groupIndex >= 0 && (first || !Equals(row[groupIndex], lastGroup)))
+                {
+                    lastGroup = row[groupIndex];
+                    <tr class="group-row"><td colspan="@r.Columns.Count">@r.GroupBy!.Header: @(ReportValue.Format(lastGroup, r.GroupBy.Kind) ?? "(none)")</td></tr>
+                }
+                first = false;
+                <tr>
+                    @for (var i = 0; i < r.Columns.Count; i++)
+                    {
+                        var c = r.Columns[i];
+                        <td class="@(c.Kind is ReportColumnKind.Number or ReportColumnKind.Money ? "text-end" : "")">@ReportValue.Format(row[i], c.Kind)</td>
+                    }
+                </tr>
+            }
+            @if (r.Rows.Count == 0) { <tr><td colspan="@r.Columns.Count" class="text-center text-body-secondary py-4">No records match the filters.</td></tr> }
+        </tbody>
+    </table>
+</div>
+
+@if (r.TotalPages > 1)
+{
+    <nav aria-label="Report pages" class="mt-2">
+        <ul class="pagination pagination-sm justify-content-center">
+            <li class="page-item @(r.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@PageUrl(r.Page - 1)">Previous</a></li>
+            <li class="page-item disabled"><span class="page-link">Page @r.Page of @r.TotalPages</span></li>
+            <li class="page-item @(r.Page >= r.TotalPages ? "disabled" : "")"><a class="page-link" href="@PageUrl(r.Page + 1)">Next</a></li>
+        </ul>
+    </nav>
+}
+
+<section class="panel mt-3">
+    <h2 class="panel-title">Save this report</h2>
+    <form method="post" action="@(Url.Action("Save", new { code = r.Report.Code }) + "?" + Model.QueryString)" class="row g-2 align-items-end">
+        <div class="col-md-5"><label class="form-label small" for="saveName">Name</label><input class="form-control form-control-sm" id="saveName" name="saveName" maxlength="100" placeholder="e.g. Laptops in Finance" /></div>
+        <div class="col-md-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="shared" name="shared" value="true" /><label class="form-check-label small" for="shared">Share with colleagues in @User.GetCompanyName()</label></div></div>
+        <div class="col-md-2"><button type="submit" class="btn btn-sm btn-outline-primary">Save filters and columns</button></div>
+    </form>
+    @if (Model.Saved.Count > 0)
+    {
+        <p class="small mt-2 mb-0">Saved: @foreach (var s in Model.Saved) { <a class="me-2" href="@(baseUrl + "?" + s.QueryString)">@s.Name</a> }</p>
+    }
+</section>

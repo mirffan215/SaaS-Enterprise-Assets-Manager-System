@@ -1,0 +1,32 @@
+@model ApprovalRulesViewModel
+@using AMGH.ITInventory.Application.Lifecycle
+@{ ViewData["Title"] = "Approval stages"; }
+<div class="page-head">
+    <h1 class="page-title">Approval stages</h1>
+    <a class="btn btn-link" asp-action="Index">Approval Center</a>
+</div>
+<p class="text-body-secondary">With no stages, one approval by anyone with the approve permission is enough. With stages, each stage must be approved in order by a member of its role, and nobody may approve two stages of the same request or their own request. Stages cannot be changed while requests of that type are waiting.</p>
+<div class="row g-4">
+    @foreach (var type in RequestTypes.All)
+    {
+        var current = Model.Rules.Where(r => r.RequestType == type).OrderBy(r => r.StageNo).Select(r => r.ApproverRole).ToList();
+        <div class="col-lg-6">
+            <form asp-action="SaveRules" asp-route-type="@type" method="post" class="panel">
+                <h2 class="panel-title">@type requests</h2>
+                @for (var i = 0; i < 5; i++)
+                {
+                    <div class="mb-2 row g-2 align-items-center">
+                        <label class="col-3 col-form-label col-form-label-sm" for="@($"{type}_stage{i}")">Stage @(i + 1)</label>
+                        <div class="col-9">
+                            <select class="form-select form-select-sm" id="@($"{type}_stage{i}")" name="stages">
+                                <option value="">@(i == 0 ? "(any approver - single stage)" : "(no further stage)")</option>
+                                @foreach (var r in Model.Roles) { <option value="@r" selected="@(i < current.Count && current[i] == r)">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(r)</option> }
+                            </select>
+                        </div>
+                    </div>
+                }
+                <button class="btn btn-sm btn-primary" type="submit">Save @type.ToLowerInvariant() stages</button>
+            </form>
+        </div>
+    }
+</div>

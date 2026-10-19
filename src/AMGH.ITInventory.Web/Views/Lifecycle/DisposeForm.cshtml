@@ -1,0 +1,13 @@
+@model DisposeFormViewModel
+@{ ViewData["Title"] = "Request disposal"; }
+<div class="page-head"><h1 class="page-title">Request disposal</h1><a class="btn btn-link" asp-controller="Assets" asp-action="Details" asp-route-id="@Model.Asset.AssetId">Cancel</a></div>
+<partial name="_AssetHeader" model="Model.Asset" />
+<form method="post" class="panel" novalidate>
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <div class="row g-3">
+        <partial name="_SelectField" model='new SelectFieldModel("disposalMethodId", "Disposal method", Model.Methods, Model.MethodId?.ToString(System.Globalization.CultureInfo.InvariantCulture), true, Help: "Methods for devices that held data require sanitisation evidence when the disposal is completed.")' />
+        <div class="col-12"><label class="form-label" for="reason">Reason *</label><textarea class="form-control" id="reason" name="reason" rows="2" maxlength="500">@Model.Reason</textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-danger" type="submit">Request disposal</button></div>
+</form>
+<p class="small text-body-secondary">The asset becomes <strong>Pending Disposal</strong> until the request is decided in the Approval Center. Return it from its custodian first.</p>

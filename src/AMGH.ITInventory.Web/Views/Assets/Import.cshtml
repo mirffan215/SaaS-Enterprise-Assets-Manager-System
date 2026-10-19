@@ -1,0 +1,98 @@
+@model AssetImportViewModel
+@{
+    ViewData["Title"] = "Import assets";
+}
+<div class="page-head">
+    <h1 class="page-title">Import assets from Excel</h1>
+    <a class="btn btn-link" asp-action="Index">Back to assets</a>
+</div>
+
+@if (Model.Created is not null)
+{
+    <div class="panel">
+        <h2 class="panel-title text-success"><i class="bi bi-check-circle" aria-hidden="true"></i> @Model.Created.Count asset(s) imported</h2>
+        <p>Each asset received its permanent number. Next: assign them to their users and print labels.</p>
+        <div class="table-responsive created-list">
+            <table class="table table-sm mb-0">
+                <tbody>
+                    @foreach (var c in Model.Created)
+                    {
+                        <tr><td><a asp-action="Details" asp-route-id="@c.AssetId">@c.AssetNumber</a></td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <a class="btn btn-primary mt-3" asp-action="Index">View the register</a>
+    </div>
+}
+else if (Model.Preview is { } p)
+{
+    @if (p.CanImport)
+    {
+        <div class="panel">
+            <h2 class="panel-title text-success"><i class="bi bi-check-circle" aria-hidden="true"></i> The file is valid: @p.RowCount asset(s) ready</h2>
+            @foreach (var n in p.Notes) { <p class="text-body-secondary">@n</p> }
+            <p>Asset numbers are assigned when you confirm. Either every row is imported or none is.</p>
+            <form asp-action="ConfirmImport" method="post" class="d-flex gap-2">
+                <input type="hidden" name="token" value="@p.Token" />
+                <button type="submit" class="btn btn-primary">Import @p.RowCount asset(s)</button>
+                <a class="btn btn-link" asp-action="Import">Cancel</a>
+            </form>
+        </div>
+    }
+    else
+    {
+        <div class="panel">
+            <h2 class="panel-title text-danger"><i class="bi bi-x-circle" aria-hidden="true"></i> Nothing was imported: @p.Errors.Count problem(s) found</h2>
+            <p>Correct these rows in your file and upload it again. Row numbers match the Excel row numbers.</p>
+            @foreach (var n in p.Notes) { <p class="text-body-secondary">@n</p> }
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th class="text-nowrap">Excel row</th><th>Problem</th></tr></thead>
+                    <tbody>
+                        @foreach (var e in p.Errors.Take(500))
+                        {
+                            <tr><td>@(e.RowNumber == 0 ? "File" : e.RowNumber.ToString())</td><td>@e.Message</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (p.Errors.Count > 500) { <p class="small text-body-secondary mt-2">Showing the first 500 problems.</p> }
+        </div>
+    }
+}
+else if (Model.CommitErrors.Count > 0)
+{
+    <div class="alert alert-danger">
+        <p class="fw-semibold">The import was not completed. Nothing was created.</p>
+        <ul class="mb-0">@foreach (var e in Model.CommitErrors) { <li>@e.Message</li> }</ul>
+    </div>
+}
+
+@if (Model.Created is null && Model.Preview?.CanImport != true)
+{
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <form asp-action="Import" method="post" enctype="multipart/form-data" class="panel">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                <h2 class="panel-title">Upload the completed workbook</h2>
+                <label for="file" class="form-label">Excel file (.xlsx)</label>
+                <input type="file" id="file" name="file" class="form-control" accept=".xlsx" required />
+                <button type="submit" class="btn btn-primary mt-3"><i class="bi bi-upload" aria-hidden="true"></i> Check the file</button>
+                <p class="form-text mb-0 mt-2">The file is checked first. Nothing is saved until you confirm.</p>
+            </form>
+        </div>
+        <div class="col-lg-5">
+            <section class="rules-panel">
+                <h2 class="h6">How it works</h2>
+                <ol>
+                    <li><a asp-action="Template">Download the template</a>. It lists the valid codes for categories, locations, departments and more.</li>
+                    <li>Delete the example row and add one row per asset (up to @Model.MaxRows).</li>
+                    <li>Upload it here. Every row is checked: codes, dates, duplicates in the file and in the register.</li>
+                    <li>If all rows are valid, confirm. All assets are created together with their numbers.</li>
+                </ol>
+                <p class="small mb-0">Custodians are not imported. Assign assets afterwards so each hand-over is recorded.</p>
+            </section>
+        </div>
+    </div>
+}

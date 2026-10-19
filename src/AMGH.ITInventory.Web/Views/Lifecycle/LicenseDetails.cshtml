@@ -1,0 +1,40 @@
+@model LicenseDetailsViewModel
+@{ var l = Model.License; ViewData["Title"] = l.SoftwareName; var canManage = User.HasPermission(Permissions.Licenses.Manage); }
+<div class="page-head">
+    <div><p class="asset-number mb-0">@l.LicenseNumber</p><h1 class="page-title">@l.SoftwareName @l.Version</h1>
+        <p class="mb-0"><span class="badge licence-@l.State.ToLowerInvariant().Replace(' ', '-')">@l.State</span> · @l.Type · @(l.Publisher ?? "") · seats <strong>@l.UsedSeats / @(l.TotalSeats?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unlimited")</strong>
+            @if (l.ExpiryDate is { } e) { <span> · expires @Time.Date(e)</span> }</p></div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-link" asp-action="Index">All licences</a>
+        @if (canManage) { <a class="btn btn-outline-primary" asp-action="Edit" asp-route-licenseId="@l.SoftwareLicenseId">Edit</a> }
+        @if (l.HasKey && User.HasPermission(Permissions.Licenses.ViewKeys))
+        {
+            <form asp-action="RevealKey" asp-route-licenseId="@l.SoftwareLicenseId" method="post" data-confirm="Reveal the licence key? Your name and the time are recorded."><button class="btn btn-outline-danger" type="submit"><i class="bi bi-key" aria-hidden="true"></i> Reveal key</button></form>
+        }
+    </div>
+</div>
+@if (canManage && l.IsActive)
+{
+    <form asp-action="Allocate" asp-route-licenseId="@l.SoftwareLicenseId" method="post" class="panel row g-2 align-items-end">
+        <div class="col-md-3"><label class="form-label small" for="assetNumber">Allocate to asset</label><input class="form-control form-control-sm" id="assetNumber" name="assetNumber" placeholder="Asset number or scan" /></div>
+        <partial name="_SelectField" model='new SelectFieldModel("employeeId", "…or to a person", Model.Employees, null, CssClass: "col-md-4")' />
+        <div class="col-md-3"><label class="form-label small" for="notes">Notes</label><input class="form-control form-control-sm" id="notes" name="notes" maxlength="500" /></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-primary w-100" type="submit">Allocate seat</button></div>
+    </form>
+}
+<div class="table-responsive panel p-0">
+    <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Allocated to</th><th>Since</th><th>Released</th><th>Notes</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>
+            @foreach (var a in Model.Allocations)
+            {
+                <tr class="@(a.IsCurrent ? "" : "text-body-secondary")">
+                    <td>@if (a.AssetId is { } aid) {<a asp-controller="Assets" asp-action="Details" asp-route-id="@aid">@a.AssetNumber</a>} else {<span>@a.Employee</span>}</td>
+                    <td class="small">@Time.Format(a.AllocatedUtc)</td><td class="small">@(a.RevokedUtc is { } r ? Time.Format(r) : "")</td><td class="small">@a.Notes</td>
+                    <td class="text-end">@if (a.IsCurrent && canManage) { <form asp-action="Revoke" asp-route-licenseId="@l.SoftwareLicenseId" asp-route-allocationId="@a.AllocationId" method="post"><button class="btn btn-sm btn-outline-secondary" type="submit">Release</button></form> }</td>
+                </tr>
+            }
+            @if (Model.Allocations.Count == 0) { <tr><td colspan="5" class="text-center text-body-secondary py-4">No seats allocated.</td></tr> }
+        </tbody>
+    </table>
+</div>

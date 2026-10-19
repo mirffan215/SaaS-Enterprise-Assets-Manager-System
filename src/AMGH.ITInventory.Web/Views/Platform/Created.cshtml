@@ -1,0 +1,43 @@
+@model AMGH.ITInventory.Security.Platform.CompanySetupResult
+@{ ViewData["Title"] = "Company created"; }
+<div class="page-head"><h1 class="page-title">Company @Model.CompanyCode created</h1></div>
+<div class="row g-4">
+    <div class="col-lg-7">
+        <section class="panel">
+            <h2 class="panel-title">Administrator</h2>
+            <p>User <strong>@Model.AdminUsername</strong> is the company's System Administrator.</p>
+            @if (Model.TemporaryPassword is not null)
+            {
+                <div class="alert alert-warning">
+                    <p class="mb-2">Temporary password (shown <strong>once</strong>; give it to the administrator personally):</p>
+                    <div class="input-group">
+                        <input class="form-control font-monospace" id="tempPassword" value="@Model.TemporaryPassword" readonly />
+                        <button class="btn btn-outline-secondary" type="button" data-copy-target="tempPassword">Copy</button>
+                    </div>
+                    <p class="small mb-0 mt-2">They must change it at first sign-in.</p>
+                </div>
+            }
+            else
+            {
+                <p class="text-body-secondary">They sign in with their existing password and choose <strong>@Model.CompanyCode</strong> on the company picker.</p>
+            }
+            <p class="mb-0">Sign-in link for this company: <code>@($"{Context.Request.Scheme}://{Context.Request.Host}/w/{Model.CompanyCode}")</code></p>
+        </section>
+    </div>
+    <div class="col-lg-5">
+        <section class="rules-panel">
+            <h2 class="h6">Set up</h2>
+            <ul class="small mb-0">@foreach (var line in Model.Copied) { <li>@line</li> }</ul>
+        </section>
+        <section class="rules-panel">
+            <h2 class="h6">Next steps for the company</h2>
+            <ol class="small mb-0">
+                <li>Add buildings, floors and rooms (Master data).</li>
+                <li>Add departments and employees, or import employees.</li>
+                <li>Create users and give them roles.</li>
+                <li>Add assets, or import them from Excel.</li>
+            </ol>
+        </section>
+        <a class="btn btn-primary" asp-action="Index">Back to companies</a>
+    </div>
+</div>

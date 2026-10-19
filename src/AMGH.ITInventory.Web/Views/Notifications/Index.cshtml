@@ -1,0 +1,44 @@
+@model NotificationCentreViewModel
+@using AMGH.ITInventory.Application.Notifications
+@{ ViewData["Title"] = "Notifications"; var unread = (bool)(ViewData["Unread"] ?? false); }
+<div class="page-head">
+    <div><h1 class="page-title">Notifications</h1><p class="text-body-secondary mb-0">Reminders and updates for @User.GetCompanyName().</p></div>
+    <form asp-action="MarkAllRead" method="post"><button class="btn btn-outline-secondary" type="submit"><i class="bi bi-check2-all" aria-hidden="true"></i> Mark all as read</button></form>
+</div>
+<ul class="nav nav-pills mb-3">
+    <li class="nav-item"><a class="nav-link @(!unread ? "active" : "")" asp-action="Index">All</a></li>
+    <li class="nav-item"><a class="nav-link @(unread ? "active" : "")" asp-action="Index" asp-route-unread="true">Unread</a></li>
+</ul>
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="panel p-0">
+            @foreach (var n in Model.Items)
+            {
+                <a class="notification-row @(n.IsRead ? "" : "unread")" asp-action="Open" asp-route-id="@n.Id">
+                    <span class="notification-dot sev-@n.Severity.ToLowerInvariant()" aria-hidden="true"></span>
+                    <span class="flex-grow-1">
+                        <span class="notification-title">@n.Title</span>
+                        <span class="notification-text">@n.Message</span>
+                    </span>
+                    <span class="small text-body-secondary text-nowrap">@Time.Format(n.CreatedUtc)</span>
+                    @if (!n.IsRead) { <span class="visually-hidden">unread</span> }
+                </a>
+            }
+            @if (Model.Items.Count == 0) { <div class="empty-state"><i class="bi bi-bell" aria-hidden="true"></i><p>No notifications@(unread ? " unread" : "").</p></div> }
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <form asp-action="Preferences" method="post" class="panel">
+            <h2 class="panel-title">E-mail me about</h2>
+            <p class="small text-body-secondary">You always see notifications here. Untick a kind to stop receiving it by e-mail.</p>
+            @foreach (var r in NotificationCatalog.Rules)
+            {
+                <div class="form-check mb-1">
+                    <input class="form-check-input" type="checkbox" name="email" value="@r.Key" id="pref_@r.Key" checked="@(Model.Preferences.TryGetValue(r.Key, out var on) && on)" />
+                    <label class="form-check-label" for="pref_@r.Key">@r.Title</label>
+                </div>
+            }
+            <button class="btn btn-sm btn-primary mt-2" type="submit">Save my choices</button>
+        </form>
+    </div>
+</div>

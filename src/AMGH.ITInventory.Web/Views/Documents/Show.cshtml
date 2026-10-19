@@ -1,0 +1,61 @@
+@model AMGH.ITInventory.Application.Documents.DocumentView
+@inject AMGH.ITInventory.Web.Infrastructure.IDisplayTime Time
+<div class="page-head">
+    <div>
+        <p class="text-body-secondary mb-0 small">@Model.Type.Name</p>
+        <h1 class="page-title font-monospace">@(Model.Number ?? "(no number)")</h1>
+        <p class="mb-0"><span class="badge text-bg-light">@Model.Status</span>
+            Asset <a asp-controller="Assets" asp-action="Details" asp-route-id="@Model.AssetId">@Model.AssetNumber</a> · @Model.AssetName</p>
+    </div>
+</div>
+<div class="row g-3">
+    <div class="col-lg-8">
+        <section class="panel">
+            <h2 class="panel-title">Details</h2>
+            <dl class="row mb-0 doc-fields">
+                @foreach (var f in Model.Fields.Where(f => !string.IsNullOrWhiteSpace(f.Value)))
+                {
+                    <dt class="col-sm-4">@f.Label</dt><dd class="col-sm-8">@f.Value</dd>
+                }
+            </dl>
+        </section>
+        @if (Model.Steps.Count > 0)
+        {
+            <section class="panel mt-3">
+                <h2 class="panel-title">Approval steps</h2>
+                <ul class="list-unstyled mb-0">
+                    @foreach (var s in Model.Steps)
+                    {
+                        <li class="lc-row"><span class="badge @(s.Decision == "Approved" ? "text-bg-success" : "text-bg-danger")">@s.Decision</span>
+                            Stage @s.StageNo by <strong>@s.DecidedBy</strong>, @Time.Format(s.DecidedUtc)@(s.Remarks is null ? "" : " - " + s.Remarks)</li>
+                    }
+                </ul>
+            </section>
+        }
+    </div>
+    <div class="col-lg-4">
+        <section class="panel">
+            <h2 class="panel-title">ERP reference</h2>
+            <p class="small text-body-secondary">The matching document in your ERP system (e.g. an SAP posting or retirement number). Searchable like the document number.</p>
+            @if (Model.CanEditErp)
+            {
+                <form asp-action="SetErpReference" asp-route-type="@Model.Type.Code" asp-route-id="@Model.Id" method="post" class="d-flex gap-2">
+                    <label class="visually-hidden" for="erpReference">ERP reference</label>
+                    <input class="form-control form-control-sm font-monospace" id="erpReference" name="erpReference" value="@Model.ErpReference" maxlength="50" placeholder="e.g. 4900001234" />
+                    <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
+                </form>
+            }
+            else
+            {
+                <p class="font-monospace mb-0">@(Model.ErpReference ?? "-")</p>
+            }
+        </section>
+        <section class="panel mt-3 small">
+            <h2 class="panel-title">Link</h2>
+            @if (Model.Number is not null)
+            {
+                <p class="mb-0">Short link: <a class="font-monospace" href="@Url.Action("ByNumber", "Documents", new { number = Model.Number })">@Url.Action("ByNumber", "Documents", new { number = Model.Number })</a></p>
+            }
+        </section>
+    </div>
+</div>

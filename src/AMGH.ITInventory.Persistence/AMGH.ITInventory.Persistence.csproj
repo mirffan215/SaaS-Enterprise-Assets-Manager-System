@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AMGH.ITInventory.Persistence</RootNamespace>
+    <Description>EF Core 8 data access for SQL Server 2022: DbContext, mappings, auditing, repositories, stored procedures.</Description>
+    <!-- Compiler and nullability warnings stay errors; code-analysis suggestions are reported but do not break the build. -->
+    <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+    <!-- Configuration classes are instantiated by reflection (ApplyConfigurationsFromAssembly) and repositories by DI. -->
+    <NoWarn>$(NoWarn);CA1812;CA1848</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AMGH.ITInventory.Application\AMGH.ITInventory.Application.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Domain\AMGH.ITInventory.Domain.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Shared\AMGH.ITInventory.Shared.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AMGH.ITInventory.IntegrationTests" />
+  </ItemGroup>
+</Project>

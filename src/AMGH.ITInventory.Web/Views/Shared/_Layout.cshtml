@@ -1,0 +1,174 @@
+@using Microsoft.Extensions.Options
+@using AMGH.ITInventory.Security
+@using AMGH.ITInventory.Web.Infrastructure
+@inject IOptions<SecurityOptions> SecurityOptions
+@inject INavigation Navigation
+@inject AMGH.ITInventory.Application.Notifications.INotificationService Notifications
+@{
+    var nav = await Navigation.BuildAsync(Context);
+    var companyCode = User.GetCompanyCode();
+    var displayName = User.GetDisplayName();
+    var initials = string.Concat(displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+    var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => AMGH.ITInventory.Application.Common.DisplayText.Humanize(c.Value)).ToList();
+    var myId = User.GetUserId() ?? 0;
+    var unreadCount = myId > 0 ? await Notifications.UnreadCountAsync(myId) : 0;
+    var latest = unreadCount > 0 ? await Notifications.InboxAsync(myId, true, 6) : Array.Empty<AMGH.ITInventory.Application.Notifications.InboxItem>();
+}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] · @AMGH.ITInventory.Shared.AppInfo.ShortName · @User.GetCompanyName()</title>
+    @* applies the saved theme and sidebar state before the page paints (external file: the CSP allows no inline script) *@
+    <script src="~/js/theme.js" asp-append-version="true"></script>
+    <link rel="icon" href="~/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @if (companyCode.Length > 0)
+    {
+        <link rel="stylesheet" href="@Url.Action("Stylesheet", "Branding", new { code = companyCode })" />
+    }
+</head>
+<body class="app-shell" data-session-minutes="@SecurityOptions.Value.SessionIdleTimeoutMinutes" data-keepalive-url="@Url.Action("KeepAlive", "Account")" data-login-url="@Url.Action("Login", "Account", new { expired = true })">
+    <a class="visually-hidden-focusable skip-link" href="#main">Skip to content</a>
+
+    <aside class="app-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="appSidebar" aria-label="Main menu">
+        <div class="sidebar-brand">
+            <a class="sidebar-brand-link" href="@nav.HomeUrl">
+                <span class="app-brand-mark" aria-hidden="true">@(companyCode.Length > 0 ? companyCode : "AMGH")</span>
+                <span class="sidebar-label sidebar-brand-text"><span class="sidebar-brand-name">@AMGH.ITInventory.Shared.AppInfo.ShortName</span><span class="sidebar-brand-sub">Enterprise Asset Management</span></span>
+            </a>
+            <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Close menu"></button>
+        </div>
+        <nav class="sidebar-nav">
+            @foreach (var sec in nav.Sections)
+            {
+                <div class="sidebar-section">
+                    <p class="sidebar-section-title sidebar-label">@sec.Title</p>
+                    <ul class="list-unstyled mb-0">
+                        @foreach (var item in sec.Items)
+                        {
+                            var current = ReferenceEquals(item, nav.CurrentItem);
+                            <li>
+                                <a class="sidebar-link @(current ? "active" : "")" href="@item.Url" title="@item.Text" aria-current="@(current ? "page" : null)">
+                                    <i class="bi @item.Icon" aria-hidden="true"></i>
+                                    <span class="sidebar-label">@item.Text</span>
+                                    @if (item.Badge is { } b) { <span class="badge rounded-pill text-bg-warning sidebar-badge" aria-label="@b waiting for you">@b</span> }
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        </nav>
+        <button type="button" class="sidebar-collapse-btn d-none d-lg-flex" data-sidebar-toggle="true" aria-label="Collapse or expand the menu" title="Collapse or expand the menu">
+            <i class="bi bi-chevron-double-left" aria-hidden="true"></i><span class="sidebar-label">Collapse menu</span>
+        </button>
+    </aside>
+
+    <div class="app-content">
+        <header class="app-topbar">
+            <button class="btn btn-link app-menu-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar" aria-label="Open menu">
+                <i class="bi bi-list" aria-hidden="true"></i>
+            </button>
+            <form class="global-search" method="get" action="@Url.Action("Index", "Search")" role="search" autocomplete="off">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <label class="visually-hidden" for="globalSearch">Search</label>
+                <input id="globalSearch" name="q" type="search" class="form-control" placeholder="Search assets, people, licences…  ( / )"
+                       data-suggest-url="@Url.Action("Suggest", "Search")" aria-autocomplete="list" aria-controls="searchSuggestions" aria-expanded="false" maxlength="100" />
+                <ul class="search-suggestions" id="searchSuggestions" role="listbox" hidden></ul>
+            </form>
+            <div class="topbar-right">
+                <div class="dropdown">
+                    <button class="btn btn-link bell-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications, @unreadCount unread">
+                        <i class="bi bi-bell" aria-hidden="true"></i>
+                        @if (unreadCount > 0) { <span class="bell-count">@(unreadCount > 99 ? "99+" : unreadCount.ToString(System.Globalization.CultureInfo.InvariantCulture))</span> }
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end bell-menu">
+                        <div class="d-flex justify-content-between align-items-center px-3 py-2"><strong>Notifications</strong>
+                            @if (unreadCount > 0) { <form asp-controller="Notifications" asp-action="MarkAllRead" method="post"><button class="btn btn-link btn-sm p-0" type="submit">Mark all read</button></form> }</div>
+                        @foreach (var n in latest)
+                        {
+                            <a class="dropdown-item bell-item" asp-controller="Notifications" asp-action="Open" asp-route-id="@n.Id">
+                                <span class="notification-dot sev-@n.Severity.ToLowerInvariant()" aria-hidden="true"></span>
+                                <span class="bell-text"><span class="fw-semibold">@n.Title</span><span class="small text-body-secondary d-block">@n.CreatedUtc.ToString("dd MMM HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC</span></span>
+                            </a>
+                        }
+                        @if (unreadCount == 0) { <p class="small text-body-secondary px-3 mb-2">You're all caught up.</p> }
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item small" asp-controller="Notifications" asp-action="Index">All notifications and e-mail choices</a>
+                    </div>
+                </div>
+                <span class="company-chip d-none d-md-inline-flex" title="Company workspace"><i class="bi bi-building" aria-hidden="true"></i> @User.GetCompanyName()</span>
+                <div class="dropdown">
+                    <button class="btn btn-link profile-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Your profile and settings">
+                        <span class="profile-avatar" aria-hidden="true">@initials</span>
+                        <span class="d-none d-sm-inline">@displayName</span>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end profile-menu">
+                        <div class="px-3 py-2">
+                            <div class="fw-semibold">@displayName</div>
+                            <div class="small text-body-secondary">@User.Identity?.Name · @User.GetCompanyName()</div>
+                            @if (roles.Count > 0) { <div class="small mt-1">@string.Join(", ", roles)</div> }
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <div class="px-3 pb-2" role="group" aria-label="Theme">
+                            <div class="small text-body-secondary mb-1">Theme</div>
+                            <div class="btn-group btn-group-sm w-100">
+                                <button type="button" class="btn btn-outline-secondary" data-theme-choice="light"><i class="bi bi-sun" aria-hidden="true"></i> Light</button>
+                                <button type="button" class="btn btn-outline-secondary" data-theme-choice="dark"><i class="bi bi-moon-stars" aria-hidden="true"></i> Dark</button>
+                                <button type="button" class="btn btn-outline-secondary" data-theme-choice="auto"><i class="bi bi-circle-half" aria-hidden="true"></i> Auto</button>
+                            </div>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" asp-controller="Account" asp-action="ChangePassword"><i class="bi bi-key" aria-hidden="true"></i> Change password</a>
+                        <form asp-controller="Account" asp-action="SwitchCompany" method="post"><button type="submit" class="dropdown-item"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Switch company</button></form>
+                        <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm"><button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Sign out</button></form>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        @if (User.IsPlatformAccessSession())
+        {
+            <div class="platform-banner" role="status">
+                <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+                You are working in <strong>@User.GetCompanyName()</strong> as Platform Administrator. Your sign-in and every change are recorded in this company's logs.
+            </div>
+        }
+        <main id="main" class="app-main" tabindex="-1">
+            <partial name="_Breadcrumbs" model="nav" />
+            <partial name="_StatusMessage" />
+            @RenderBody()
+        </main>
+        <footer class="app-footer">
+            @User.GetCompanyName() · @AMGH.ITInventory.Shared.AppInfo.Name @AMGH.ITInventory.Shared.AppInfo.Version · @AMGH.ITInventory.Shared.AppInfo.Owner. Authorised use only; activity is logged.
+        </footer>
+    </div>
+
+    <div class="modal fade" id="sessionModal" tabindex="-1" aria-labelledby="sessionModalTitle" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="sessionModalTitle">Your session is about to end</h2>
+                </div>
+                <div class="modal-body">
+                    You'll be signed out in <strong id="sessionCountdown">60</strong> seconds because of inactivity.
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" form="logoutForm" class="btn btn-outline-secondary">Sign out now</button>
+                    <button type="button" class="btn btn-primary" id="sessionContinue">Stay signed in</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="~/lib/jquery/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/shell.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

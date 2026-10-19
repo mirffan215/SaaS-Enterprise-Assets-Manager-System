@@ -1,0 +1,5 @@
+@model (string? Number, string Type, int Id)
+@if (!string.IsNullOrEmpty(Model.Number))
+{
+    <a class="doc-no font-monospace" href="@Url.Action("Show", "Documents", new { type = Model.Type, id = Model.Id })">@Model.Number</a>
+}

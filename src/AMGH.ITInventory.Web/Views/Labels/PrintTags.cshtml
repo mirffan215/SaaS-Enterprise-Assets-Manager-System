@@ -1,0 +1,52 @@
+@model AMGH.ITInventory.Application.Labels.LabelSheet
+@using AMGH.ITInventory.Domain.Enums
+@using Microsoft.Extensions.Options
+@using AMGH.ITInventory.Security.Claims
+@inject IOptions<TagOptions> TagSettings
+@inject AMGH.ITInventory.Security.Platform.ICompanyDirectory Directory
+@{
+    Layout = "_PrintLayout";
+    var t = TagSettings.Value;
+    // Each company's tags carry its own name, phone and logo (Release 2.1).
+    var company = await Directory.GetBrandingAsync(User.GetCompanyCode());
+    var companyName = company?.DisplayName ?? t.CompanyName;
+    var contact = company?.Phone ?? t.ContactLine;
+    var code = company?.CompanyCode ?? "AMGH";
+    string? logoUrl = company?.HasLogo == true ? Url.Action("Logo", "Branding", new { code })
+        : code == "AMGH" ? null : string.Empty; // AMGH without uploaded logo: built-in emblem; others: no logo
+    var key = Model.Size switch { LabelSize.Size50x30 => "50x30", LabelSize.Size100x50 => "100x50", _ => "70x40" };
+    var style = ViewData["TagStyle"] as string == "mono" ? "mono" : "colour";
+    ViewData["Title"] = "Asset tags";
+    ViewData["SheetCss"] = $"~/css/labels-{key}.css";
+    ViewData["AutoPrint"] = true;
+    ViewData["PrintTip"] = $"Tag size {key.Replace("x", " × ")} mm · margins None · scale 100% · headers/footers off · background graphics on";
+}
+<main class="sheet">
+    @foreach (var item in Model.Labels)
+    {
+        for (var copy = 0; copy < item.Copies; copy++)
+        {
+            <section class="tag tag-@style" aria-label="@item.Asset.AssetNumber">
+                <div class="tag-frame">
+                    <header class="tag-band">
+                        @if (logoUrl is null)
+                        {
+                            <img class="tag-logo" src="@(style == "mono" ? "/images/amgh-emblem-mono.png" : "/images/amgh-emblem.png")" alt="" />
+                        }
+                        else if (logoUrl.Length > 0)
+                        {
+                            <img class="tag-logo tag-logo-custom" src="@logoUrl" alt="" />
+                        }
+                        <div class="tag-band-text">
+                            <div class="tag-prop">@t.PropertyOf</div>
+                            <div class="tag-company">@companyName</div>
+                            <div class="tag-contact">@contact</div>
+                        </div>
+                    </header>
+                    <div class="tag-barcode">@Html.Raw(item.BarcodeSvg)</div>
+                    <div class="tag-number">@item.Asset.AssetNumber</div>
+                </div>
+            </section>
+        }
+    }
+</main>

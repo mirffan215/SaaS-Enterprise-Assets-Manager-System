@@ -1,0 +1,46 @@
+@model AMGH.ITInventory.Application.Search.SearchResults
+@using AMGH.ITInventory.Application.Search
+@{
+    string UrlFor(SearchHit h) => h.Kind switch
+    {
+        SearchKind.Asset => Url.Action("Details", "Assets", new { id = h.Id })!,
+        SearchKind.Document => Url.Action("Show", "Documents", new { type = h.DocType, id = h.Id })!,
+        SearchKind.Licence => Url.Action("Details", "Licenses", new { licenseId = h.Id })!,
+        SearchKind.Employee => Url.Action("Edit", "MasterData", new { type = "employees", id = h.Id })!,
+        SearchKind.Department => Url.Action("Edit", "MasterData", new { type = "departments", id = h.Id })!,
+        SearchKind.Location => Url.Action("Edit", "MasterData", new { type = "locations", id = h.Id })!,
+        _ => Url.Action("Edit", "MasterData", new { type = "vendors", id = h.Id })!
+    };
+    string Icon(SearchKind k) => k switch
+    {
+        SearchKind.Asset => "bi-box-seam", SearchKind.Document => "bi-file-earmark-text", SearchKind.Licence => "bi-key", SearchKind.Employee => "bi-person",
+        SearchKind.Department => "bi-diagram-3", SearchKind.Location => "bi-building", _ => "bi-truck"
+    };
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Search</h1>
+        @if (Model.Term.Length >= ISearchService.MinLength) { <p class="text-body-secondary mb-0">@Model.Count result(s) for “@Model.Term” in @User.GetCompanyName()</p> }
+    </div>
+</div>
+@if (Model.Term.Length < ISearchService.MinLength)
+{
+    <div class="empty-state"><i class="bi bi-search" aria-hidden="true"></i><p>Type at least two characters in the search box. You can also scan an asset label into it to open the asset directly.</p></div>
+}
+else if (Model.Count == 0)
+{
+    <div class="empty-state"><i class="bi bi-search" aria-hidden="true"></i><p>Nothing found for “@Model.Term”. Try part of a name, an asset number, a serial number or a hostname.</p></div>
+}
+@foreach (var g in Model.Groups)
+{
+    <section class="panel search-results">
+        <h2 class="panel-title"><i class="bi @Icon(g.Kind)" aria-hidden="true"></i> @g.Title</h2>
+        <ul class="list-unstyled mb-0">
+            @foreach (var h in g.Hits)
+            {
+                <li class="search-result"><a class="fw-semibold" href="@UrlFor(h)">@h.Title</a>@if (!string.IsNullOrEmpty(h.Subtitle)) { <div class="small text-body-secondary">@h.Subtitle</div> }</li>
+            }
+        </ul>
+        @if (g.More) { <p class="small text-body-secondary mb-0 mt-2">More results: refine the search to narrow them down.</p> }
+    </section>
+}

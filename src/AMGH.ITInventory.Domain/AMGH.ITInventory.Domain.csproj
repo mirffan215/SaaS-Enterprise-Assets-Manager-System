@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AMGH.ITInventory.Domain</RootNamespace>
+    <Description>Domain model: entities, enums, value objects. No infrastructure dependencies.</Description>
+  </PropertyGroup>
+</Project>

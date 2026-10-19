@@ -1,0 +1,26 @@
+@model MaintenanceFormViewModel
+@using AMGH.ITInventory.Domain.Enums
+@{ ViewData["Title"] = "Log maintenance"; var f = Model.Form; string? S(int? v) => v?.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+<div class="page-head"><h1 class="page-title">Log maintenance or repair</h1><a class="btn btn-link" asp-controller="Assets" asp-action="Details" asp-route-id="@Model.Asset.AssetId">Cancel</a></div>
+<partial name="_AssetHeader" model="Model.Asset" />
+<form method="post" class="panel" novalidate>
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <div class="row g-3">
+        <div class="col-md-4"><label class="form-label" for="Form_MaintenanceType">Type</label>
+            <select class="form-select" id="Form_MaintenanceType" name="Form.MaintenanceType">@foreach (var t in Enum.GetValues<MaintenanceType>()) { <option value="@t" selected="@(t == f.MaintenanceType)">@(t == MaintenanceType.Corrective ? "Corrective (repair)" : AMGH.ITInventory.Application.Common.DisplayText.Humanize(t.ToString()))</option> }</select></div>
+        <div class="col-md-4"><label class="form-label" for="Form_ScheduledDate">Scheduled date *</label><input class="form-control" type="date" id="Form_ScheduledDate" name="Form.ScheduledDate" value="@(f.ScheduledDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" /></div>
+        <div class="col-md-4"><label class="form-label" for="Form_TicketNumber">Ticket no.</label><input class="form-control" id="Form_TicketNumber" name="Form.TicketNumber" value="@f.TicketNumber" maxlength="50" /></div>
+        <div class="col-md-6">
+            <label class="form-label" for="Form_AssignedToUserId">Technician</label>
+            <select class="form-select" id="Form_AssignedToUserId" name="Form.AssignedToUserId">
+                <option value="">(not assigned)</option>
+                @foreach (var t in Model.Technicians) { <option value="@t.UserId" selected="@(t.UserId == f.AssignedToUserId)">@t.Name</option> }
+            </select>
+            <div class="form-text">@(Model.Technicians.Count == 0 ? "No users of this company may manage maintenance yet (role IT Technician or IT Asset Manager)." : "Users of this company who may manage maintenance.")</div>
+        </div>
+        <div class="col-md-6"><label class="form-label" for="Form_PerformedBy">External technician or company</label><input class="form-control" id="Form_PerformedBy" name="Form.PerformedBy" value="@f.PerformedBy" maxlength="150" placeholder="Only for someone without an account" /></div>
+        <partial name="_SelectField" model='new SelectFieldModel("Form.VendorId", "Service vendor", Model.Vendors, S(f.VendorId))' />
+        <div class="col-12"><label class="form-label" for="Form_ProblemDescription">Problem or work to do *</label><textarea class="form-control" id="Form_ProblemDescription" name="Form.ProblemDescription" rows="3" maxlength="2000">@f.ProblemDescription</textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Schedule</button></div>
+</form>

@@ -1,0 +1,67 @@
+@model LoginHistoryViewModel
+@using AMGH.ITInventory.Domain.Enums
+@inject IDisplayTime Time
+@{
+    ViewData["Title"] = "Sign-in history";
+}
+<h1 class="page-title">Sign-in history</h1>
+
+<form method="get" class="panel filter-bar" role="search">
+    <div>
+        <label asp-for="Username" class="form-label">Username contains</label>
+        <input asp-for="Username" class="form-control" />
+    </div>
+    <div>
+        <label asp-for="EventType" class="form-label">Event</label>
+        <select asp-for="EventType" class="form-select" asp-items="Enum.GetNames<LoginEventType>().Select(n => new SelectListItem(AMGH.ITInventory.Application.Common.DisplayText.Humanize(n), n))">
+            <option value="">All events</option>
+        </select>
+    </div>
+    <div>
+        <label asp-for="From" class="form-label">From</label>
+        <input asp-for="From" class="form-control" />
+    </div>
+    <div>
+        <label asp-for="To" class="form-label">To</label>
+        <input asp-for="To" class="form-control" />
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-primary">Show events</button>
+        <a asp-action="Index" class="btn btn-link">Clear</a>
+    </div>
+</form>
+
+<p class="small text-body-secondary">
+    Showing the latest @Model.Entries.Count event(s)@(Model.Entries.Count == Model.MaxRows ? $" (limit {Model.MaxRows}; narrow the filter to see older events)" : "").
+    Times in @Time.ZoneLabel.
+</p>
+
+<div class="table-responsive panel p-0">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead>
+            <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Username</th>
+                <th scope="col">Event</th>
+                <th scope="col">IP address</th>
+                <th scope="col">Detail</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in Model.Entries)
+            {
+                <tr class="@(e.EventType is "LoginFailed" or "Lockout" ? "row-alert" : "")">
+                    <td class="text-nowrap">@Time.Format(e.EventDateUtc, Time.DateFormat + " HH:mm:ss")</td>
+                    <td>@e.Username</td>
+                    <td>@AMGH.ITInventory.Application.Common.DisplayText.Humanize(e.EventType)</td>
+                    <td>@e.IpAddress</td>
+                    <td class="small" title="@e.UserAgent">@e.FailureReason</td>
+                </tr>
+            }
+            @if (Model.Entries.Count == 0)
+            {
+                <tr><td colspan="5" class="text-center text-body-secondary py-4">No events match this filter.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

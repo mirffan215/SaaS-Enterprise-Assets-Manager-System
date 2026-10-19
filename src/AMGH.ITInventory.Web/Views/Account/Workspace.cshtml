@@ -1,0 +1,46 @@
+@model WorkspacePickerViewModel
+@{
+    ViewData["Title"] = "Choose your company";
+    Layout = "_LoginLayout";
+}
+<section class="workspace-panel">
+    <header class="lp-brand">
+        <img class="lp-logo lp-logo-sm" src="@Url.Content("~/images/amgh-emblem.png")" alt="" />
+        <p class="lp-name-ar" lang="ar" dir="rtl">@AMGH.ITInventory.Shared.AppInfo.OwnerArabic</p>
+        <p class="lp-name-en">@AMGH.ITInventory.Shared.AppInfo.Owner</p>
+        <h1 class="lp-title">Choose your company</h1>
+    </header>
+    @if (Model.Message is not null) { <div class="alert alert-warning" role="status">@Model.Message</div> }
+
+    @if (Model.Companies.Count > 6)
+    {
+        <label for="companyFilter" class="visually-hidden">Find your company</label>
+        <input type="search" id="companyFilter" class="form-control form-control-lg mb-3" placeholder="Find your company" autocomplete="off" data-filter-cards="workspaceList" autofocus />
+    }
+
+    <ul class="workspace-list" id="workspaceList">
+        @foreach (var c in Model.Companies)
+        {
+            <li data-card-text="@c.DisplayName @c.CompanyCode">
+                <a class="workspace-card" href="@Url.Action("Login", "Account", new { company = c.CompanyCode, returnUrl = Model.ReturnUrl })">
+                    @if (c.HasLogo)
+                    {
+                        <img src="@Url.Action("Logo", "Branding", new { code = c.CompanyCode })" alt="" />
+                    }
+                    else
+                    {
+                        <span class="workspace-initials" aria-hidden="true">@c.CompanyCode</span>
+                    }
+                    <span class="workspace-name">@c.DisplayName</span>
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            </li>
+        }
+    </ul>
+    @if (Model.Companies.Count == 0) { <p class="text-body-secondary">No company workspace is available. Contact your IT department.</p> }
+    @if (Model.Companies.Count > 0)
+    {
+        <p class="small mt-3 mb-0"><a href="@Url.Action("Login", "Account", new { general = true, returnUrl = Model.ReturnUrl })">Sign in without choosing: go to your own company</a></p>
+    }
+    <p class="login-help">Your company is remembered on this computer. Bookmark your company's own address (for example <code>/w/AMGH</code>) to skip this step.</p>
+</section>

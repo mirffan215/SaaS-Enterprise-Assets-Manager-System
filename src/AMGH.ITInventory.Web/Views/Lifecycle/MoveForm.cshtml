@@ -1,0 +1,22 @@
+@model MoveFormViewModel
+@using AMGH.ITInventory.Domain.Enums
+@{ ViewData["Title"] = "Request move"; var f = Model.Form; string? S(int? v) => v?.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+<div class="page-head"><h1 class="page-title">Request move</h1><a class="btn btn-link" asp-controller="Assets" asp-action="Details" asp-route-id="@Model.Asset.AssetId">Cancel</a></div>
+<partial name="_AssetHeader" model="Model.Asset" />
+<form method="post" class="panel" novalidate>
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <div class="row g-3">
+        <partial name="_SelectField" model='new SelectFieldModel("Form.ToLocationId", "Destination location", Model.Locations, S(f.ToLocationId), true)' />
+        <partial name="_SelectField" model='new SelectFieldModel("Form.ToBuildingId", "Building", Model.Buildings, S(f.ToBuildingId), ParentSelectId: "Form_ToLocationId")' />
+        <partial name="_SelectField" model='new SelectFieldModel("Form.ToFloorId", "Floor", Model.Floors, S(f.ToFloorId), ParentSelectId: "Form_ToBuildingId")' />
+        <partial name="_SelectField" model='new SelectFieldModel("Form.ToRoomId", "Room", Model.Rooms, S(f.ToRoomId), ParentSelectId: "Form_ToFloorId")' />
+        <div class="col-md-6">
+            <label class="form-label" for="Form_MovementType">Type</label>
+            <select class="form-select" id="Form_MovementType" name="Form.MovementType">@foreach (var t in Enum.GetValues<MovementType>()) { <option value="@t" selected="@(t == f.MovementType)">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(t.ToString())</option> }</select>
+        </div>
+        <div class="col-md-6"><label class="form-label" for="Form_ChangeRequestNumber">Change request no. (optional)</label><input class="form-control" id="Form_ChangeRequestNumber" name="Form.ChangeRequestNumber" value="@f.ChangeRequestNumber" maxlength="50" /></div>
+        <div class="col-12"><label class="form-label" for="Form_Reason">Reason *</label><textarea class="form-control" id="Form_Reason" name="Form.Reason" rows="2" maxlength="500">@f.Reason</textarea></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Request move</button></div>
+</form>
+<p class="small text-body-secondary">The move is approved in the Approval Center by someone other than you, then marked as moved when the asset arrives. The asset's location changes only then.</p>

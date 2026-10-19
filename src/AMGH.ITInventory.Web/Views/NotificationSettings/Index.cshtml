@@ -1,0 +1,156 @@
+@model NotificationSettingsViewModel
+@using AMGH.ITInventory.Application.Abstractions.Mail
+@using AMGH.ITInventory.Application.Notifications
+@using AMGH.ITInventory.Domain.Enums
+@{
+    ViewData["Title"] = "E-mail and notifications";
+    var m = Model.Mail;
+    string Mode(MailMode x) => x switch
+    {
+        MailMode.ConnectorRelay => "Exchange Online connector relay (recommended)",
+        MailMode.SmtpAuth => "Microsoft 365 SMTP AUTH (user + password)",
+        MailMode.SmtpOAuth => "Microsoft 365 SMTP AUTH with OAuth 2.0",
+        MailMode.HighVolumeEmail => "Microsoft 365 High Volume Email",
+        _ => "Other SMTP server or relay"
+    };
+}
+<div class="page-head">
+    <div><h1 class="page-title">E-mail and notifications</h1><p class="text-body-secondary mb-0">Settings for @User.GetCompanyName() only.</p></div>
+</div>
+<ul class="nav nav-tabs mb-3">
+    @foreach (var (key, title) in new[] { ("email", "E-mail sending"), ("rules", "Notifications"), ("templates", "Templates"), ("queue", "Outgoing mail") })
+    {
+        <li class="nav-item"><a class="nav-link @(Model.Tab == key ? "active" : "")" asp-action="Index" asp-route-tab="@key">@title
+            @if (key == "queue" && Model.QueueCounts.GetValueOrDefault(QueueStatus.Failed) > 0) { <span class="badge text-bg-danger">@Model.QueueCounts[QueueStatus.Failed]</span> }</a></li>
+    }
+</ul>
+
+@if (Model.Tab == "email")
+{
+    @if (!m.IsEnabled) { <div class="alert alert-warning">E-mail sending is <strong>off</strong>. Notifications still appear in the application; e-mails wait in the queue until sending is switched on.</div> }
+    <form asp-action="SaveMail" method="post" class="panel" autocomplete="off" id="mailForm">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label" for="Mail_Mode">Sending method</label>
+                <select class="form-select" id="Mail_Mode" name="Mail.Mode">
+                    @foreach (var x in Enum.GetValues<MailMode>())
+                    {
+                        var d = MailModeDefaults.For(x);
+                        <option value="@x" selected="@(x == m.Mode)" data-host="@d.Host" data-port="@d.Port" data-security="@d.Security" data-user="@d.NeedsUser" data-oauth="@d.NeedsOAuth" data-secret="@d.NeedsSecret">@Mode(x)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-6 d-flex align-items-end"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="Mail_IsEnabled" name="Mail.IsEnabled" value="true" checked="@m.IsEnabled" /><label class="form-check-label" for="Mail_IsEnabled">Send e-mail</label></div></div>
+            <div class="col-12 small text-body-secondary mode-help" data-for="ConnectorRelay">Exchange Online accepts mail from this server through an inbound connector (by the server's public IP or certificate). No password is stored. Host: your domain's MX endpoint, e.g. <code>amgh-com.mail.protection.outlook.com</code>, port 25.</div>
+            <div class="col-12 small text-warning-emphasis mode-help" data-for="SmtpAuth">Microsoft disables basic SMTP AUTH in Exchange Online by default from end of December 2026. Prefer the connector relay or OAuth for new set-ups.</div>
+            <div class="col-12 small text-body-secondary mode-help" data-for="SmtpOAuth">Register an application in Microsoft Entra ID with the <code>SMTP.SendAsApp</code> permission and grant it access to the sending mailbox. The server needs outbound HTTPS to login.microsoftonline.com.</div>
+            <div class="col-12 small text-body-secondary mode-help" data-for="HighVolumeEmail">High Volume Email sends to recipients inside your organisation only, with an HVE account.</div>
+            <div class="col-md-5"><label class="form-label" for="Mail_Host">Server</label><input class="form-control" id="Mail_Host" name="Mail.Host" value="@m.Host" maxlength="255" /></div>
+            <div class="col-md-2"><label class="form-label" for="Mail_Port">Port</label><input class="form-control" type="number" id="Mail_Port" name="Mail.Port" value="@m.Port" min="1" max="65535" /></div>
+            <div class="col-md-5"><label class="form-label" for="Mail_Security">Encryption</label>
+                <select class="form-select" id="Mail_Security" name="Mail.Security">
+                    <option value="StartTls" selected="@(m.Security == MailSecurity.StartTls)">STARTTLS (ports 25, 587)</option>
+                    <option value="SslOnConnect" selected="@(m.Security == MailSecurity.SslOnConnect)">SSL/TLS from the start (port 465)</option>
+                    <option value="None" selected="@(m.Security == MailSecurity.None)">None (internal relay only; no password allowed)</option>
+                </select></div>
+            <div class="col-md-6 needs-user"><label class="form-label" for="Mail_Username">Mailbox / user name</label><input class="form-control" id="Mail_Username" name="Mail.Username" value="@m.Username" maxlength="256" autocomplete="off" /></div>
+            <div class="col-md-6 needs-secret"><label class="form-label" for="Mail_Secret"><span class="secret-label">Password</span> @(m.HasSecret ? "(stored; leave empty to keep it)" : "")</label>
+                <input class="form-control" type="password" id="Mail_Secret" name="Mail.Secret" autocomplete="new-password" maxlength="1000" /><div class="form-text">Stored encrypted; never shown again.</div></div>
+            <div class="col-md-6 needs-oauth"><label class="form-label" for="Mail_TenantId">Tenant ID (Directory ID)</label><input class="form-control" id="Mail_TenantId" name="Mail.TenantId" value="@m.TenantId" maxlength="100" /></div>
+            <div class="col-md-6 needs-oauth"><label class="form-label" for="Mail_ClientId">Application (client) ID</label><input class="form-control" id="Mail_ClientId" name="Mail.ClientId" value="@m.ClientId" maxlength="100" /></div>
+            <div class="col-md-6"><label class="form-label" for="Mail_FromAddress">Sender address</label><input class="form-control" type="email" id="Mail_FromAddress" name="Mail.FromAddress" value="@m.FromAddress" placeholder="it-assets@amgh.com.sa" maxlength="256" /></div>
+            <div class="col-md-6"><label class="form-label" for="Mail_FromName">Sender name</label><input class="form-control" id="Mail_FromName" name="Mail.FromName" value="@m.FromName" placeholder="@User.GetCompanyName() IT" maxlength="100" /></div>
+            <div class="col-md-6"><label class="form-label" for="Mail_ReplyTo">Replies go to (optional)</label><input class="form-control" type="email" id="Mail_ReplyTo" name="Mail.ReplyTo" value="@m.ReplyTo" placeholder="helpdesk@amgh.com.sa" maxlength="256" /></div>
+            <div class="col-md-6"><label class="form-label" for="Mail_AppBaseUrl">Application address (for links in e-mails)</label><input class="form-control" type="url" id="Mail_AppBaseUrl" name="Mail.AppBaseUrl" value="@m.AppBaseUrl" placeholder="https://inventory.amgh.local" maxlength="250" /></div>
+            <div class="col-12"><details @(string.IsNullOrEmpty(m.CertificateThumbprint) ? "" : "open")><summary class="small">Internal relay with a private certificate</summary>
+                <label class="form-label small mt-2" for="Mail_CertificateThumbprint">Pin the relay certificate (SHA-256 thumbprint)</label>
+                <input class="form-control font-monospace" id="Mail_CertificateThumbprint" name="Mail.CertificateThumbprint" value="@m.CertificateThumbprint" maxlength="128" />
+                <div class="form-text">Only for relays whose certificate is not from a trusted authority: exactly this certificate is then accepted. Leave empty for Microsoft 365.</div></details></div>
+        </div>
+        <div class="form-actions"><button class="btn btn-primary" type="submit">Save settings</button></div>
+    </form>
+    <div class="row g-3 mt-1">
+        <div class="col-md-6"><form asp-action="TestConnection" method="post" class="panel h-100">
+            <h2 class="panel-title">Test the connection</h2>
+            <p class="small text-body-secondary">Connects, starts encryption and signs in without sending anything.</p>
+            @if (m.LastTestResult is not null) { <p class="small @(m.LastTestResult.StartsWith("Connected") ? "text-success" : "text-danger")">@m.LastTestResult<br /><span class="text-body-secondary">@(m.LastTestUtc is { } t ? Time.Format(t) : "")</span></p> }
+            <button class="btn btn-outline-primary btn-sm" type="submit">Test connection</button></form></div>
+        <div class="col-md-6"><form asp-action="SendTest" method="post" class="panel h-100">
+            <h2 class="panel-title">Send a test message</h2>
+            <label class="form-label small" for="testTo">To</label>
+            <div class="d-flex gap-2"><input class="form-control form-control-sm" type="email" id="testTo" name="to" value="@User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value" required /><button class="btn btn-outline-primary btn-sm text-nowrap" type="submit">Send test</button></div></form></div>
+    </div>
+}
+else if (Model.Tab == "rules")
+{
+    <p class="text-body-secondary">Reminders are checked once a day from 06:00. Each reminder is sent once; people can switch off e-mail for a kind under Notifications.</p>
+    <form asp-action="RunReminders" method="post" class="mb-3"><button class="btn btn-sm btn-outline-secondary" type="submit"><i class="bi bi-play" aria-hidden="true"></i> Check reminders now</button></form>
+    @foreach (var r in Model.Rules)
+    {
+        var def = NotificationCatalog.Find(r.Key)!;
+        <form asp-action="SaveRule" asp-route-key="@r.Key" method="post" class="panel rule-panel">
+            <div class="d-flex flex-wrap justify-content-between gap-2">
+                <div><h2 class="panel-title mb-1">@def.Title</h2><p class="small text-body-secondary mb-2">@def.Description</p></div>
+                <div class="d-flex gap-3 align-items-start">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="isEnabled" value="true" id="en_@r.Key" checked="@r.IsEnabled" /><label class="form-check-label small" for="en_@r.Key">On</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="inAppEnabled" value="true" id="ia_@r.Key" checked="@r.InAppEnabled" /><label class="form-check-label small" for="ia_@r.Key">In the app</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="emailEnabled" value="true" id="em_@r.Key" checked="@r.EmailEnabled" /><label class="form-check-label small" for="em_@r.Key">E-mail</label></div>
+                </div>
+            </div>
+            <div class="row g-2 align-items-end">
+                @if (def.Scheduled)
+                {
+                    <div class="col-md-3"><label class="form-label small" for="days_@r.Key">@def.DaysHelp</label><input class="form-control form-control-sm" id="days_@r.Key" name="days" value="@string.Join(",", r.DaysBefore)" placeholder="@def.DefaultDays" /></div>
+                }
+                @if (def.DefaultRoles is not null)
+                {
+                    <div class="col-md-7"><span class="form-label small d-block">Send to roles</span>
+                        @foreach (var role in Model.Roles)
+                        {
+                            <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="roles" value="@role" id="r_@(r.Key)_@role" checked="@r.RecipientRoles.Contains(role)" /><label class="form-check-label small" for="r_@(r.Key)_@role">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(role)</label></div>
+                        }
+                    </div>
+                }
+                else { <div class="col-md-7 small text-body-secondary">Recipients: @(r.Key == NotificationCatalog.ApprovalRequired ? "everyone who may approve the request" : "the person who made the request").</div> }
+                <div class="col-md-2 text-end"><button class="btn btn-sm btn-primary" type="submit">Save</button></div>
+            </div>
+        </form>
+    }
+}
+else if (Model.Tab == "templates")
+{
+    <p class="text-body-secondary">Change the wording of each notification. Values such as {{AssetNumber}} are filled in automatically.</p>
+    <div class="table-responsive panel p-0"><table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Notification</th><th>Wording</th><th></th></tr></thead>
+        <tbody>@foreach (var (rule, custom) in Model.Templates)
+        {
+            <tr><td>@rule.Title<div class="small text-body-secondary">@rule.Description</div></td>
+                <td>@(custom ? "Your own" : "Built-in")</td>
+                <td class="text-end"><a class="btn btn-sm btn-outline-primary" asp-action="Template" asp-route-key="@rule.Key">Edit and preview</a></td></tr>
+        }</tbody></table></div>
+}
+else
+{
+    <ul class="nav nav-pills mb-3">
+        <li class="nav-item"><a class="nav-link @(Model.QueueFilter is null ? "active" : "")" asp-action="Index" asp-route-tab="queue">All</a></li>
+        @foreach (var s in new[] { QueueStatus.Pending, QueueStatus.Sent, QueueStatus.Failed, QueueStatus.Cancelled })
+        {
+            <li class="nav-item"><a class="nav-link @(Model.QueueFilter == s ? "active" : "")" asp-action="Index" asp-route-tab="queue" asp-route-status="@s">@(s == QueueStatus.Pending ? "Waiting" : s.ToString()) (@Model.QueueCounts.GetValueOrDefault(s))</a></li>
+        }
+    </ul>
+    <div class="table-responsive panel p-0"><table class="table table-sm align-middle mb-0">
+        <thead><tr><th>To</th><th>Subject</th><th>Status</th><th>Attempts</th><th>When</th><th></th></tr></thead>
+        <tbody>@foreach (var q in Model.Queue)
+        {
+            <tr><td class="small">@q.Recipient</td><td class="small">@q.Subject</td>
+                <td><span class="badge queue-@q.Status.ToLowerInvariant()">@(q.Status == "Pending" ? "Waiting" : q.Status)</span>@if (q.LastError is not null) {<div class="small text-danger">@q.LastError</div>}</td>
+                <td>@q.Attempts</td>
+                <td class="small text-nowrap">@(q.SentUtc is { } s ? "sent " + Time.Format(s) : q.Status == "Pending" ? "next " + Time.Format(q.NextAttemptUtc) : Time.Format(q.CreatedUtc))</td>
+                <td class="text-end">
+                    @if (q.Status is "Failed" or "Cancelled") { <form asp-action="Retry" asp-route-id="@q.Id" method="post"><button class="btn btn-sm btn-outline-primary" type="submit">Send again</button></form> }
+                    @if (q.Status == "Pending") { <form asp-action="Cancel" asp-route-id="@q.Id" method="post"><button class="btn btn-sm btn-outline-secondary" type="submit">Cancel</button></form> }
+                </td></tr>
+        }
+        @if (Model.Queue.Count == 0) { <tr><td colspan="6" class="text-center text-body-secondary py-4">No messages.</td></tr> }</tbody></table></div>
+}
+@section Scripts { <script src="~/js/notifications.js" asp-append-version="true"></script> }

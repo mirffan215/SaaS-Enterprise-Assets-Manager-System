@@ -1,0 +1,25 @@
+@model AMGH.ITInventory.Web.Infrastructure.NavModel
+@{
+    var title = ViewData["Title"] as string;
+    var item = Model.CurrentItem;
+    var atItem = item is not null && string.Equals(item.Url.Split('?')[0], Context.Request.Path.Value, StringComparison.OrdinalIgnoreCase);
+    var isHome = string.Equals(Model.HomeUrl.Split('?')[0], Context.Request.Path.Value, StringComparison.OrdinalIgnoreCase);
+}
+@if (!isHome)
+{
+    <nav aria-label="Breadcrumb" class="app-breadcrumbs">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="@Model.HomeUrl"><i class="bi bi-house" aria-hidden="true"></i><span class="visually-hidden">Home</span></a></li>
+            @if (Model.CurrentSection is { } sec) { <li class="breadcrumb-item text-body-secondary">@sec.Title</li> }
+            @if (item is not null)
+            {
+                if (atItem) { <li class="breadcrumb-item active" aria-current="page">@item.Text</li> }
+                else { <li class="breadcrumb-item"><a href="@item.Url">@item.Text</a></li> }
+            }
+            @if (!atItem && !string.IsNullOrEmpty(title) && !string.Equals(title, item?.Text, StringComparison.OrdinalIgnoreCase))
+            {
+                <li class="breadcrumb-item active" aria-current="page">@title</li>
+            }
+        </ol>
+    </nav>
+}

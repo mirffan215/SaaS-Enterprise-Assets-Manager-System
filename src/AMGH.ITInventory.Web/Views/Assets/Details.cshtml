@@ -1,0 +1,392 @@
+@model AssetDetailsViewModel
+@using AMGH.ITInventory.Application.Common
+@using AMGH.ITInventory.Domain.Enums
+@inject IDisplayTime Time
+@{
+    var a = Model.Asset;
+    ViewData["Title"] = a.AssetNumber;
+    string D(DateOnly? d) => Time.Date(d) ?? "—";
+    string N(decimal? v, string? cur = null) => v is null ? "—" : $"{v.Value:N2}{(cur is null ? "" : " " + cur)}";
+    string T(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+    string YN(bool b) => b ? "Yes" : "No";
+    string Size(long b) => b >= 1048576 ? $"{b / 1048576.0:0.0} MB" : $"{Math.Max(1, b / 1024)} KB";
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+}
+<div class="page-head asset-head">
+    <div>
+        <p class="asset-number">@a.AssetNumber</p>
+        <h1 class="page-title">@a.AssetName</h1>
+        <span class="status status-@a.StatusCode.ToLowerInvariant()">@a.StatusName</span>
+        <span class="text-body-secondary small ms-2">@a.CategoryName@(a.SubCategoryName is null ? "" : " · " + a.SubCategoryName)</span>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-link" asp-action="Index">Back to assets</a>
+        @if (Model.CanAssign && Model.CurrentAssignment is null && a.StatusCode is "IN_STOCK" or "RESERVED")
+        {
+            <a class="btn btn-primary" asp-controller="Assignments" asp-action="Assign" asp-route-id="@a.AssetId"><i class="bi bi-person-check" aria-hidden="true"></i> Assign</a>
+        }
+        @if (Model.CanReturn && Model.CurrentAssignment is not null)
+        {
+            <a class="btn btn-outline-primary" asp-controller="Assignments" asp-action="Return" asp-route-id="@a.AssetId"><i class="bi bi-box-arrow-in-left" aria-hidden="true"></i> Return</a>
+        }
+        @if (Model.Lifecycle.AnyAction)
+        {
+            <div class="dropdown">
+                <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-lightning" aria-hidden="true"></i> Actions</button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    @if (Model.Lifecycle.CanMove) { <li><a class="dropdown-item" asp-controller="Movements" asp-action="RequestMove" asp-route-id="@a.AssetId"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Request move</a></li> }
+                    @if (Model.Lifecycle.CanMaintain) { <li><a class="dropdown-item" asp-controller="Maintenance" asp-action="Create" asp-route-id="@a.AssetId"><i class="bi bi-tools" aria-hidden="true"></i> Log maintenance / repair</a></li> }
+                    @if (Model.Lifecycle.CanWarranty) { <li><a class="dropdown-item" asp-controller="Warranties" asp-action="Edit" asp-route-id="@a.AssetId"><i class="bi bi-shield-check" aria-hidden="true"></i> Add warranty</a></li> }
+                    @if (Model.Lifecycle.CanVerify) { <li><a class="dropdown-item" asp-controller="Verification" asp-action="Index" asp-route-scan="@a.AssetNumber"><i class="bi bi-qr-code-scan" aria-hidden="true"></i> Verify now</a></li> }
+                    @if (Model.Lifecycle.CanDispose) { <li><hr class="dropdown-divider" /></li><li><a class="dropdown-item text-danger" asp-controller="Disposals" asp-action="RequestDisposal" asp-route-id="@a.AssetId"><i class="bi bi-recycle" aria-hidden="true"></i> Request disposal</a></li> }
+                </ul>
+            </div>
+        }
+        @if (Model.CanPrintLabel)
+        {
+            <a class="btn btn-outline-primary" href="@Url.Action("Index", "Labels", new { ids = a.AssetId, design = "AssetTag" })"><i class="bi bi-upc" aria-hidden="true"></i> Asset tag</a>
+            <a class="btn btn-outline-primary" href="@Url.Action("Index", "Labels", new { ids = a.AssetId, design = "QrLabel" })"><i class="bi bi-qr-code" aria-hidden="true"></i> QR label</a>
+        }
+        @if (Model.CanEdit) { <a class="btn btn-primary" asp-action="Edit" asp-route-id="@a.AssetId"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a> }
+        @if (Model.CanDelete)
+        {
+            <form asp-action="Delete" asp-route-id="@a.AssetId" method="post"
+                  data-confirm="Delete @a.AssetNumber? Use this only for assets registered by mistake. Real assets leave through disposal.">
+                <input type="hidden" name="rowVersion" value="@a.RowVersion" />
+                <button type="submit" class="btn btn-outline-danger">Delete</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (a.StatusCode == "DISPOSED")
+{
+    <div class="alert alert-secondary">This asset was disposed@(a.DecommissionDate is null ? "" : " on " + D(a.DecommissionDate)). Its record is kept read-only for audit.</div>
+}
+
+<ul class="nav nav-tabs form-tabs" role="tablist" data-remember-tab="asset">
+    <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#d-overview" type="button" role="tab" id="tab-overview">Overview</button></li>
+    @if (Model.Access.CanViewFinancials) { <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-procurement" type="button" role="tab" id="tab-procurement">Procurement</button></li> }
+    @if (Model.Access.CanViewSecurityDetails) { <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-security" type="button" role="tab" id="tab-security">Information security</button></li> }
+    @if (Model.Documents is not null) { <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-documents" type="button" role="tab" id="tab-documents">Documents (@Model.Documents.Count)</button></li> }
+    @if (Model.Assignments is not null) { <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-assignments" type="button" role="tab" id="tab-assignments">Assignments (@Model.Assignments.Count)</button></li> }
+    <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-labels" type="button" role="tab" id="tab-labels">Labels (@Model.LabelHistory.Count)</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-lifecycle" type="button" role="tab" id="tab-lifecycle">Lifecycle</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#d-history" type="button" role="tab" id="tab-history">History</button></li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="d-overview" role="tabpanel">
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <section class="panel">
+                    <h2 class="panel-title">Custodian and placement</h2>
+                    <dl class="facts">
+                        <dt>Assigned to</dt><dd>@(a.AssignedTo is null ? "Not assigned" : $"{a.AssignedTo} ({a.AssignedEmployeeNumber})")</dd>
+                        <dt>Department</dt><dd>@T(a.DepartmentName)</dd>
+                        <dt>Location</dt><dd>@T(string.Join(" / ", new[] { a.LocationName, a.BuildingName, a.FloorName, a.RoomName }.Where(x => x is not null)))</dd>
+                    </dl>
+                </section>
+                <section class="panel">
+                    <h2 class="panel-title">Hardware</h2>
+                    <dl class="facts">
+                        <dt>Manufacturer</dt><dd>@T(a.ManufacturerName)</dd>
+                        <dt>Model</dt><dd>@T(a.ModelName)</dd>
+                        <dt>Serial number</dt><dd>@T(a.SerialNumber)</dd>
+                        <dt>Legacy tag</dt><dd>@T(a.LegacyAssetTag)</dd>
+                        @if (a.Description is not null) { <dt>Description</dt><dd>@a.Description</dd> }
+                    </dl>
+                </section>
+            </div>
+            <div class="col-lg-6">
+                <section class="panel">
+                    <h2 class="panel-title">Technical</h2>
+                    <dl class="facts">
+                        <dt>Hostname</dt><dd>@T(a.Hostname)</dd>
+                        <dt>IP / MAC</dt><dd>@T(a.IpAddress) · @T(a.MacAddress)</dd>
+                        <dt>Operating system</dt><dd>@T(string.Join(" ", new[] { a.OperatingSystem, a.OsVersion }.Where(x => x is not null)))</dd>
+                        <dt>Processor</dt><dd>@T(a.Processor)</dd>
+                        <dt>Memory / storage</dt><dd>@(a.RamGb is null ? "—" : $"{a.RamGb:0.##} GB") · @(a.StorageGb is null ? "—" : $"{a.StorageGb:0.##} GB")</dd>
+                        @if (a.FirmwareVersion is not null) { <dt>Firmware</dt><dd>@a.FirmwareVersion</dd> }
+                        @if (a.ImeiNumber is not null) { <dt>IMEI</dt><dd>@a.ImeiNumber</dd> }
+                        @if (a.PhoneNumber is not null) { <dt>Phone</dt><dd>@a.PhoneNumber</dd> }
+                    </dl>
+                </section>
+                <section class="panel">
+                    <h2 class="panel-title">Lifecycle</h2>
+                    <dl class="facts">
+                        <dt>Purchased</dt><dd>@D(a.PurchaseDate)</dd>
+                        <dt>In service since</dt><dd>@D(a.CommissionDate)</dd>
+                        <dt>Warranty ends</dt><dd class="@(a.WarrantyEndDate < today ? "text-danger" : "")">@D(a.WarrantyEndDate)</dd>
+                        <dt>End of support</dt><dd class="@(a.EndOfSupportDate < today ? "text-danger" : "")">@D(a.EndOfSupportDate)</dd>
+                        <dt>Planned end of life</dt><dd>@D(a.EndOfLifeDate)</dd>
+                        <dt>Next physical audit</dt><dd class="@(a.NextAuditDueDate < today ? "text-danger fw-semibold" : "")">@D(a.NextAuditDueDate)</dd>
+                    </dl>
+                    @if (a.Notes is not null) { <p class="small mb-0 pre-line">@a.Notes</p> }
+                </section>
+            </div>
+        </div>
+        <p class="small text-body-secondary">Created @Time.Format(a.CreatedDateUtc) by @a.CreatedBy@(a.ModifiedDateUtc is null ? "" : $" · last changed {Time.Format(a.ModifiedDateUtc)} by {a.ModifiedBy}") (@Time.ZoneLabel).</p>
+    </div>
+
+    @if (Model.Access.CanViewFinancials)
+    {
+        <div class="tab-pane fade" id="d-procurement" role="tabpanel">
+            <section class="panel">
+                <dl class="facts facts-wide">
+                    <dt>Vendor</dt><dd>@T(a.VendorName)</dd>
+                    <dt>PO / invoice</dt><dd>@T(a.PurchaseOrderNumber) · @T(a.InvoiceNumber)</dd>
+                    <dt>Purchase date</dt><dd>@D(a.PurchaseDate)</dd>
+                    <dt>Purchase cost</dt><dd>@N(a.PurchaseCost, a.CurrencyCode)</dd>
+                    <dt>Useful life</dt><dd>@(a.UsefulLifeMonths is null ? "—" : $"{a.UsefulLifeMonths} months")</dd>
+                    <dt>Salvage value</dt><dd>@N(a.SalvageValue, a.CurrencyCode)</dd>
+                    @if (a.FixedAsset?.RecordedBookValue is { } rbv) { <dt>Book value (recorded)</dt><dd class="fw-semibold">@N(rbv, a.CurrencyCode) <span class="small text-body-secondary">as of @Time.Date(a.FixedAsset.RecordedBookValueDate)</span></dd> }
+                    @if (a.FixedAsset?.DepreciationMethod != "None") { <dt>Estimated value (straight-line)</dt><dd>@N(a.BookValue, a.CurrencyCode)</dd> }
+                    @if (a.FixedAsset?.CapitalizationDate is not null) { <dt>Capitalised</dt><dd>@Time.Date(a.FixedAsset.CapitalizationDate)</dd> }
+                    @if (a.FixedAsset?.DepreciationMethod is { } dm) { <dt>Depreciation method</dt><dd>@AMGH.ITInventory.Application.Common.DisplayText.Humanize(dm)</dd> }
+                    @if (a.FixedAsset?.FixedAssetGroup is { } fg) { <dt>Fixed asset group</dt><dd>@fg</dd> }
+                    @if (a.FixedAsset?.ErpFixedAssetId is { } erp) { <dt>D365 fixed asset ID</dt><dd class="font-monospace">@erp</dd> }
+                </dl>
+                <p class="small text-body-secondary mb-0">The estimate is straight-line over the useful life down to the salvage value, for information only. It is not an accounting book value; the recorded book value comes from finance (D365).</p>
+            </section>
+        </div>
+    }
+
+    @if (Model.Access.CanViewSecurityDetails)
+    {
+        <div class="tab-pane fade" id="d-security" role="tabpanel">
+            <section class="panel">
+                <dl class="facts facts-wide">
+                    <dt>Asset owner</dt><dd>@T(a.OwnerName)</dd>
+                    <dt>Classification</dt><dd>@T(a.ClassificationName)</dd>
+                    <dt>Criticality</dt><dd>@T(a.CriticalityName)@(a.RtoHours is null ? "" : $" (RTO {a.RtoHours} h, RPO {a.RpoHours} h)")</dd>
+                    <dt>Risk level</dt><dd>@T(a.RiskLevelName)</dd>
+                    <dt>Stores sensitive data</dt><dd>@YN(a.StoresSensitiveData)</dd>
+                    <dt>Disk encrypted</dt><dd class="@(a.StoresSensitiveData && !a.IsDiskEncrypted ? "text-danger fw-semibold" : "")">@YN(a.IsDiskEncrypted)@(a.StoresSensitiveData && !a.IsDiskEncrypted ? " — sensitive data on an unencrypted device" : "")</dd>
+                    <dt>Endpoint protection</dt><dd>@YN(a.EndpointProtectionInstalled)</dd>
+                    <dt>MDM managed</dt><dd>@YN(a.IsMdmManaged)</dd>
+                    <dt>Backup required</dt><dd>@YN(a.BackupRequired)</dd>
+                    <dt>Last security review</dt><dd>@D(a.LastSecurityReviewDate)</dd>
+                </dl>
+                @if (a.SecurityNotes is not null) { <p class="small mb-0 pre-line">@a.SecurityNotes</p> }
+            </section>
+        </div>
+    }
+
+    @if (Model.Documents is not null)
+    {
+        <div class="tab-pane fade" id="d-documents" role="tabpanel">
+            @if (Model.CanUpload && a.StatusCode != "DISPOSED")
+            {
+                <form asp-action="UploadDocument" asp-route-id="@a.AssetId" method="post" enctype="multipart/form-data" class="panel upload-form">
+                    <h2 class="panel-title">Attach a document</h2>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="file" class="form-label">File *</label>
+                            <input type="file" id="file" name="file" class="form-control" accept="@Model.AllowedExtensions" required />
+                            <div class="form-text">Up to 25 MB: @Model.AllowedExtensions.Replace(",", ", ")</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="documentType" class="form-label">Type *</label>
+                            <select id="documentType" name="documentType" class="form-select">
+                                @foreach (var t in Enum.GetValues<DocumentType>())
+                                {
+                                    <option value="@t">@DisplayText.Humanize(t.ToString())</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="title" class="form-label">Title</label>
+                            <input id="title" name="title" class="form-control" maxlength="200" placeholder="Defaults to the file name" />
+                        </div>
+                        <partial name="_SelectField" model='new SelectFieldModel("classificationId", "Classification", Model.Classifications, null)' />
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3"><i class="bi bi-paperclip" aria-hidden="true"></i> Attach</button>
+                </form>
+            }
+            <div class="table-responsive panel p-0">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Title</th><th>Type</th><th>File</th><th>Added</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var d in Model.Documents)
+                        {
+                            <tr>
+                                <td>@d.DocumentTitle@if (d.ClassificationName is not null) {<div class="small text-body-secondary">@d.ClassificationName</div>}</td>
+                                <td>@DisplayText.Humanize(d.DocumentType)</td>
+                                <td><a asp-action="Document" asp-route-id="@a.AssetId" asp-route-documentId="@d.AssetDocumentId">@d.OriginalFileName</a> <span class="small text-body-secondary">@Size(d.FileSizeBytes)</span></td>
+                                <td class="small">@Time.Format(d.UploadedDateUtc)<div class="text-body-secondary">@d.UploadedBy</div></td>
+                                <td class="text-end">
+                                    @if (Model.CanDeleteDocuments)
+                                    {
+                                        <form asp-action="DeleteDocument" asp-route-id="@a.AssetId" asp-route-documentId="@d.AssetDocumentId" method="post" data-confirm="Remove '@d.DocumentTitle' from this asset?">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (Model.Documents.Count == 0) { <tr><td colspan="5" class="text-center text-body-secondary py-4">No documents attached yet.</td></tr> }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    @if (Model.Assignments is not null)
+    {
+        <div class="tab-pane fade" id="d-assignments" role="tabpanel">
+            <div class="table-responsive panel p-0">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Document</th><th>Custodian</th><th>Type</th><th>Issued (@Time.ZoneLabel)</th><th>Returned</th><th>Acknowledged</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var h in Model.Assignments)
+                        {
+                            <tr class="@(h.IsCurrent ? "row-current" : "")">
+                                <td class="text-nowrap"><partial name="_DocLink" model='(h.DocumentNumber, "ASG", h.AssetAssignmentId)' /></td>
+                                <td>@(h.EmployeeName ?? h.DepartmentName)@if (h.EmployeeNumber is not null) {<div class="small text-body-secondary">@h.EmployeeNumber · @h.DepartmentName</div>}</td>
+                                <td>@DisplayText.Humanize(h.AssignmentType)</td>
+                                <td class="small">@Time.Format(h.AssignedDateUtc)<div class="text-body-secondary">by @h.AssignedBy@(h.ConditionAtAssignment is null ? "" : " · " + h.ConditionAtAssignment)</div></td>
+                                <td class="small">@if (h.ReturnedDateUtc is not null) {<span>@Time.Format(h.ReturnedDateUtc)</span><div class="text-body-secondary">to @h.ReturnedTo@(h.ConditionAtReturn is null ? "" : " · " + h.ConditionAtReturn)</div>} else {<span class="fw-semibold">Current</span>}</td>
+                                <td>@if (h.Acknowledged) {<span class="text-success"><i class="bi bi-check-circle" aria-hidden="true"></i> Yes</span>} else if (h.IsCurrent) {<span class="text-warning-emphasis">Awaiting signature</span>} else {<span class="text-body-secondary">No</span>}</td>
+                                <td class="text-end text-nowrap">
+                                    <a class="btn btn-sm btn-outline-primary" asp-controller="Assignments" asp-action="Handover" asp-route-id="@a.AssetId" asp-route-assignmentId="@h.AssetAssignmentId">Hand-over form</a>
+                                    @if (h.IsCurrent && !h.Acknowledged && Model.CanAssign)
+                                    {
+                                        <form asp-controller="Assignments" asp-action="Acknowledge" asp-route-id="@a.AssetId" asp-route-assignmentId="@h.AssetAssignmentId" method="post" class="d-inline"
+                                              data-confirm="Confirm that the signed hand-over form has been received?">
+                                            <button type="submit" class="btn btn-sm btn-outline-success">Mark acknowledged</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (Model.Assignments.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">Never assigned.</td></tr> }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <div class="tab-pane fade" id="d-labels" role="tabpanel">
+        <div class="table-responsive panel p-0">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Printed (@Time.ZoneLabel)</th><th>Design</th><th>Size</th><th>Copies</th><th>QR version</th><th>Reprint reason</th><th>By</th></tr></thead>
+                <tbody>
+                    @foreach (var l in Model.LabelHistory)
+                    {
+                        <tr>
+                            <td class="small">@Time.Format(l.PrintedUtc)</td>
+                            <td>@(l.Design == "AssetTag" ? "Asset tag" : "QR label")</td>
+                            <td>@DisplayText.Humanize(l.LabelSize)</td>
+                            <td>@l.Copies</td>
+                            <td>v@(l.QrVersion)</td>
+                            <td class="small">@(l.IsReprint ? l.ReprintReason : "First print")</td>
+                            <td class="small">@l.PrintedBy</td>
+                        </tr>
+                    }
+                    @if (Model.LabelHistory.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No label or tag printed yet.</td></tr> }
+                </tbody>
+            </table>
+        </div>
+        <p class="small text-body-secondary">A new QR version is created automatically when the details encoded on the label change (e.g. custodian or location).</p>
+    </div>
+
+    <div class="tab-pane fade" id="d-lifecycle" role="tabpanel">
+        @if (a.FixedAsset is { } fx)
+        {
+            <section class="panel mb-3"><h2 class="panel-title">Condition and maintenance</h2>
+                <dl class="detail-list mb-0">
+                    <dt>Condition</dt><dd>@(fx.Condition ?? "—")</dd>
+                    <dt>Maintenance required</dt><dd>@(fx.MaintenanceRequired ? "Yes" : "No")</dd>
+                    <dt>Cost centre</dt><dd>@(fx.CostCenter ?? "—")</dd>
+                    <dt>Last maintenance</dt><dd>@(fx.LastMaintenance is null ? "—" : Time.Date(fx.LastMaintenance))</dd>
+                    <dt>Next maintenance</dt><dd>@(fx.NextMaintenance is null ? "—" : Time.Date(fx.NextMaintenance))</dd>
+                    @if (fx.DisposalDate is not null) { <dt>Disposed</dt><dd>@Time.Date(fx.DisposalDate) · @fx.DisposalReason</dd> }
+                </dl>
+            </section>
+        }
+        @{ var lcm = Model.Lifecycle; var inv = System.Globalization.CultureInfo.InvariantCulture; }
+        <div class="row g-3">
+            @if (lcm.Warranties is not null)
+            {
+                <div class="col-lg-6"><section class="panel h-100"><h2 class="panel-title">Warranty</h2>
+                    @foreach (var w in lcm.Warranties)
+                    {
+                        <div class="lc-row"><span class="float-end small"><partial name="_DocLink" model='(w.DocumentNumber, "WRN", w.WarrantyId)' /></span><span class="badge warranty-@w.State.ToLowerInvariant()">@w.State</span> @w.Type @(w.Provider is null ? "" : "· " + w.Provider)
+                            <div class="small text-body-secondary">@Time.Date(w.Start) – @Time.Date(w.End)@(w.Contract is null ? "" : " · " + w.Contract)</div>
+                            @if (lcm.CanWarranty) { <a class="small" asp-controller="Warranties" asp-action="Edit" asp-route-id="@a.AssetId" asp-route-warrantyId="@w.WarrantyId">Edit</a>
+                                <form asp-controller="Warranties" asp-action="Void" asp-route-id="@a.AssetId" asp-route-warrantyId="@w.WarrantyId" method="post" class="d-inline" data-confirm="Void this warranty?"><button class="btn btn-link btn-sm p-0 ms-2 text-danger" type="submit">Void</button></form> }
+                        </div>
+                    }
+                    @if (lcm.Warranties.Count == 0) { <p class="small text-body-secondary mb-0">No warranty recorded.</p> }
+                </section></div>
+            }
+            @if (lcm.Maintenance is not null)
+            {
+                <div class="col-lg-6"><section class="panel h-100"><h2 class="panel-title">Maintenance and repairs</h2>
+                    @foreach (var m in lcm.Maintenance.Take(8))
+                    {
+                        <div class="lc-row"><span class="float-end small"><partial name="_DocLink" model='(m.DocumentNumber, "MNT", m.AssetMaintenanceId)' /></span><strong>@m.Type</strong> · @m.Status · @Time.Date(m.ScheduledDate)@if (m.Overdue) {<span class="text-danger"> (overdue)</span>}
+                            <div class="small text-body-secondary">@m.Problem@(m.Resolution is null ? "" : " → " + m.Resolution)</div></div>
+                    }
+                    @if (lcm.Maintenance.Count == 0) { <p class="small text-body-secondary mb-0">No maintenance recorded.</p> }
+                    <a class="small" asp-controller="Maintenance" asp-action="Index">All maintenance</a>
+                </section></div>
+            }
+            @if (lcm.Movements is not null)
+            {
+                <div class="col-lg-6"><section class="panel h-100"><h2 class="panel-title">Movements</h2>
+                    @foreach (var m in lcm.Movements.Take(8))
+                    {
+                        <div class="lc-row"><span class="float-end small"><partial name="_DocLink" model='(m.DocumentNumber, "MOV", m.AssetMovementId)' /></span><span class="badge wf-@m.Status.ToLowerInvariant()">@m.Status</span> @m.MovementType → @m.To
+                            <div class="small text-body-secondary">@Time.Date(m.RequestedUtc) by @m.RequestedBy · @m.Reason</div></div>
+                    }
+                    @if (lcm.Movements.Count == 0) { <p class="small text-body-secondary mb-0">Never moved.</p> }
+                </section></div>
+            }
+            @if (lcm.Licences is not null)
+            {
+                <div class="col-lg-6"><section class="panel h-100"><h2 class="panel-title">Software licences</h2>
+                    @foreach (var l in lcm.Licences.Where(x => x.IsCurrent))
+                    {
+                        <div class="lc-row"><a asp-controller="Licenses" asp-action="Details" asp-route-licenseId="@l.SoftwareLicenseId">Licence #@l.SoftwareLicenseId</a> <span class="small text-body-secondary">since @Time.Date(l.AllocatedUtc)</span></div>
+                    }
+                    @if (!lcm.Licences.Any(x => x.IsCurrent)) { <p class="small text-body-secondary mb-0">No licence seats on this asset.</p> }
+                </section></div>
+            }
+            @if (lcm.Disposals is { Count: > 0 })
+            {
+                <div class="col-12"><section class="panel"><h2 class="panel-title">Disposal</h2>
+                    @foreach (var d in lcm.Disposals)
+                    {
+                        <div class="lc-row"><span class="float-end small"><partial name="_DocLink" model='(d.DocumentNumber, "DSP", d.AssetDisposalId)' /></span><span class="badge wf-@d.Status.ToLowerInvariant()">@d.Status</span> @d.Method · @d.Reason
+                            <div class="small text-body-secondary">Requested by @d.RequestedBy@(d.ApprovedBy is null ? "" : ", approved by " + d.ApprovedBy)@(d.CertificateNumber is null ? "" : " · certificate " + d.CertificateNumber)</div></div>
+                    }
+                </section></div>
+            }
+        </div>
+        <p class="small text-body-secondary mt-2">Physical verification results and every change are listed under History.</p>
+    </div>
+
+    <div class="tab-pane fade" id="d-history" role="tabpanel">
+        <div class="table-responsive panel p-0">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>When (@Time.ZoneLabel)</th><th>Event</th><th>Change</th><th>By</th></tr></thead>
+                <tbody>
+                    @foreach (var h in Model.History)
+                    {
+                        <tr>
+                            <td class="text-nowrap small">@Time.Format(h.EventDateUtc)</td>
+                            <td>@DisplayText.Humanize(h.EventType)@if (h.FieldName is not null) {<div class="small text-body-secondary">@DisplayText.Humanize(h.FieldName.Replace("Id", ""))</div>}</td>
+                            <td class="small">
+                                @if (h.OldValue is not null || h.NewValue is not null) { <span>@(h.OldValue ?? "—") → @(h.NewValue ?? "—")</span> }
+                                @if (h.Remarks is not null) { <div class="text-body-secondary">@h.Remarks</div> }
+                            </td>
+                            <td class="small">@h.PerformedBy</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

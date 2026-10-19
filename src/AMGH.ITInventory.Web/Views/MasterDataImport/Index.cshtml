@@ -1,0 +1,92 @@
+@model MasterImportViewModel
+@{
+    ViewData["Title"] = "Import master data";
+    var r = Model.Result;
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Import master data</h1>
+        <p class="text-body-secondary mb-0">All ten lists in one Excel workbook: employees, departments, locations, buildings, floors, rooms, vendors, manufacturers, asset categories and sub-categories.</p>
+    </div>
+    <a class="btn btn-outline-secondary" asp-controller="MasterData" asp-action="Index"><i class="bi bi-arrow-left" aria-hidden="true"></i> Master data</a>
+</div>
+
+@if (Model.Message is not null) { <div class="alert alert-warning" role="alert">@Model.Message</div> }
+
+@if (r is { Committed: true })
+{
+    <div class="alert alert-success" role="status"><i class="bi bi-check-circle" aria-hidden="true"></i> Import complete: @r.Sheets.Sum(s => s.Created) created, @r.Sheets.Sum(s => s.Updated) updated, @r.Sheets.Sum(s => s.Unchanged) unchanged.</div>
+}
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <section class="panel">
+            <h2 class="panel-title">1. Download the workbook</h2>
+            <p class="small">It contains your current master data, one sheet per list, plus instructions. With no data yet, it is an empty template.</p>
+            <a class="btn btn-outline-primary" asp-action="Workbook"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i> Download workbook</a>
+        </section>
+        <section class="panel mt-3">
+            <h2 class="panel-title">2. Upload it</h2>
+            <p class="small">Add or change rows in Excel. Rows are matched by code (employees by employee number); existing records are updated, new ones created, nothing is deleted. A column you remove leaves that field unchanged. Up to 10,000 rows per sheet.</p>
+            <form asp-action="Preview" method="post" enctype="multipart/form-data" class="d-flex gap-2 flex-wrap">
+                <label class="visually-hidden" for="file">Excel workbook</label>
+                <input class="form-control" type="file" id="file" name="file" accept=".xlsx" required />
+                <button class="btn btn-primary" type="submit"><i class="bi bi-search" aria-hidden="true"></i> Check the file</button>
+            </form>
+            <p class="small text-body-secondary mt-2 mb-0">Checking saves nothing: you see what would change first.</p>
+        </section>
+    </div>
+    <div class="col-lg-7">
+        @if (r is not null && r.Sheets.Count > 0)
+        {
+            <section class="panel">
+                <h2 class="panel-title">@(r.Committed ? "Imported" : "Preview")@(Model.FileName is null ? "" : ": " + Model.FileName)</h2>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-2">
+                        <thead><tr><th>Sheet</th><th class="text-end">New</th><th class="text-end">Changed</th><th class="text-end">Unchanged</th><th class="text-end">Errors</th></tr></thead>
+                        <tbody>
+                            @foreach (var s in r.Sheets)
+                            {
+                                <tr><td>@s.Sheet</td><td class="text-end">@s.Created</td><td class="text-end">@s.Updated</td><td class="text-end">@s.Unchanged</td>
+                                    <td class="text-end @(s.Errors > 0 ? "text-danger fw-semibold" : "")">@s.Errors</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (!r.Committed && r.IsClean && r.Token is not null)
+                {
+                    <form asp-action="Commit" method="post" class="d-flex align-items-center gap-2">
+                        <input type="hidden" name="token" value="@r.Token" />
+                        <button class="btn btn-success" type="submit"><i class="bi bi-check2" aria-hidden="true"></i> Import @r.Changes change(s)</button>
+                        <span class="small text-body-secondary">All rows are saved together, or none.</span>
+                    </form>
+                }
+                else if (!r.Committed && r.IsClean)
+                {
+                    <p class="mb-0 text-body-secondary">Nothing to change: the file matches your master data.</p>
+                }
+            </section>
+        }
+        @if (r is not null && r.Issues.Count > 0)
+        {
+            <section class="panel mt-3">
+                <h2 class="panel-title text-danger">@r.Issues.Count problem(s) to fix - nothing was saved</h2>
+                <div class="table-responsive md-import-issues">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Sheet</th><th>Row</th><th>Problem</th></tr></thead>
+                        <tbody>
+                            @foreach (var i in r.Issues) { <tr><td class="text-nowrap">@i.Sheet</td><td>@(i.Row > 0 ? i.Row : "")</td><td>@i.Message</td></tr> }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+        @if (r is not null && r.Notes.Count > 0)
+        {
+            <section class="panel mt-3 small">
+                <h2 class="panel-title">Notes</h2>
+                <ul class="mb-0">@foreach (var n in r.Notes) { <li>@n</li> }</ul>
+            </section>
+        }
+    </div>
+</div>

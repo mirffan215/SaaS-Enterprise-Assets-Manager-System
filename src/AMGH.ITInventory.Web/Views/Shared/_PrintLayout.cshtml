@@ -1,0 +1,22 @@
+@{
+    var sheetCss = ViewData["SheetCss"] as string ?? "~/css/print-a4.css";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>@ViewData["Title"] | @AMGH.ITInventory.Shared.AppInfo.ShortName</title>
+    <link rel="icon" href="~/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="~/css/print.css" asp-append-version="true" />
+    <link rel="stylesheet" href="@sheetCss" asp-append-version="true" />
+</head>
+<body class="print-body" data-autoprint="@(ViewData["AutoPrint"] is true ? "true" : null)">
+    <div class="print-toolbar" role="toolbar">
+        <button type="button" class="print-btn" data-print="true">Print</button>
+        <a href="@(ViewData["BackUrl"] as string ?? Url.Action("Index", "Assets"))">Back</a>
+        @if (ViewData["PrintTip"] is string tip) { <span class="print-tip">@tip</span> }
+    </div>
+    @RenderBody()
+    <script src="~/js/print.js" asp-append-version="true"></script>
+</body>
+</html>

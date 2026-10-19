@@ -1,0 +1,71 @@
+@model MaintenanceListViewModel
+@using AMGH.ITInventory.Application.Lifecycle
+@{ ViewData["Title"] = "Maintenance"; var view = (MaintenanceView)ViewData["View"]!; var canManage = User.HasPermission(Permissions.Maintenance.Manage); }
+<div class="page-head"><div><h1 class="page-title">Maintenance and repairs</h1>
+    <p class="text-body-secondary mb-0">Schedule work from an asset's page (Actions → Log maintenance). Corrective jobs are repairs.</p></div></div>
+<ul class="nav nav-pills mb-3">
+    @if (Model.CurrentUserId is not null)
+    {
+        <li class="nav-item"><a class="nav-link @(Model.Mine ? "active" : "")" asp-action="Index" asp-route-view="@MaintenanceView.Open" asp-route-mine="true"><i class="bi bi-person-check" aria-hidden="true"></i> My jobs</a></li>
+    }
+    @foreach (var v in Enum.GetValues<MaintenanceView>()) { <li class="nav-item"><a class="nav-link @(v == view && !Model.Mine ? "active" : "")" asp-action="Index" asp-route-view="@v">@v</a></li> }
+</ul>
+@if (Model.Mine) { <p class="small text-body-secondary">Open jobs assigned to you.</p> }
+<div class="table-responsive panel p-0">
+    <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Document</th><th>Asset</th><th>Type</th><th>Scheduled</th><th>Status</th><th>Work</th><th>Technician</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>
+            @foreach (var j in Model.Jobs)
+            {
+                <tr class="@(j.Overdue ? "table-warning" : "")">
+                    <td class="text-nowrap"><partial name="_DocLink" model='(j.DocumentNumber, "MNT", j.AssetMaintenanceId)' /></td><td><a asp-controller="Assets" asp-action="Details" asp-route-id="@j.AssetId">@j.AssetNumber</a><div class="small text-body-secondary">@j.AssetName</div></td>
+                    <td>@j.Type</td>
+                    <td class="text-nowrap">@Time.Date(j.ScheduledDate)@if (j.Overdue) {<div class="small text-danger">overdue</div>}</td>
+                    <td>@j.Status</td>
+                    <td class="small">@j.Problem@if (j.Resolution is not null) {<div class="text-body-secondary">→ @j.Resolution</div>}</td>
+                    <td class="small">@(j.DoneBy ?? "—")@if (j.AssignedTo is not null && j.PerformedBy is not null) {<div class="text-body-secondary">with @j.PerformedBy</div>}@if (j.Ticket is not null) {<div class="text-body-secondary">Ticket @j.Ticket</div>}</td>
+                    <td class="text-end">
+                        @if (canManage && j.Status is "Scheduled" or "In progress")
+                        {
+                            <details class="job-actions"><summary class="btn btn-sm btn-outline-primary">Update</summary>
+                                <div class="job-actions-body">
+                                    <form asp-action="Assign" asp-route-jobId="@j.AssetMaintenanceId" method="post" class="d-flex gap-1 mb-2">
+                                        <select class="form-select form-select-sm" name="assignedToUserId" aria-label="Technician">
+                                            <option value="">(not assigned)</option>
+                                            @foreach (var t in Model.Technicians) { <option value="@t.UserId" selected="@(t.UserId == j.AssignedToUserId)">@t.Name</option> }
+                                        </select>
+                                        <button class="btn btn-sm btn-outline-primary text-nowrap" type="submit">Assign</button>
+                                    </form>
+                                    @if (j.Status == "Scheduled")
+                                    {
+                                        <form asp-action="Start" asp-route-jobId="@j.AssetMaintenanceId" method="post" class="mb-2">
+                                            <div class="form-check text-start"><input class="form-check-input" type="checkbox" name="takeOutOfService" value="true" id="oos_@j.AssetMaintenanceId" /><label class="form-check-label small" for="oos_@j.AssetMaintenanceId">Take the asset out of service</label></div>
+                                            <button class="btn btn-sm btn-outline-primary" type="submit">Start</button>
+                                        </form>
+                                    }
+                                    <form asp-action="Complete" asp-route-jobId="@j.AssetMaintenanceId" method="post" class="text-start mb-2">
+                                        <textarea class="form-control form-control-sm mb-1" name="ResolutionDetails" rows="2" placeholder="What was done *" maxlength="2000" required></textarea>
+                                        <div class="d-flex gap-1 mb-1">
+                                            <input class="form-control form-control-sm" name="Cost" type="number" min="0" step="0.01" placeholder="Cost" />
+                                            <select class="form-select form-select-sm" name="CurrencyId"><option value="">Currency</option>@foreach (var c in Model.Currencies) { <option value="@c.Id">@c.Text</option> }</select>
+                                        </div>
+                                        <div class="d-flex gap-1 mb-1">
+                                            <input class="form-control form-control-sm" name="DowntimeHours" type="number" min="0" step="0.5" placeholder="Downtime (h)" />
+                                            <input class="form-control form-control-sm" name="NextMaintenanceDate" type="date" title="Next maintenance" />
+                                        </div>
+                                        <button class="btn btn-sm btn-success" type="submit">Complete</button>
+                                    </form>
+                                    <form asp-action="Cancel" asp-route-jobId="@j.AssetMaintenanceId" method="post" class="d-flex gap-1">
+                                        <input class="form-control form-control-sm" name="reason" placeholder="Reason to cancel" maxlength="500" required />
+                                        <button class="btn btn-sm btn-outline-danger" type="submit">Cancel job</button>
+                                    </form>
+                                </div>
+                            </details>
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Jobs.Count == 0) { <tr><td colspan="8" class="text-center text-body-secondary py-4">No jobs.</td></tr> }
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,49 @@
+@model AMGH.ITInventory.Application.Assignments.HandoverDocument
+@using AMGH.ITInventory.Application.Common
+@inject IDisplayTime Time
+@{
+    Layout = "_PrintLayout";
+    ViewData["Title"] = $"Hand-over {Model.AssetNumber}";
+    ViewData["BackUrl"] = Url.Action("Details", "Assets", new { id = ViewContext.RouteData.Values["id"], tab = "assignments" });
+    ViewData["PrintTip"] = "A4 · two copies: one for the employee, one signed copy for IT";
+}
+<main class="doc">
+    <header class="doc-head">
+        <div>
+            <p class="doc-org">Al Murjan Group Holding · Information Technology</p>
+            <h1>IT Asset Hand-over and Acceptable Use Acknowledgement</h1>
+        </div>
+        <p class="doc-ref">Ref. @(Model.DocumentNumber ?? "HO-" + Model.AssetAssignmentId.ToString("D6"))<br />@Time.Date(Model.AssignedDateUtc)</p>
+    </header>
+
+    <h2>Asset</h2>
+    <table class="doc-table">
+        <tr><th>Asset number</th><td><strong>@Model.AssetNumber</strong></td><th>Category</th><td>@Model.CategoryName</td></tr>
+        <tr><th>Description</th><td colspan="3">@Model.AssetName</td></tr>
+        <tr><th>Make / model</th><td>@string.Join(" ", new[] { Model.Manufacturer, Model.Model }.Where(x => x is not null))</td><th>Serial number</th><td>@Model.SerialNumber</td></tr>
+        <tr><th>Hostname</th><td>@Model.Hostname</td><th>Condition</th><td>@Model.Condition</td></tr>
+    </table>
+
+    <h2>Issued to</h2>
+    <table class="doc-table">
+        <tr><th>Name</th><td>@Model.EmployeeName</td><th>Employee no.</th><td>@Model.EmployeeNumber</td></tr>
+        <tr><th>Job title</th><td>@Model.JobTitle</td><th>Department</th><td>@Model.DepartmentName</td></tr>
+        <tr><th>Type</th><td>@DisplayText.Humanize(Model.AssignmentType)</td><th>Return by</th><td>@(Time.Date(Model.ExpectedReturnDate) ?? "On leaving or on request")</td></tr>
+    </table>
+
+    <h2>Acknowledgement</h2>
+    <p>I confirm that I have received the asset described above in the stated condition, and I agree to:</p>
+    <ol class="doc-terms">
+        <li>use it for AMGH business in line with the AMGH Acceptable Use and Information Security Policies;</li>
+        <li>keep it physically secure, never leave it unattended in public places or vehicles, and not lend it to others;</li>
+        <li>not disable security controls (encryption, endpoint protection, device management) or install unapproved software;</li>
+        <li>report loss, theft or damage to the IT department immediately, and in any case within 24 hours;</li>
+        <li>return it, with accessories and passwords removed from personal accounts, when requested or when I leave AMGH.</li>
+    </ol>
+
+    <div class="doc-signatures">
+        <div><span>Employee signature</span><span>Date</span></div>
+        <div><span>Issued by (IT): @Model.AssignedBy</span><span>Date</span></div>
+    </div>
+    <footer class="doc-foot">Keep the signed copy on the asset record (Documents → Hand-over form). @AMGH.ITInventory.Shared.AppInfo.ShortName · @Model.AssetNumber · @(Model.DocumentNumber ?? "HO-" + Model.AssetAssignmentId.ToString("D6"))</footer>
+</main>

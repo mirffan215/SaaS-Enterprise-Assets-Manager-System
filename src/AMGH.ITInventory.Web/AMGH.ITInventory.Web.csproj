@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>AMGH.ITInventory.Web</RootNamespace>
+    <Description>AMGH IT Inventory web application (ASP.NET Core 8 MVC, hosted in IIS).</Description>
+    <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1812;CA1848</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AMGH.ITInventory.Application\AMGH.ITInventory.Application.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Domain\AMGH.ITInventory.Domain.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Infrastructure\AMGH.ITInventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Persistence\AMGH.ITInventory.Persistence.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Security\AMGH.ITInventory.Security.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Shared\AMGH.ITInventory.Shared.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Local developer settings and runtime folders never ship. -->
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+    <Content Remove="App_Data\**" />
+    <None Remove="App_Data\**" />
+  </ItemGroup>
+</Project>

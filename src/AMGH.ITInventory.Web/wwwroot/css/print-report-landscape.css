@@ -1,0 +1,4 @@
+/* Report print/PDF: A4 landscape. Page numbers in the page margin (Chrome/Edge 131+); title and classification repeat via a fixed footer. */
+@page { size: A4 landscape; margin: 14mm 10mm 16mm 10mm;
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 8pt "Segoe UI", Arial, sans-serif; color: #555; }
+}

@@ -1,0 +1,41 @@
+@model RoleEditViewModel
+@{ ViewData["Title"] = Model.RoleId is null ? "Add role" : "Role: " + AMGH.ITInventory.Application.Common.DisplayText.Humanize(Model.Form.RoleName ?? ""); var f = Model.Form; var granted = f.Permissions.ToHashSet(); }
+<div class="page-head"><h1 class="page-title">@ViewData["Title"]</h1><a class="btn btn-link" asp-action="Index">All roles</a></div>
+<form asp-action="Save" asp-route-id="@Model.RoleId" method="post" class="panel" novalidate>
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+    <div class="row g-3">
+        <div class="col-md-4"><label class="form-label" for="Form_RoleName">Role code</label>
+            <input class="form-control font-monospace" id="Form_RoleName" name="Form.RoleName" value="@f.RoleName" maxlength="50" readonly="@Model.IsSystemRole" placeholder="e.g. AssetViewer" />
+            <div class="form-text">Letters and digits; shown as "@AMGH.ITInventory.Application.Common.DisplayText.Humanize(f.RoleName ?? "AssetViewer")".</div></div>
+        <div class="col-md-6"><label class="form-label" for="Form_Description">Description</label><input class="form-control" id="Form_Description" name="Form.Description" value="@f.Description" maxlength="500" /></div>
+        <div class="col-md-2 d-flex align-items-end">
+            @if (Model.IsSystemRole) { <input type="hidden" name="Form.IsActive" value="true" /><span class="badge text-bg-light">Built-in: always active</span> }
+            else { <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="Form_IsActive" name="Form.IsActive" value="true" checked="@f.IsActive" /><label class="form-check-label" for="Form_IsActive">Active</label><input type="hidden" name="Form.IsActive" value="false" /></div> }
+        </div>
+    </div>
+    @if (Model.Members > 0) { <p class="small text-body-secondary mt-2 mb-0">@Model.Members person(s) have this role; changes reach them within a few minutes.</p> }
+    <h2 class="h6 mt-4">Permissions</h2>
+    <div class="permission-matrix">
+        @foreach (var module in Model.Catalog.GroupBy(p => p.Module))
+        {
+            var key = new string(module.Key.Where(char.IsLetterOrDigit).ToArray());
+            <fieldset class="perm-module">
+                <legend class="perm-module-title">
+                    <input class="form-check-input me-1" type="checkbox" id="all_@key" data-module-all="@key" aria-label="All permissions of @module.Key" />
+                    <label for="all_@key">@module.Key</label>
+                </legend>
+                @foreach (var p in module)
+                {
+                    var id = "p_" + new string(p.Code.Where(char.IsLetterOrDigit).ToArray());
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="Form.Permissions" value="@p.Code" id="@id" data-module="@key" checked="@granted.Contains(p.Code)" />
+                        <label class="form-check-label" for="@id">@p.Name @if (p.Code.EndsWith(".Approve", StringComparison.Ordinal)) { <span class="badge text-bg-warning">approval</span> }</label>
+                        @if (!string.IsNullOrEmpty(p.Description)) { <div class="form-text mt-0">@p.Description</div> }
+                    </div>
+                }
+            </fieldset>
+        }
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save role</button></div>
+</form>
+@section Scripts { <script src="~/js/roles.js" asp-append-version="true"></script> }

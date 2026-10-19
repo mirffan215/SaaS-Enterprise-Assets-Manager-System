@@ -1,0 +1,69 @@
+@model AssignViewModel
+@using AMGH.ITInventory.Domain.Enums
+@using AMGH.ITInventory.Application.Common
+@{
+    var c = Model.Context;
+    var f = Model.Form;
+    ViewData["Title"] = $"Assign {c.AssetNumber}";
+    string? S(int? v) => v?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="page-head">
+    <div>
+        <p class="asset-number mb-0">@c.AssetNumber</p>
+        <h1 class="page-title">Assign: @c.AssetName</h1>
+    </div>
+    <a class="btn btn-link" asp-controller="Assets" asp-action="Details" asp-route-id="@c.AssetId">Cancel</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <form method="post" class="panel" novalidate>
+            <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+            <div class="row g-3">
+                <div class="col-12">
+                    <label for="employeeFilter" class="form-label">Find the person</label>
+                    <input type="search" id="employeeFilter" class="form-control" placeholder="Type a name or employee number" data-filter-select="Form_EmployeeId" autocomplete="off" />
+                </div>
+                <partial name="_SelectField" model='new SelectFieldModel("Form.EmployeeId", "Person receiving the asset", c.Employees, S(f.EmployeeId), CssClass: "col-12", Help: "Not in the list? Add them under Master data > Employees first.")' />
+                <partial name="_SelectField" model='new SelectFieldModel("Form.DepartmentId", "Department", c.Departments, S(f.DepartmentId), CssClass: "col-md-6", Help: "Leave empty to use the person’s department. For shared equipment, choose only a department.", EmptyText: "Person’s department")' />
+                <div class="col-md-6">
+                    <label for="Form_AssignmentType" class="form-label">Type</label>
+                    <select id="Form_AssignmentType" name="Form.AssignmentType" class="form-select" data-toggle-target="returnDate" data-toggle-hide-value="Permanent">
+                        @foreach (var t in Enum.GetValues<AssignmentType>())
+                        {
+                            <option value="@t" selected="@(t == f.AssignmentType)">@DisplayText.Humanize(t.ToString())</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6" id="returnDate">
+                    <label for="Form_ExpectedReturnDate" class="form-label">Return by (temporary or loan)</label>
+                    <input type="date" id="Form_ExpectedReturnDate" name="Form.ExpectedReturnDate" class="form-control"
+                           value="@f.ExpectedReturnDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
+                </div>
+                <div class="col-md-6">
+                    <label for="Form_Condition" class="form-label">Condition at hand-over</label>
+                    <input id="Form_Condition" name="Form.Condition" value="@f.Condition" class="form-control" maxlength="200" placeholder="e.g. New, Good, minor scratches" />
+                </div>
+                <div class="col-12">
+                    <label for="Form_Notes" class="form-label">Notes</label>
+                    <textarea id="Form_Notes" name="Form.Notes" class="form-control" rows="2" maxlength="1000">@f.Notes</textarea>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-person-check" aria-hidden="true"></i> Assign</button>
+                <a class="btn btn-link" asp-controller="Assets" asp-action="Details" asp-route-id="@c.AssetId">Cancel</a>
+            </div>
+        </form>
+    </div>
+    <div class="col-lg-5">
+        <section class="rules-panel">
+            <h2 class="h6">After assigning</h2>
+            <ol class="small">
+                <li>Print the hand-over form from the asset's <strong>Assignments</strong> tab.</li>
+                <li>The person signs it, accepting the Acceptable Use terms.</li>
+                <li>Click <strong>Mark acknowledged</strong> and attach the signed scan under <strong>Documents</strong>.</li>
+                <li>Reprint the asset label if it shows the custodian (100 × 50 mm).</li>
+            </ol>
+        </section>
+    </div>
+</div>

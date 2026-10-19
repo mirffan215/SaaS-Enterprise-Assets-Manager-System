@@ -1,0 +1,43 @@
+@model ReportPrintViewModel
+@using AMGH.ITInventory.Application.Reports
+@{
+    Layout = "_PrintLayout";
+    var r = Model.Result;
+    ViewData["Title"] = r.Report.Title;
+    ViewData["SheetCss"] = r.Columns.Count > 6 ? "~/css/print-report-landscape.css" : "~/css/print-report-portrait.css";
+    ViewData["BackUrl"] = Model.BackUrl;
+    ViewData["PrintTip"] = "In the print dialog choose \"Save as PDF\" for a PDF file. Margins: Default; headers and footers come from the report.";
+    var groupIndex = r.GroupBy is null ? -1 : r.Columns.ToList().FindIndex(c => c.Key == r.GroupBy.Key);
+}
+<main class="report-doc" data-confidentiality="@r.Report.Confidentiality.ToUpperInvariant()" data-title="@Model.Context.CompanyName · @r.Report.Title">
+    <header class="report-doc-head">
+        @if (Model.HasLogo) { <img class="report-doc-logo" src="@Url.Action("Logo", "Branding", new { code = Model.CompanyCode })" alt="" /> }
+        <div>
+            <p class="report-doc-company">@Model.Context.CompanyName</p>
+            <h1>@r.Report.Title</h1>
+            <p class="report-doc-meta">Generated @Model.Context.GeneratedAtLocal by @Model.Context.UserName · Classification: <strong>@r.Report.Confidentiality</strong> · @r.TotalRows.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) row(s) · @AMGH.ITInventory.Shared.AppInfo.ShortName</p>
+        </div>
+    </header>
+    @if (r.AppliedFilters.Count > 0)
+    {
+        <p class="report-doc-filters"><strong>Filters:</strong> @string.Join(" · ", r.AppliedFilters.Select(f => f.Key + ": " + f.Value))</p>
+    }
+    @if (r.Summary.Count > 0) { <ul class="report-doc-summary">@foreach (var s in r.Summary) { <li>@s</li> }</ul> }
+    <table class="report-doc-table">
+        <thead><tr>@foreach (var c in r.Columns) { <th class="@(c.Kind is ReportColumnKind.Number or ReportColumnKind.Money ? "num" : "")">@c.Header</th> }</tr></thead>
+        <tbody>
+            @{ object? lastGroup = null; var first = true; }
+            @foreach (var row in r.Rows)
+            {
+                if (groupIndex >= 0 && (first || !Equals(row[groupIndex], lastGroup)))
+                {
+                    lastGroup = row[groupIndex];
+                    <tr class="group-row"><td colspan="@r.Columns.Count">@r.GroupBy!.Header: @(ReportValue.Format(lastGroup, r.GroupBy.Kind) ?? "(none)")</td></tr>
+                }
+                first = false;
+                <tr>@for (var i = 0; i < r.Columns.Count; i++) { var c = r.Columns[i]; <td class="@(c.Kind is ReportColumnKind.Number or ReportColumnKind.Money ? "num" : "")">@ReportValue.Format(row[i], c.Kind)</td> }</tr>
+            }
+        </tbody>
+    </table>
+    @if (r.Rows.Count == 0) { <p>No records match the filters.</p> }
+</main>

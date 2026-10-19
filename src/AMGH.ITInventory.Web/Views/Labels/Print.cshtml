@@ -1,0 +1,39 @@
+@model AMGH.ITInventory.Application.Labels.LabelSheet
+@using AMGH.ITInventory.Domain.Enums
+@{
+    Layout = "_PrintLayout";
+    var size = Model.Size;
+    var key = size switch { LabelSize.Size50x30 => "50x30", LabelSize.Size100x50 => "100x50", _ => "70x40" };
+    ViewData["Title"] = "Labels";
+    ViewData["SheetCss"] = $"~/css/labels-{key}.css";
+    ViewData["AutoPrint"] = true;
+    ViewData["PrintTip"] = $"Label size {key.Replace("x", " × ")} mm · margins None · scale 100% · headers/footers off";
+}
+<main class="sheet">
+    @foreach (var item in Model.Labels)
+    {
+        var a = item.Asset;
+        for (var copy = 0; copy < item.Copies; copy++)
+        {
+            <section class="label label-@key" aria-label="@a.AssetNumber">
+                <div class="label-qr">@Html.Raw(item.QrSvg)</div>
+                <div class="label-text">
+                    <div class="label-org">AMGH IT · Property of Al Murjan Group</div>
+                    <div class="label-number">@a.AssetNumber</div>
+                    <div class="label-name">@a.AssetName</div>
+                    @if (size != LabelSize.Size50x30)
+                    {
+                        if (a.SerialNumber is not null) { <div class="label-meta">S/N @a.SerialNumber</div> }
+                        if (a.Hostname is not null) { <div class="label-meta">@a.Hostname</div> }
+                    }
+                    @if (size == LabelSize.Size100x50)
+                    {
+                        if (a.Department is not null) { <div class="label-meta">@a.Department</div> }
+                        if (a.Location is not null) { <div class="label-meta">@a.Location</div> }
+                        <div class="label-help">If found, return to the IT department.</div>
+                    }
+                </div>
+            </section>
+        }
+    }
+</main>

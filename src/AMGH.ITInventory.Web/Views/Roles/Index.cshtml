@@ -1,0 +1,22 @@
+@model IReadOnlyList<AMGH.ITInventory.Security.Accounts.RoleListItem>
+@{ ViewData["Title"] = "Roles and permissions"; string H(string n) => AMGH.ITInventory.Application.Common.DisplayText.Humanize(n); }
+<div class="page-head">
+    <div><h1 class="page-title">Roles and permissions</h1>
+        <p class="text-body-secondary mb-0">Roles of @User.GetCompanyName() only. Assign roles to people under Users and roles.</p></div>
+    <a class="btn btn-primary" asp-action="Create"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add role</a>
+</div>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead><tr><th>Role</th><th>Code</th><th>Description</th><th>Type</th><th class="text-end">People</th><th class="text-end">Permissions</th><th>Status</th></tr></thead>
+        <tbody>
+            @foreach (var r in Model)
+            {
+                <tr><td><a class="fw-semibold" asp-action="Edit" asp-route-id="@r.RoleId">@H(r.RoleName)</a></td><td class="font-monospace small">@r.RoleName</td>
+                    <td class="small">@r.Description</td><td>@(r.IsSystemRole ? "Built-in" : "Custom")</td>
+                    <td class="text-end">@r.Members</td><td class="text-end">@r.Permissions</td>
+                    <td><span class="badge @(r.IsActive ? "text-bg-success" : "text-bg-secondary")">@(r.IsActive ? "Active" : "Inactive")</span></td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+<p class="small text-body-secondary mt-2">Role scope: these roles apply in this company only. Access to several companies (and platform administration) is managed by platform administrators under Platform → Users and company access.</p>

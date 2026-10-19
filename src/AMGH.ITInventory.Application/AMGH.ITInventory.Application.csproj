@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AMGH.ITInventory.Application</RootNamespace>
+    <Description>Use cases and the abstractions they depend on. Implementations live in Persistence/Infrastructure.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="11.10.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AMGH.ITInventory.Domain\AMGH.ITInventory.Domain.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Shared\AMGH.ITInventory.Shared.csproj" />
+  </ItemGroup>
+</Project>

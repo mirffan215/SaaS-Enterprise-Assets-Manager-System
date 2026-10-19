@@ -1,0 +1,130 @@
+@model LabelOptionsViewModel
+@using AMGH.ITInventory.Domain.Enums
+@{
+    ViewData["Title"] = Model.Design == LabelDesign.AssetTag ? "Generate asset tags" : "Print QR labels";
+    var p = Model.Preview;
+    var sizes = new[]
+    {
+        (LabelSize.Size50x30, "50 × 30 mm", "Phones, docks, peripherals. Barcode tags at this size need a 300 dpi printer."),
+        (LabelSize.Size70x40, "70 × 40 mm", "Laptops and desktops."),
+        (LabelSize.Size100x50, "100 × 50 mm", "Servers, network racks, CCTV recorders, furniture-size equipment.")
+    };
+}
+<div class="page-head">
+    <h1 class="page-title">@ViewData["Title"]</h1>
+    <a class="btn btn-link" asp-controller="Assets" asp-action="Index">Back to assets</a>
+</div>
+
+@foreach (var problem in p.Problems) { <div class="alert alert-warning">@problem</div> }
+
+@if (p.Assets.Count > 0)
+{
+    <form asp-action="Print" method="post" novalidate>
+        <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+        @foreach (var a in p.Assets) { <input type="hidden" name="ids" value="@a.AssetId" /> }
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <section class="panel">
+                    <h2 class="panel-title">Design</h2>
+                    <div class="size-options design-options">
+                        <div class="size-option">
+                            <input class="form-check-input" type="radio" name="design" id="design_tag" value="AssetTag" checked="@(Model.Design == LabelDesign.AssetTag)" data-design-switch="true" />
+                            <label for="design_tag">
+                                <span class="design-preview design-preview-tag" aria-hidden="true"><span></span><i></i><b></b></span>
+                                <span class="fw-semibold d-block">Asset tag</span>
+                                <span class="small text-body-secondary">Company band, barcode and asset number. For handheld barcode scanners.</span>
+                            </label>
+                        </div>
+                        <div class="size-option">
+                            <input class="form-check-input" type="radio" name="design" id="design_qr" value="QrLabel" checked="@(Model.Design == LabelDesign.QrLabel)" data-design-switch="true" />
+                            <label for="design_qr">
+                                <span class="design-preview design-preview-qr" aria-hidden="true"><span></span><i></i></span>
+                                <span class="fw-semibold d-block">QR label</span>
+                                <span class="small text-body-secondary">QR code with asset details and a link to the record. For phone cameras.</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mt-3" data-design-only="AssetTag">
+                        <span class="form-label d-block">Print style</span>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="style" id="style_colour" value="colour" checked="@(Model.Style != "mono")" />
+                            <label class="form-check-label" for="style_colour">Colour (AMGH blue band, gold emblem)</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="style" id="style_mono" value="mono" checked="@(Model.Style == "mono")" />
+                            <label class="form-check-label" for="style_mono">Black &amp; white (thermal label printers)</label>
+                        </div>
+                    </div>
+
+                    <h2 class="panel-title mt-4">Size</h2>
+                    <div class="size-options">
+                        @foreach (var (size, title, text) in sizes)
+                        {
+                            var id = "size_" + size;
+                            <div class="size-option">
+                                <input class="form-check-input" type="radio" name="size" id="@id" value="@size" checked="@(size == Model.Size)" />
+                                <label for="@id">
+                                    <span class="size-shape size-shape-@size.ToString().ToLowerInvariant()" aria-hidden="true"></span>
+                                    <span class="fw-semibold d-block">@title</span>
+                                    <span class="small text-body-secondary">@text</span>
+                                </label>
+                            </div>
+                        }
+                    </div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-sm-4">
+                            <label for="copies" class="form-label">Copies of each</label>
+                            <input id="copies" name="copies" type="number" min="1" max="10" value="@Model.Copies" class="form-control" />
+                        </div>
+                    </div>
+                    @if (Model.AnyPrintedAtAll)
+                    {
+                        <div class="mt-3">
+                            @if (Model.CanReprint)
+                            {
+                                <label for="reprintReason" class="form-label">Reason for reprint</label>
+                                <input id="reprintReason" name="reprintReason" value="@Model.ReprintReason" class="form-control" maxlength="500"
+                                       placeholder="e.g. tag damaged, custodian changed" />
+                                <div class="form-text">Required when an asset already has the chosen design printed. Reprints are recorded with this reason.</div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-warning mb-0">Some selected assets have been labelled before. Reprinting needs the "Reprint QR labels" permission.</div>
+                            }
+                        </div>
+                    }
+                </section>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-printer" aria-hidden="true"></i> Create @p.Assets.Count sheet(s)</button>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <section class="panel">
+                    <h2 class="panel-title">@p.Assets.Count asset(s) selected</h2>
+                    <ul class="label-list">
+                        @foreach (var a in p.Assets)
+                        {
+                            <li>
+                                <span class="fw-semibold">@a.AssetNumber</span> @a.AssetName
+                                @if (p.WasPrinted(LabelDesign.AssetTag, a.AssetId)) { <span class="badge text-bg-secondary">tag printed</span> }
+                                @if (p.WasPrinted(LabelDesign.QrLabel, a.AssetId)) { <span class="badge text-bg-secondary">QR printed</span> }
+                            </li>
+                        }
+                    </ul>
+                </section>
+                <section class="rules-panel">
+                    <h2 class="h6">Printer settings (first time)</h2>
+                    <ol class="small">
+                        <li>In the print dialog choose your label printer.</li>
+                        <li>Paper size: the same as the label (e.g. 70 × 40 mm). Create it once in the printer driver's preferences if it is missing.</li>
+                        <li>Margins: <strong>None</strong>, Scale: <strong>100%</strong>, Headers and footers: <strong>off</strong>, Background graphics: <strong>on</strong> (needed for the coloured band).</li>
+                        <li>Thermal printers print black only: use the black &amp; white style.</li>
+                        <li>To keep a file instead, choose "Save as PDF".</li>
+                    </ol>
+                </section>
+            </div>
+        </div>
+    </form>
+}

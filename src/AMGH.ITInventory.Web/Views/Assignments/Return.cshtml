@@ -1,0 +1,46 @@
+@model ReturnViewModel
+@using AMGH.ITInventory.Application.Common
+@{
+    var c = Model.Context;
+    var cur = c.Current!;
+    ViewData["Title"] = $"Return {c.AssetNumber}";
+}
+<div class="page-head">
+    <div>
+        <p class="asset-number mb-0">@c.AssetNumber</p>
+        <h1 class="page-title">Return: @c.AssetName</h1>
+    </div>
+    <a class="btn btn-link" asp-controller="Assets" asp-action="Details" asp-route-id="@c.AssetId">Cancel</a>
+</div>
+<div class="row">
+    <div class="col-lg-7">
+        <form method="post" class="panel" novalidate>
+            <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+            <p>Currently with <strong>@(cur.EmployeeName ?? cur.DepartmentName)</strong>@(cur.EmployeeNumber is null ? "" : $" ({cur.EmployeeNumber})") since @Time.Date(cur.AssignedDateUtc).</p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="Form_Condition" class="form-label">Condition on return</label>
+                    <input id="Form_Condition" name="Form.Condition" value="@Model.Form.Condition" class="form-control" maxlength="200" placeholder="e.g. Good, screen cracked" />
+                </div>
+                <div class="col-md-6">
+                    <label for="Form_ReturnStatusCode" class="form-label">After return the asset is</label>
+                    <select id="Form_ReturnStatusCode" name="Form.ReturnStatusCode" class="form-select">
+                        @foreach (var s in c.ReturnStatuses)
+                        {
+                            <option value="@s.Code" selected="@(s.Code == Model.Form.ReturnStatusCode)">@s.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label for="Form_Notes" class="form-label">Notes</label>
+                    <textarea id="Form_Notes" name="Form.Notes" class="form-control" rows="2" maxlength="1000">@Model.Form.Notes</textarea>
+                </div>
+            </div>
+            <p class="small text-body-secondary mt-3 mb-0">Before reissuing a device that held data, wipe it according to the IT Operations SOP.</p>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-box-arrow-in-left" aria-hidden="true"></i> Record return</button>
+                <a class="btn btn-link" asp-controller="Assets" asp-action="Details" asp-route-id="@c.AssetId">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>

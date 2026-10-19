@@ -1,0 +1,21 @@
+@model IReadOnlyList<AMGH.ITInventory.Application.Lifecycle.WarrantyItem>
+@{ ViewData["Title"] = "Warranties"; var state = ViewData["State"] as string; }
+<div class="page-head"><div><h1 class="page-title">Warranties</h1>
+    <p class="text-body-secondary mb-0">Add warranties and support contracts from an asset's page (Actions → Add warranty).</p></div></div>
+<ul class="nav nav-pills mb-3">
+    @foreach (var s in new[] { (string?)null, "Expiring", "Expired", "Active" }) { <li class="nav-item"><a class="nav-link @(s == state ? "active" : "")" asp-action="Index" asp-route-state="@s">@(s ?? "All")</a></li> }
+</ul>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Document</th><th>Asset</th><th>Type</th><th>Provider</th><th>Contract</th><th>Ends</th><th>Status</th><th class="text-end">Days left</th></tr></thead>
+        <tbody>
+            @foreach (var w in Model)
+            {
+                <tr><td class="text-nowrap"><partial name="_DocLink" model='(w.DocumentNumber, "WRN", w.WarrantyId)' /></td><td><a asp-controller="Assets" asp-action="Details" asp-route-id="@w.AssetId" asp-route-tab="lifecycle">@w.AssetNumber</a><div class="small text-body-secondary">@w.AssetName</div></td>
+                    <td>@w.Type</td><td>@w.Provider</td><td>@w.Contract</td><td>@Time.Date(w.End)</td>
+                    <td><span class="badge warranty-@w.State.ToLowerInvariant()">@w.State</span></td><td class="text-end">@w.DaysRemaining</td></tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="8" class="text-center text-body-secondary py-4">No warranties.</td></tr> }
+        </tbody>
+    </table>
+</div>

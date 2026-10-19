@@ -1,0 +1,19 @@
+@model IReadOnlyList<AMGH.ITInventory.Application.Reports.ReportRunEntry>
+@{ ViewData["Title"] = "Report history"; }
+<div class="page-head">
+    <h1 class="page-title">Report generation history</h1>
+    <a class="btn btn-link" asp-action="Index">Back to reports</a>
+</div>
+<p class="text-body-secondary small">Every export and printed report is recorded (who, when, which filters). The history cannot be edited or deleted.</p>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>When (@Time.ZoneLabel)</th><th>Report</th><th>Format</th><th class="text-end">Rows</th><th>By</th><th>Filters</th></tr></thead>
+        <tbody>
+            @foreach (var h in Model)
+            {
+                <tr><td class="text-nowrap small">@Time.Format(h.RunDateUtc)</td><td>@h.ReportTitle</td><td>@h.Format</td><td class="text-end">@h.RowCount</td><td>@h.RunBy</td><td class="small">@h.Filters</td></tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="6" class="text-center text-body-secondary py-4">No reports generated yet.</td></tr> }
+        </tbody>
+    </table>
+</div>

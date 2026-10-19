@@ -1,0 +1,40 @@
+@model IReadOnlyList<AMGH.ITInventory.Application.AssetConfiguration.NumberSeriesItem>
+@using AMGH.ITInventory.Application.AssetConfiguration
+@{ ViewData["Title"] = "Asset numbering"; var canManage = User.HasPermission(Permissions.MasterData.Manage); var canMove = User.HasPermission(Permissions.Administration.RolesManage); }
+<div class="page-head"><div><h1 class="page-title">Asset numbering</h1>
+    <p class="text-body-secondary mb-0">Number series of @User.GetCompanyName(). Every company has its own independent series. Numbers are allocated by SQL Server (safe when many people register assets at once) and are unique.</p></div></div>
+<div class="row g-3">
+    @foreach (var s in Model)
+    {
+        <div class="col-xl-6">
+            <section class="panel h-100">
+                <div class="d-flex justify-content-between"><h2 class="panel-title mb-1"><span class="font-monospace">@s.Code</span> @s.Description</h2>
+                    <span class="badge @(s.IsActive ? "text-bg-success" : "text-bg-secondary") align-self-start">@(s.IsActive ? "Active" : "Inactive")</span></div>
+                <p class="small mb-2">Next number: <strong class="font-monospace">@s.NextExample</strong> · issued so far: @s.LastNumber · used by: @(s.Categories.Count == 0 ? "no category" : string.Join(", ", s.Categories))</p>
+                @if (canManage)
+                {
+                    <form asp-action="SaveSeries" asp-route-id="@s.Id" method="post" class="row g-2 align-items-end">
+                        <div class="col-4"><label class="form-label small" for="p_@s.Id">Prefix</label><input class="form-control form-control-sm font-monospace text-uppercase" id="p_@s.Id" name="Prefix" value="@s.Prefix" maxlength="20" /></div>
+                        <div class="col-3"><label class="form-label small" for="sep_@s.Id">Separator</label>
+                            <select class="form-select form-select-sm" id="sep_@s.Id" name="Separator">@foreach (var sp in INumberingService.Separators) { <option value="@sp" selected="@(sp == s.Separator)">@(sp == "" ? "(none)" : sp)</option> }</select></div>
+                        <div class="col-2"><label class="form-label small" for="d_@s.Id">Digits</label><input class="form-control form-control-sm" type="number" min="3" max="10" id="d_@s.Id" name="PaddingLength" value="@s.PaddingLength" /></div>
+                        <div class="col-3"><div class="form-check"><input class="form-check-input" type="checkbox" name="IsActive" value="true" id="a_@s.Id" checked="@s.IsActive" /><label class="form-check-label small" for="a_@s.Id">Active</label></div><input type="hidden" name="IsActive" value="false" /></div>
+                        <div class="col-9"><input class="form-control form-control-sm" name="Description" value="@s.Description" maxlength="200" placeholder="Description" aria-label="Description" /></div>
+                        <div class="col-3"><button class="btn btn-sm btn-outline-primary w-100" type="submit">Save</button></div>
+                    </form>
+                }
+                @if (canMove)
+                {
+                    <details class="mt-2"><summary class="small">Start the next number elsewhere…</summary>
+                        <form asp-action="SetNext" asp-route-id="@s.Id" method="post" class="d-flex gap-2 mt-2" data-confirm="Move the series forward? This cannot be undone (sequences never go back).">
+                            <input class="form-control form-control-sm" type="number" name="nextNumber" min="@(s.LastNumber + 1)" value="@(s.LastNumber + 1)" aria-label="Next number" />
+                            <button class="btn btn-sm btn-outline-warning text-nowrap" type="submit">Set next number</button>
+                        </form>
+                        <p class="small text-body-secondary mt-1 mb-0">Only forward, and never onto a number already in use. Changing the prefix or separator affects new assets only; issued numbers keep theirs.</p>
+                    </details>
+                }
+            </section>
+        </div>
+    }
+</div>
+<p class="small text-body-secondary mt-3">New series are created with a new category (Asset categories) or by adding standard categories.</p>

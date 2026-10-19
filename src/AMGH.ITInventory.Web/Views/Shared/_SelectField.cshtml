@@ -1,0 +1,22 @@
+@model SelectFieldModel
+@{
+    var errors = ViewData.ModelState.TryGetValue(Model.Name, out var entry) ? entry.Errors : null;
+    var invalid = errors is { Count: > 0 };
+}
+<div class="@Model.CssClass">
+    <label class="form-label" for="@Model.Id">@Model.Label@(Model.Required ? " *" : "")</label>
+    <select class="form-select @(invalid ? "is-invalid" : "")" id="@Model.Id" name="@Model.Name"
+            data-parent-select="@Model.ParentSelectId" disabled="@Model.Disabled" required="@Model.Required">
+        <option value="">@Model.EmptyText</option>
+        @foreach (var o in Model.Options)
+        {
+            var value = o.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            <option value="@value" data-parent="@o.ParentId" selected="@(value == Model.Selected)">@o.Text</option>
+        }
+    </select>
+    @if (Model.Help is not null) { <div class="form-text">@Model.Help</div> }
+    @if (invalid)
+    {
+        <div class="invalid-feedback d-block">@string.Join(" ", errors!.Select(e => e.ErrorMessage))</div>
+    }
+</div>

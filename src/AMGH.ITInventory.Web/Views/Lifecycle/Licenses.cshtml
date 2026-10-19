@@ -1,0 +1,22 @@
+@model IReadOnlyList<AMGH.ITInventory.Application.Lifecycle.LicenseItem>
+@{ ViewData["Title"] = "Software licences"; }
+<div class="page-head"><div><h1 class="page-title">Software licences</h1>
+    <p class="text-body-secondary mb-0">Licences, seats in use, expiry and compliance. Keys are stored encrypted; revealing one is recorded.</p></div>
+    @if (User.HasPermission(Permissions.Licenses.Manage)) { <a class="btn btn-primary" asp-action="Create"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add licence</a> }</div>
+<div class="table-responsive panel p-0">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead><tr><th>Licence</th><th>Software</th><th>Type</th><th class="text-end">Seats</th><th>Expiry</th><th>Compliance</th></tr></thead>
+        <tbody>
+            @foreach (var l in Model)
+            {
+                <tr><td><a asp-action="Details" asp-route-licenseId="@l.SoftwareLicenseId">@l.LicenseNumber</a></td>
+                    <td>@l.SoftwareName @l.Version<div class="small text-body-secondary">@l.Publisher</div></td><td>@l.Type</td>
+                    <td class="text-end">@l.UsedSeats / @(l.TotalSeats?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "∞")</td>
+                    <td>@Time.Date(l.ExpiryDate)</td>
+                    <td><span class="badge licence-@l.State.ToLowerInvariant().Replace(' ', '-')">@l.State</span></td></tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="6" class="text-center text-body-secondary py-4">No licences yet.</td></tr> }
+        </tbody>
+    </table>
+</div>
+<p class="small mt-2"><a asp-action="Index" asp-route-inactive="true">Include inactive licences</a></p>

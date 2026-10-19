@@ -1,0 +1,78 @@
+@model HomeViewModel
+@inject IDisplayTime Time
+@{
+    ViewData["Title"] = "Overview";
+}
+<h1 class="page-title">Welcome, @Model.DisplayName</h1>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <section class="panel">
+            <h2 class="panel-title">Register at a glance</h2>
+            <dl class="figures">
+                @if (User.HasPermission(Permissions.Assets.View))
+                {
+                    <div><dt>Assets in the register</dt><dd>@Model.AssetCount.ToString("N0")</dd></div>
+                }
+                @if (User.HasPermission(Permissions.Licenses.View))
+                {
+                    <div><dt>Software licenses</dt><dd>@Model.LicenseCount.ToString("N0")</dd></div>
+                }
+                @if (Model.ActiveUserCount is not null)
+                {
+                    <div><dt>Active user accounts</dt><dd>@Model.ActiveUserCount.Value.ToString("N0")</dd></div>
+                }
+            </dl>
+            @if (Model.AssetCount == 0 && User.HasPermission(Permissions.Assets.View))
+            {
+                <p class="text-body-secondary">The register is empty. Set up employees, locations and vendors under Master data, then add assets or import them from Excel.</p>
+                @if (User.HasPermission(Permissions.Assets.Create)) { <a class="btn btn-primary" asp-controller="Assets" asp-action="Create">Add an asset</a> }
+                @if (User.HasPermission(Permissions.Assets.Import)) { <a class="btn btn-outline-primary" asp-controller="Assets" asp-action="Import">Import from Excel</a> }
+            }
+        </section>
+
+        @if (User.HasPermission(Permissions.Administration.UsersManage))
+        {
+            <section class="panel">
+                <h2 class="panel-title">Administration</h2>
+                <p>Create accounts for your team and give each person only the roles they need.</p>
+                <a class="btn btn-primary" asp-controller="Users" asp-action="Create"><i class="bi bi-person-plus" aria-hidden="true"></i> Add a user</a>
+                <a class="btn btn-outline-primary" asp-controller="Users" asp-action="Index">Manage users</a>
+            </section>
+        }
+    </div>
+
+    <div class="col-lg-4">
+        <section class="panel">
+            <h2 class="panel-title">Your access</h2>
+            <ul class="list-unstyled mb-2">
+                @foreach (var role in Model.Roles)
+                {
+                    <li><i class="bi bi-key" aria-hidden="true"></i> @role</li>
+                }
+            </ul>
+            <p class="small text-body-secondary mb-0">@Model.PermissionCount permissions from your roles.</p>
+        </section>
+
+        <section class="panel">
+            <h2 class="panel-title">Your recent sign-in activity</h2>
+            @if (Model.RecentSignIns.Count == 0)
+            {
+                <p class="small text-body-secondary mb-0">No activity recorded yet.</p>
+            }
+            else
+            {
+                <ul class="activity">
+                    @foreach (var e in Model.RecentSignIns)
+                    {
+                        <li class="@(e.EventType is "LoginFailed" or "Lockout" ? "activity-alert" : "")">
+                            <span>@AMGH.ITInventory.Application.Common.DisplayText.Humanize(e.EventType)</span>
+                            <time>@Time.Format(e.EventDateUtc)</time>
+                        </li>
+                    }
+                </ul>
+                <p class="small text-body-secondary mb-0">Times in @Time.ZoneLabel. Report any sign-in you don't recognise to the IT department.</p>
+            }
+        </section>
+    </div>
+</div>

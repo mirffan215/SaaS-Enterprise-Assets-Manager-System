@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AMGH.ITInventory.Security</RootNamespace>
+    <Description>Local authentication and RBAC: password hashing and policy, lockout, password history, permission-based authorisation.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- PasswordHasher, authorization and options come from the ASP.NET Core shared framework (no NuGet packages). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AMGH.ITInventory.Application\AMGH.ITInventory.Application.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Domain\AMGH.ITInventory.Domain.csproj" />
+    <ProjectReference Include="..\AMGH.ITInventory.Shared\AMGH.ITInventory.Shared.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AMGH.ITInventory.UnitTests" />
+    <InternalsVisibleTo Include="AMGH.ITInventory.SecurityTests" />
+  </ItemGroup>
+</Project>

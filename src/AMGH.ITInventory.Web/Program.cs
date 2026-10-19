@@ -1,0 +1,147 @@
+using System.Threading.RateLimiting;
+using AMGH.ITInventory.Application;
+using AMGH.ITInventory.Infrastructure;
+using AMGH.ITInventory.Persistence;
+using AMGH.ITInventory.Security;
+using AMGH.ITInventory.Security.Claims;
+using AMGH.ITInventory.Shared.Abstractions;
+using AMGH.ITInventory.Web.Infrastructure;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Mvc;
+using Serilog;
+
+Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
+
+try
+{
+    var builder = WebApplication.CreateBuilder(args);
+    builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false);
+
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext());
+
+    // ---------------------------------------------------------------- application services
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+    // The company comes only from the authenticated session (cookie claim), never from request data.
+    builder.Services.AddScoped<ICompanyContext>(sp =>
+    {
+        var accessor = sp.GetRequiredService<IHttpContextAccessor>();
+        return new CompanyContext(() => accessor.HttpContext?.User is { } user ? user.GetCompanyId() : null);
+    });
+    builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
+    builder.Services.AddSingleton<IDisplayTime, DisplayTime>();
+    builder.Services.Configure<TagOptions>(builder.Configuration.GetSection(TagOptions.SectionName));
+    builder.Services.AddScoped<INavigation, Navigation>();
+    builder.Services.AddSingleton<ILogoFetcher, LogoFetcher>();
+    builder.Services.AddSingleton<AMGH.ITInventory.Application.Abstractions.Mail.ISecretProtector, DataProtectionSecretProtector>();
+    if (!builder.Configuration.GetValue("Notifications:DisableWorker", false)) builder.Services.AddHostedService<NotificationWorker>();
+    builder.Services.AddPersistence(builder.Configuration, enableSensitiveDataLogging: builder.Environment.IsDevelopment());
+    builder.Services.AddSecurityServices(builder.Configuration);
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
+
+    var security = builder.Configuration.GetSection(SecurityOptions.SectionName).Get<SecurityOptions>() ?? new SecurityOptions();
+
+    // ---------------------------------------------------------------- data protection (cookie encryption keys)
+    var dataProtection = builder.Services.AddDataProtection().SetApplicationName("AMGH.ITInventory");
+    var keysPath = builder.Configuration["DataProtection:KeysPath"];
+    if (!string.IsNullOrWhiteSpace(keysPath))
+    {
+        dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+        if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
+    }
+
+    // ---------------------------------------------------------------- authentication / authorisation
+    builder.Services.AddScoped<AppCookieEvents>();
+    builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        .AddCookie(options =>
+        {
+            options.Cookie.Name = "__Host-AMGH.Auth";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.Path = "/";
+            options.LoginPath = "/Account/Login";
+            options.LogoutPath = "/Account/Logout";
+            options.AccessDeniedPath = "/Account/AccessDenied";
+            options.ExpireTimeSpan = TimeSpan.FromMinutes(security.SessionIdleTimeoutMinutes);
+            options.SlidingExpiration = true;
+            options.EventsType = typeof(AppCookieEvents);
+        });
+
+    // Every endpoint requires a signed-in user unless marked [AllowAnonymous].
+    builder.Services.AddAuthorization(options =>
+        options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+
+    builder.Services.AddAntiforgery(options =>
+    {
+        options.Cookie.Name = "__Host-AMGH.AF";
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.HeaderName = "X-CSRF-TOKEN";
+    });
+
+    builder.Services.AddControllersWithViews(options =>
+    {
+        options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
+        // Required fields are declared explicitly ([Required] or FluentValidation) so users see our messages.
+        options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+    });
+
+    // Brute-force protection in addition to account lockout: 10 sign-in attempts per minute per IP.
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddPolicy(RateLimitPolicies.Login, context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    });
+
+    builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
+    builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
+
+    // ---------------------------------------------------------------- pipeline
+    var app = builder.Build();
+
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseExceptionHandler("/Home/Error");
+        app.UseHsts();
+    }
+    app.UseStatusCodePagesWithReExecute("/Home/Status/{0}");
+    // Numbers and dates are entered and parsed in one fixed format regardless of the server's regional settings.
+    var culture = new System.Globalization.CultureInfo("en-GB");
+    app.UseRequestLocalization(new Microsoft.AspNetCore.Builder.RequestLocalizationOptions
+    {
+        DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(culture),
+        SupportedCultures = new[] { culture },
+        SupportedUICultures = new[] { culture }
+    });
+    app.UseHttpsRedirection();
+    app.UseMiddleware<SecurityHeadersMiddleware>();
+    app.UseStaticFiles();
+    app.UseSerilogRequestLogging();
+    app.UseRouting();
+    app.UseRateLimiter();
+    app.UseAuthentication();
+    app.UseMiddleware<ForcePasswordChangeMiddleware>();
+    app.UseAuthorization();
+
+    app.MapHealthChecks("/health").AllowAnonymous();
+    app.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
+
+    app.Run();
+}
+catch (Exception ex) when (ex is not HostAbortedException)
+{
+    Log.Fatal(ex, "EAMS (Enterprise Asset Management System) terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
