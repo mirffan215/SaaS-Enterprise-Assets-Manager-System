@@ -22,8 +22,10 @@ public sealed partial class BrandingController : Controller
 
     public BrandingController(ICompanyDirectory directory) => _directory = directory;
 
+    // Client-side caching only: in multi-tenant mode the same URL (e.g. /branding/HQ.css) can belong to different tenants,
+    // so a shared cache must never store it.
     [HttpGet("{code}.css")]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Client)]
     public async Task<IActionResult> Stylesheet(string code, CancellationToken cancellationToken)
     {
         var b = await _directory.GetBrandingAsync(code, cancellationToken);
@@ -39,7 +41,7 @@ public sealed partial class BrandingController : Controller
     }
 
     [HttpGet("{code}/logo")]
-    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
+    [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Client)]
     public async Task<IActionResult> Logo(string code, CancellationToken cancellationToken)
     {
         var logo = await _directory.GetLogoAsync(code, cancellationToken);
