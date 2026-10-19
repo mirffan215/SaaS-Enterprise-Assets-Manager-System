@@ -27,22 +27,27 @@ internal sealed class DemoTenantSeeder : BackgroundService
             _logger.LogWarning("Tenancy:DemoEnabled is set but Tenancy:DemoAdminPassword is empty: the demo tenant is not created");
             return;
         }
-        try
+        // a failed attempt drops its half-built database, so trying again later is safe (SQL Server may still be starting, a grant may be pending)
+        const int attempts = 5;
+        for (var attempt = 1; attempt <= attempts && !stoppingToken.IsCancellationRequested; attempt++)
         {
-            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken); // let the catalog be initialised first
-            using var scope = _scopes.CreateScope();
-            var catalog = scope.ServiceProvider.GetRequiredService<ITenantCatalog>();
-            if (await catalog.ExistsAsync(TenancyOptions.DemoCode, stoppingToken)) return;
+            try
+            {
+                await Task.Delay(attempt == 1 ? TimeSpan.FromSeconds(10) : TimeSpan.FromMinutes(2), stoppingToken); // first: let the catalog be initialised
+                using var scope = _scopes.CreateScope();
+                var catalog = scope.ServiceProvider.GetRequiredService<ITenantCatalog>();
+                if (await catalog.ExistsAsync(TenancyOptions.DemoCode, stoppingToken)) return;
 
-            var provisioning = scope.ServiceProvider.GetRequiredService<ITenantProvisioningService>();
-            var result = await provisioning.ProvisionTenantAsync(TenancyOptions.DemoCode, "Demo Company", "demo.admin@example.invalid",
-                _options.DemoAdminPassword, isDemo: true, stoppingToken);
-            if (result.IsFailure) _logger.LogError("The demo tenant could not be created: {Error}", result.FirstError?.Message);
-            else _logger.LogInformation("Demo tenant created");
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "The demo tenant could not be created");
+                var provisioning = scope.ServiceProvider.GetRequiredService<ITenantProvisioningService>();
+                var result = await provisioning.ProvisionTenantAsync(TenancyOptions.DemoCode, "Demo Company", "demo.admin@example.invalid",
+                    _options.DemoAdminPassword, isDemo: true, stoppingToken);
+                if (result.IsSuccess) { _logger.LogInformation("Demo tenant created"); return; }
+                _logger.LogError("The demo tenant could not be created (attempt {Attempt} of {Attempts}): {Error}", attempt, attempts, result.FirstError?.Message);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "The demo tenant could not be created (attempt {Attempt} of {Attempts})", attempt, attempts);
+            }
         }
     }
 }

@@ -98,3 +98,47 @@ public class TenancyTests
     public void Query_parameter_is_ignored_unless_allowed() =>
         Assert.Null(Middleware(false).Resolve(Request("localhost", "?tenant=q").Request).Code);
 }
+
+public class TenantMiddlewarePublicPathTests
+{
+    private sealed class NoCatalog : ITenantCatalog
+    {
+        public Task<TenantInfo?> FindActiveAsync(string code, CancellationToken cancellationToken = default) => Task.FromResult<TenantInfo?>(null);
+        public Task<bool> ExistsAsync(string code, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<IReadOnlyList<TenantRecord>> ListAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TenantRecord>>(Array.Empty<TenantRecord>());
+        public Task<TenantRecord> AddAsync(string code, string name, string connectionString, bool isDemo, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private static async Task<(bool Reached, int Status, string? Location)> Run(string path)
+    {
+        var reached = false;
+        var middleware = new TenantResolutionMiddleware(_ => { reached = true; return Task.CompletedTask; },
+            Options.Create(new TenancyOptions { Enabled = true, AllowQueryParameter = true }));
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Method = "GET";
+        ctx.Request.Path = path;
+        ctx.Request.Headers.Accept = "text/html";
+        await middleware.InvokeAsync(ctx, new TenantAccessor(true), new NoCatalog());
+        return (reached, ctx.Response.StatusCode, ctx.Response.Headers.Location.ToString());
+    }
+
+    [Theory]
+    [InlineData("/Tenant/Select")]
+    [InlineData("/Account/ExploreDemo")]
+    [InlineData("/health")]
+    [InlineData("/branding/default-logo.svg")]
+    public async Task Pages_that_come_before_a_company_is_chosen_are_reachable(string path) =>
+        Assert.True((await Run(path)).Reached);
+
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/Account/Login")]
+    [InlineData("/Assets")]
+    public async Task Everything_else_sends_the_visitor_to_the_company_page(string path)
+    {
+        var (reached, status, location) = await Run(path);
+        Assert.False(reached);
+        Assert.Equal(302, status);
+        Assert.Equal("/Tenant/Select", location);
+    }
+}

@@ -308,7 +308,7 @@ if (-not $Update -or -not (Test-Path $settingsFile)) {
         Tenancy = $tenancy
         Storage = [ordered]@{ RootPath = $docsPath }
         DataProtection = [ordered]@{ KeysPath = $keysPath }
-        Serilog = [ordered]@{ WriteTo = @([ordered]@{ Name = "File"; Args = [ordered]@{ path = (Join-Path $logsPath "eams-.log") } }) }
+        Serilog = [ordered]@{ WriteTo = @([ordered]@{ Name = "File"; Args = [ordered]@{ path = (Join-Path $logsPath "eams-.log") } }, [ordered]@{ Name = "Console" }) }
     }
     $json = $settings | ConvertTo-Json -Depth 8
     [IO.File]::WriteAllText($settingsFile, $json, (New-Object Text.UTF8Encoding($false)))
