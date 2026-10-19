@@ -13,6 +13,10 @@
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="ConfigTransfer\CompanyConfiguration.xsd" LogicalName="AMGH.ITInventory.Application.ConfigTransfer.CompanyConfiguration.xsd" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="AMGH.ITInventory.UnitTests" />
   </ItemGroup>
   <ItemGroup>

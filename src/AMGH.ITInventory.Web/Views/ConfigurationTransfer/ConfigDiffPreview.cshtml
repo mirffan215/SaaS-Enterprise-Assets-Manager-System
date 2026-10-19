@@ -1,0 +1,59 @@
+@using AMGH.ITInventory.Application.ConfigTransfer
+@model ConfigPreview
+@{
+    ViewData["Title"] = "Review configuration changes";
+    var actionable = Model.Changes.Where(c => c.Kind != ChangeKind.Unchanged).ToList();
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Review configuration changes</h1>
+        <p class="text-body-secondary mb-0">From the @Model.Source into @User.GetCompanyName(). Nothing has been saved yet. Untick what you do not want, then apply. This preview is kept for 20 minutes.</p>
+    </div>
+</div>
+<div class="d-flex flex-wrap gap-2 mb-3" role="status">
+    <span class="badge text-bg-success">+ @Model.Added to add</span>
+    <span class="badge text-bg-warning">~ @Model.Modified to change</span>
+    <span class="badge text-bg-secondary">@Model.Unchanged unchanged</span>
+</div>
+
+@if (actionable.Count == 0)
+{
+    <div class="alert alert-info">The company already has this configuration. There is nothing to apply.</div>
+    <a class="btn btn-outline-secondary" asp-action="Index">Back</a>
+}
+else
+{
+    <form asp-action="Commit" method="post" data-confirm="Apply the ticked changes to @User.GetCompanyName()?">
+        <input type="hidden" name="token" value="@Model.Token" />
+        <div class="table-responsive panel p-0 mb-3">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th style="width:2.5rem"><input class="form-check-input" type="checkbox" id="selectAll" checked aria-label="Select all" data-check-all="selected" /></th><th></th><th>Section</th><th>Item</th><th>Details</th></tr></thead>
+                <tbody>
+                    @foreach (var c in Model.Changes)
+                    {
+                        var sign = c.Kind switch { ChangeKind.Added => "+", ChangeKind.Modified => "~", _ => "=" };
+                        var rowClass = c.Kind switch { ChangeKind.Added => "table-success", ChangeKind.Modified => "table-warning", _ => "text-body-secondary" };
+                        <tr class="@rowClass">
+                            <td>@if (c.Kind != ChangeKind.Unchanged) { <input class="form-check-input" type="checkbox" name="selected" value="@c.Key" checked aria-label="Apply @c.Title" /> }</td>
+                            <td class="fw-bold font-monospace" aria-label="@c.Kind">@sign</td>
+                            <td class="small">@c.Section</td>
+                            <td>@c.Title</td>
+                            <td class="small">
+                                @foreach (var f in c.Fields)
+                                {
+                                    <div>
+                                        <span class="text-body-secondary">@f.Field:</span>
+                                        @if (c.Kind == ChangeKind.Modified) { <del class="text-danger">@(f.Current ?? "(empty)")</del> <span aria-hidden="true">→</span> <ins class="text-success text-decoration-none">@(f.Incoming ?? "(empty)")</ins> }
+                                        else { <span>@f.Incoming</span> }
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle" aria-hidden="true"></i> Apply selected changes</button>
+        <a class="btn btn-outline-secondary" asp-action="Index">Cancel</a>
+    </form>
+}
