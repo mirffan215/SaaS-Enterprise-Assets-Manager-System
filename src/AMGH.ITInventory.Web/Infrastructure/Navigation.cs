@@ -106,6 +106,7 @@ internal sealed class Navigation : INavigation
             (P(Permissions.Administration.UsersView), new NavItem("Users and roles", A("Index", "Users"), "bi-person-gear", M("/Users"))),
             (P(Permissions.Administration.RolesManage), new NavItem("Roles and permissions", A("Index", "Roles"), "bi-shield-lock", M("/admin/roles"))),
             (P(Permissions.Administration.RolesManage), new NavItem("Approval stages", A("Rules", "Approvals"), "bi-signpost-split", M("/approvals/rules"))),
+            (P(Permissions.Administration.SystemSettings), new NavItem("Recycle bin", A("Index", "RecycleBin"), "bi-trash3", M("/recycle-bin"))),
             (P(Permissions.Administration.SystemSettings), new NavItem("Configuration transfer", A("Index", "ConfigurationTransfer"), "bi-arrow-left-right", M("/admin/configuration"))),
             (P(Permissions.CompanyAdmin.ExportDataRequest) || P(Permissions.CompanyAdmin.ExportDataApprove) || P(Permissions.CompanyAdmin.ExportDataDownload),
                 new NavItem("Company data export", A("Index", "CompanyDataExport"), "bi-box-arrow-down", M("/company/data-export"))),

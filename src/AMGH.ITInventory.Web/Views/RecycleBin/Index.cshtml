@@ -1,0 +1,51 @@
+@using AMGH.ITInventory.Web.Controllers
+@model RecycleBinPageModel
+@{ ViewData["Title"] = "Recycle bin"; }
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Recycle bin</h1>
+        <p class="text-body-secondary mb-0">Records of @User.GetCompanyName() that were deleted. Nothing is ever physically removed: restore a record to bring it back exactly as it was. Every restore is written to the audit log.</p>
+    </div>
+</div>
+
+<ul class="nav nav-pills mb-3 gap-1" aria-label="Kind of record">
+    @foreach (var t in Model.Types)
+    {
+        <li class="nav-item">
+            <a class="nav-link @(t.Type == Model.Selected ? "active" : "")" asp-action="Index" asp-route-type="@t.Type" aria-current="@(t.Type == Model.Selected ? "page" : null)">
+                @t.Title <span class="badge @(t.Count > 0 ? "text-bg-warning" : "text-bg-light")">@(t.Count >= 1000 ? "1000+" : t.Count.ToString())</span>
+            </a>
+        </li>
+    }
+</ul>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="panel text-body-secondary">Nothing deleted here.</div>
+}
+else
+{
+    <div class="table-responsive panel p-0">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>Record</th><th>Deleted by</th><th>Deleted on</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>@item.Label</td>
+                        <td>@item.DeletedBy</td>
+                        <td>@(item.DeletedUtc is { } d ? Time.Format(d) : "")</td>
+                        <td class="text-end">
+                            <form asp-action="Restore" method="post" class="d-inline">
+                                <input type="hidden" name="type" value="@item.Type" />
+                                <input type="hidden" name="id" value="@item.Id" />
+                                <button class="btn btn-sm btn-outline-success" type="submit"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Restore</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.Items.Count >= 300) { <p class="small text-body-secondary mt-2">Showing the 300 most recently deleted records.</p> }
+}

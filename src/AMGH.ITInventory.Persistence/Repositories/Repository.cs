@@ -38,6 +38,12 @@ internal sealed class Repository<TEntity> : IRepository<TEntity> where TEntity :
         return shape(_set.AsNoTracking()).ToListAsync(cancellationToken);
     }
 
+    public Task<List<TResult>> QueryIncludingDeletedAsync<TResult>(Func<IQueryable<TEntity>, IQueryable<TResult>> shape, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+        return shape(QueryIncludingDeleted()).ToListAsync(cancellationToken);
+    }
+
     public Task<int> QueryCountAsync(Func<IQueryable<TEntity>, IQueryable<TEntity>> filter, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(filter);

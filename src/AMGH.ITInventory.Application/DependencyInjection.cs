@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<Lifecycle.IApprovalService, Lifecycle.ApprovalService>();
         services.AddScoped<CompanyAdmin.ICompanyDataExportService, CompanyAdmin.CompanyDataExportService>();
         services.AddScoped<ConfigTransfer.IConfigurationTransferService, ConfigTransfer.ConfigurationTransferService>();
+        services.AddScoped<RecycleBin.IRecycleBinService, RecycleBin.RecycleBinService>();
         services.AddScoped<Lifecycle.IMovementService, Lifecycle.MovementService>();
         services.AddScoped<Lifecycle.IDisposalService, Lifecycle.DisposalService>();
         services.AddScoped<Lifecycle.IMaintenanceService, Lifecycle.MaintenanceService>();
