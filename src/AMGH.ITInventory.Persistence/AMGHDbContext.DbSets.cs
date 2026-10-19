@@ -68,6 +68,8 @@ public sealed partial class AMGHDbContext
     public DbSet<AssetMaintenance> AssetMaintenances => Set<AssetMaintenance>();
     /// <summary>dbo.tblAssetAudit</summary>
     public DbSet<AssetAudit> AssetAudits => Set<AssetAudit>();
+    /// <summary>dbo.tblDataExportRequest (script 19)</summary>
+    public DbSet<DataExportRequest> DataExportRequests => Set<DataExportRequest>();
     /// <summary>dbo.tblAssetDisposal</summary>
     public DbSet<AssetDisposal> AssetDisposals => Set<AssetDisposal>();
     /// <summary>dbo.tblWarranty</summary>

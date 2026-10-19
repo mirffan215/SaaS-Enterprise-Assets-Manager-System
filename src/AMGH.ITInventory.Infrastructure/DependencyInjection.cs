@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddSingleton<ISpreadsheetReader, XlsxReader>();
         services.AddSingleton<IQrCodeGenerator, QrCodeGenerator>();
         services.AddSingleton<IBarcodeGenerator, BarcodeGenerator>();
+        services.AddSingleton<Application.CompanyAdmin.IEncryptedArchiveWriter, Archives.AesZipWriter>();
         services.AddSingleton<Application.Abstractions.Documents.IWordReportWriter, Documents.DocxReportWriter>();
         services.AddSingleton<Mail.IOAuthTokenProvider, Mail.EntraTokenProvider>();
         services.AddSingleton<Application.Abstractions.Mail.IMailSender, Mail.SmtpMailSender>();

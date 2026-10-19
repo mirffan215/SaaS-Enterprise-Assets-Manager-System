@@ -21,7 +21,7 @@ public sealed partial class TenantProvisioningService : ITenantProvisioningServi
     {
         "01_CreateDatabase.sql", "02_Tables.sql", "10_MultiCompany.sql", "16_AssetConfiguration.sql", "17_TechnicianAssignment.sql",
         "03_Functions.sql", "04_Views.sql", "05_StoredProcedures.sql", "06_Triggers.sql", "07_SeedData.sql", "08_DatabaseSecurity.sql",
-        "11_Workspaces.sql", "12_Reports.sql", "13_Approvals.sql", "14_Notifications.sql", "15_CompanyProfile.sql", "18_DocumentNumbering.sql"
+        "11_Workspaces.sql", "12_Reports.sql", "13_Approvals.sql", "14_Notifications.sql", "15_CompanyProfile.sql", "18_DocumentNumbering.sql", "19_CompanyDataExport.sql"
     };
 
     internal const string DatabasePrefix = "ITInv_Tenant_";

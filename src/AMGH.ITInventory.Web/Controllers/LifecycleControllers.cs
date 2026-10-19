@@ -42,7 +42,7 @@ public sealed class ApprovalsController : LifecycleControllerBase
 {
     public override void OnActionExecuting(Microsoft.AspNetCore.Mvc.Filters.ActionExecutingContext context)
     {
-        if (!User.HasPermission(Permissions.Movements.View) && !User.HasPermission(Permissions.Disposals.View)) context.Result = Forbid();
+        if (!User.HasPermission(Permissions.Movements.View) && !User.HasPermission(Permissions.Disposals.View) && !User.HasPermission(Permissions.CompanyAdmin.ExportDataApprove)) context.Result = Forbid();
         base.OnActionExecuting(context);
     }
 

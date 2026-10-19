@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\AMGH.ITInventory.Application\AMGH.ITInventory.Application.csproj" />
     <ProjectReference Include="..\..\src\AMGH.ITInventory.Shared\AMGH.ITInventory.Shared.csproj" />
+    <ProjectReference Include="..\..\src\AMGH.ITInventory.Infrastructure\AMGH.ITInventory.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\AMGH.ITInventory.Web\AMGH.ITInventory.Web.csproj" />
   </ItemGroup>
 </Project>

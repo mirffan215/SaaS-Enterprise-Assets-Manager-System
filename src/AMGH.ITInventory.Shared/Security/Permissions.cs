@@ -152,6 +152,17 @@ public static class Permissions
         public const string SystemSettings = "System.Settings";
     }
 
+    /// <summary>Company self-service: bulk export of the company's own data.</summary>
+    public static class CompanyAdmin
+    {
+        /// <summary>Ask for a full export of the company data (needs a second administrator's approval).</summary>
+        public const string ExportDataRequest = "CompanyAdmin.ExportDataRequest";
+        /// <summary>Approve or reject a full data export requested by another administrator.</summary>
+        public const string ExportDataApprove = "CompanyAdmin.ExportDataApprove";
+        /// <summary>Download an approved export (the requester only).</summary>
+        public const string ExportDataDownload = "CompanyAdmin.ExportDataDownload";
+    }
+
     /// <summary>Every permission code, for policy registration.</summary>
     public static readonly IReadOnlyList<string> All = new[]
     {
@@ -199,6 +210,9 @@ public static class Permissions
         "Roles.Manage",
         "AuditLogs.View",
         "Notifications.Manage",
-        "System.Settings"
+        "System.Settings",
+        "CompanyAdmin.ExportDataRequest",
+        "CompanyAdmin.ExportDataApprove",
+        "CompanyAdmin.ExportDataDownload"
     };
 }

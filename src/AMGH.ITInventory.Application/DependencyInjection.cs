@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<Views.ISavedViewService, Views.SavedViewService>();
         // asset lifecycle (Release 2.3)
         services.AddScoped<Lifecycle.IApprovalService, Lifecycle.ApprovalService>();
+        services.AddScoped<CompanyAdmin.ICompanyDataExportService, CompanyAdmin.CompanyDataExportService>();
         services.AddScoped<Lifecycle.IMovementService, Lifecycle.MovementService>();
         services.AddScoped<Lifecycle.IDisposalService, Lifecycle.DisposalService>();
         services.AddScoped<Lifecycle.IMaintenanceService, Lifecycle.MaintenanceService>();
