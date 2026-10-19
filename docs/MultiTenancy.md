@@ -15,7 +15,8 @@ A small **catalog** database lists the tenants. Single-database mode still works
 | `Tenancy:TenantConnectionTemplate` | Run-time connection string per tenant, `{database}` is replaced (use a least-privilege login). Empty: the provisioning string with the database name replaced. |
 | `Tenancy:AppLogin` | Application login granted rights by script 08. Script 08 is skipped when empty. |
 | `Tenancy:MasterKeyPassword` | Column-encryption master key password for new tenant databases (random when empty). |
-| `Tenancy:DemoEnabled` / `DemoAdminPassword` | Creates the sandbox tenant `demo` (sample data) at first start and shows *Explore Demo Environment* on the sign-in page. |
+| `Tenancy:DemoEnabled` / `DemoAdminPassword` | Creates the sandbox tenant `demo` (sample data) at first start and shows *Explore Demo Environment* on the sign-in page. Supply the password from a secret store, not from a committed file. |
+| `Tenancy:ShowDemoCredentials` | Off by default. `true` prints the demo user name and password on the demo sign-in page (public sandbox only). |
 
 Tenant resolution order: sub-domain, `?tenant=` (if allowed), `X-Tenant-Code` header, tenant cookie. A signed-in session carries its tenant
 and is rejected in any other tenant. Connection strings in the catalog are encrypted (ASP.NET Data Protection, `enc:` prefix).

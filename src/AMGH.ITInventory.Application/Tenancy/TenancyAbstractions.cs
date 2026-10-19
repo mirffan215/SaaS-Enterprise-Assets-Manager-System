@@ -44,8 +44,8 @@ public sealed class TenancyOptions
     /// <summary>Password of the demo administrator ("admin"); the demo tenant is not created without it.</summary>
     public string? DemoAdminPassword { get; set; }
 
-    /// <summary>Shows the demo user name and password on the demo sign-in page (they only open fictitious data).</summary>
-    public bool ShowDemoCredentials { get; set; } = true;
+    /// <summary>Off by default. Turn on only for a public sandbox: shows the demo user name and password on the demo sign-in page (they open fictitious data only).</summary>
+    public bool ShowDemoCredentials { get; set; }
 }
 
 /// <summary>A row of the central tenant catalog.</summary>
