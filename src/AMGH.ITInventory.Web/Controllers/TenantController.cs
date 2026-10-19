@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using AMGH.ITInventory.Application.Tenancy;
+using AMGH.ITInventory.Web.Infrastructure;
 using AMGH.ITInventory.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,7 +25,7 @@ public sealed partial class TenantController : Controller
     }
 
     [HttpGet("Select")]
-    public IActionResult Select() => _catalog is null ? NotFound() : View(new TenantSelectViewModel());
+    public IActionResult Select() => _catalog is null ? NotFound() : View(new TenantSelectViewModel { ShowExploreDemo = _options.DemoEnabled });
 
     [HttpPost("Select")]
     public async Task<IActionResult> Select(TenantSelectViewModel model, CancellationToken cancellationToken)
@@ -35,14 +36,9 @@ public sealed partial class TenantController : Controller
         if (!CodePattern().IsMatch(code) || await _catalog.FindActiveAsync(code, cancellationToken) is not { } tenant)
         {
             ModelState.AddModelError(nameof(model.Code), "We could not find that company. Check the company code.");
+            model.ShowExploreDemo = _options.DemoEnabled;
             return View(model);
         }
-        if (!string.IsNullOrWhiteSpace(_options.BaseDomain) && !_options.AllowQueryParameter)
-        {
-            var host = $"{tenant.Code}.{_options.BaseDomain.Trim().TrimStart('.')}";
-            var port = Request.Host.Port is { } p and not 80 and not 443 ? ":" + p : string.Empty;
-            return Redirect($"{Request.Scheme}://{host}{port}/");
-        }
-        return Redirect($"/?{Infrastructure.TenantResolutionMiddleware.QueryName}={Uri.EscapeDataString(tenant.Code)}");
+        return Redirect(TenantUrls.For(Request, _options, tenant.Code));
     }
 }

@@ -25,7 +25,7 @@ public sealed partial class TenantProvisioningService : ITenantProvisioningServi
     };
 
     internal const string DatabasePrefix = "ITInv_Tenant_";
-    internal const string AdminUsername = "admin";
+    public const string AdminUsername = "admin";
     private static readonly string[] ReservedCodes = { "www", "api", "admin", "platform", "catalog", "master", "tempdb", "model", "msdb", "system", "app", "mail" };
 
     [GeneratedRegex("^[A-Za-z0-9]{2,10}$")] private static partial Regex CodePattern();
@@ -112,6 +112,7 @@ public sealed partial class TenantProvisioningService : ITenantProvisioningServi
             }
 
             await FinishCompanyAsync(server, database, companyCode, companyName, cancellationToken);
+            if (isDemo) await LoadDemoDataAsync(server, database, companyCode, cancellationToken);
 
             var connectionString = TenantConnectionString(database);
             var record = await _catalog.AddAsync(lower, companyName, connectionString, isDemo, cancellationToken);
@@ -152,12 +153,30 @@ public sealed partial class TenantProvisioningService : ITenantProvisioningServi
             @"UPDATE dbo.tblCompany SET CompanyCode = @code, LegalName = @name, DisplayName = @name, Phone = NULL, City = NULL,
                      Country = N'Not set', AssetNumberPrefix = @prefix, ModifiedBy = N'PROVISIONING', ModifiedDate = SYSUTCDATETIME()
               WHERE CompanyId = 1;
+              UPDATE dbo.tblAssetNumberSequence SET Prefix = @prefix WHERE LastNumber = 0;
               UPDATE dbo.tblUser SET MustChangePassword = 0 WHERE Username = @admin;";
         command.Parameters.AddWithValue("@code", code.ToUpperInvariant());
         command.Parameters.AddWithValue("@name", name);
         command.Parameters.AddWithValue("@prefix", code.ToUpperInvariant() + "-IT");
         command.Parameters.AddWithValue("@admin", AdminUsername);
         await command.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>Sample estate for the sandbox tenant (deployment/LoadTest/Generate-DemoData.sql, shipped as SQLScripts/Demo).</summary>
+    private async Task LoadDemoDataAsync(SqlConnectionStringBuilder server, string database, string code, CancellationToken ct)
+    {
+        var folder = Path.IsPathRooted(_options.ScriptsPath) ? _options.ScriptsPath : Path.Combine(AppContext.BaseDirectory, _options.ScriptsPath);
+        var file = Path.Combine(folder, "Demo", "Generate-DemoData.sql");
+        if (!File.Exists(file)) throw new FileNotFoundException("Demo data script not found.", file);
+        await using var connection = new SqlConnection(server.ConnectionString);
+        await connection.OpenAsync(ct);
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["DatabaseName"] = database,
+            ["CompanyCode"] = code.ToUpperInvariant()
+        };
+        await SqlScriptRunner.RunAsync(connection, await File.ReadAllTextAsync(file, ct), variables, ct);
+        _logger.LogInformation("Demo data loaded into {Database}", database);
     }
 
     private string TenantConnectionString(string database)

@@ -34,6 +34,18 @@ public sealed class TenancyOptions
 
     /// <summary>Application database login granted access by script 08; the script is skipped when empty.</summary>
     public string? AppLogin { get; set; }
+
+    /// <summary>Code of the sandbox tenant.</summary>
+    public const string DemoCode = "demo";
+
+    /// <summary>Creates the sandbox tenant "demo" (with sample data) at start-up when it is missing, and offers "Explore Demo Environment" on the sign-in page.</summary>
+    public bool DemoEnabled { get; set; }
+
+    /// <summary>Password of the demo administrator ("admin"); the demo tenant is not created without it.</summary>
+    public string? DemoAdminPassword { get; set; }
+
+    /// <summary>Shows the demo user name and password on the demo sign-in page (they only open fictitious data).</summary>
+    public bool ShowDemoCredentials { get; set; } = true;
 }
 
 /// <summary>A row of the central tenant catalog.</summary>

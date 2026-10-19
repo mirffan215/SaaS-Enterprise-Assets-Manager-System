@@ -1,3 +1,4 @@
+using AMGH.ITInventory.Application.Tenancy;
 using AMGH.ITInventory.Domain.Enums;
 using AMGH.ITInventory.Security.Accounts;
 using AMGH.ITInventory.Security.Claims;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 
 namespace AMGH.ITInventory.Web.Controllers;
 
@@ -32,11 +34,13 @@ public sealed class AccountController : Controller
     private readonly ILogger<AccountController> _logger;
     private readonly ICompanyDirectory _directory;
     private readonly ITenantAccessor _tenants;
+    private readonly TenancyOptions _tenancy;
 
     public AccountController(IAccountService accounts, IDateTimeProvider clock, ILogger<AccountController> logger, ICompanyDirectory directory,
-        ITenantAccessor tenants)
+        ITenantAccessor tenants, IOptions<TenancyOptions> tenancy)
     {
         _tenants = tenants;
+        _tenancy = tenancy.Value;
         _directory = directory;
         _accounts = accounts;
         _clock = clock;
@@ -67,6 +71,7 @@ public sealed class AccountController : Controller
             var direct = new LoginViewModel { ReturnUrl = returnUrl, SessionExpired = expired, CanChangeCompany = companies.Count > 1 };
             DescribeProduct(direct);
             Remembered(direct);
+            ApplyDemoOptions(direct);
             return View(direct);
         }
 
@@ -78,7 +83,29 @@ public sealed class AccountController : Controller
                 Message = "That company is not available. Choose your company." });
         }
         Remembered(model);
+        ApplyDemoOptions(model);
         return View(model);
+    }
+
+    /// <summary>Demo hooks of the sign-in page: the "Explore Demo Environment" button, and, inside the demo tenant, the sandbox credentials.</summary>
+    private void ApplyDemoOptions(LoginViewModel model)
+    {
+        var current = _tenants.CurrentTenant;
+        model.ShowExploreDemo = _tenancy.Enabled && _tenancy.DemoEnabled && current is not { IsDemo: true };
+        if (current is { IsDemo: true } && _tenancy.ShowDemoCredentials && !string.IsNullOrEmpty(_tenancy.DemoAdminPassword))
+        {
+            model.DemoUser = TenantProvisioningService.AdminUsername;
+            model.DemoPassword = _tenancy.DemoAdminPassword;
+        }
+    }
+
+    /// <summary>One-click demo: continues to the sign-in page of the "demo" workspace (sample data, destructive actions disabled).</summary>
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult ExploreDemo()
+    {
+        if (!_tenancy.Enabled || !_tenancy.DemoEnabled) return NotFound();
+        return Redirect(TenantUrls.For(Request, _tenancy, TenancyOptions.DemoCode, "/Account/Login"));
     }
 
     /// <summary>Pre-fills the user name remembered on this computer.</summary>
@@ -148,6 +175,7 @@ public sealed class AccountController : Controller
         else if (!await DescribeCompanyAsync(model, companies.Count, cancellationToken))
             return View("Workspace", new WorkspacePickerViewModel { Companies = companies, ReturnUrl = model.ReturnUrl,
                 Message = "That company is not available. Choose your company." });
+        ApplyDemoOptions(model);
         if (!ModelState.IsValid) return View(model);
 
         var outcome = await _accounts.SignInAsync(model.Username, model.Password, ClientIp, UserAgent, model.CompanyCode, cancellationToken);
@@ -217,6 +245,7 @@ public sealed class AccountController : Controller
     public IActionResult ChangePassword() =>
         View(new ChangePasswordViewModel { IsForced = User.MustChangePassword() });
 
+    [BlockInDemo]
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model, CancellationToken cancellationToken)

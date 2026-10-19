@@ -111,6 +111,8 @@ try
     builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 
     // ---------------------------------------------------------------- pipeline
+    var tenancySettings = builder.Configuration.GetSection(TenancyOptions.SectionName).Get<TenancyOptions>() ?? new TenancyOptions();
+    if (tenancySettings.Enabled && tenancySettings.DemoEnabled) builder.Services.AddHostedService<DemoTenantSeeder>();
     var app = builder.Build();
 
     if (!app.Environment.IsDevelopment())

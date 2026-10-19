@@ -27,6 +27,14 @@
     }
 </p>
 
+@if (!string.IsNullOrEmpty(Model.DemoUser))
+{
+    <div class="alert alert-info py-2" role="status">
+        <strong>Demo environment.</strong> Sample data only; some actions are disabled.<br />
+        User name <code>@Model.DemoUser</code> · password <code>@Model.DemoPassword</code>
+    </div>
+}
+
 @if (Model.SessionExpired)
 {
     <div class="alert alert-info py-2" role="status">You were signed out after a period of inactivity. Sign in to continue.</div>
@@ -62,6 +70,11 @@
 
     <button type="submit" class="lp-submit">Sign in <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
 </form>
+
+@if (Model.ShowExploreDemo)
+{
+    <a class="lp-submit lp-submit-secondary" href="@Url.Action("ExploreDemo", "Account")"><i class="bi bi-play-circle" aria-hidden="true"></i> Explore Demo Environment</a>
+}
 
 <ul class="lp-features" aria-label="What the system offers">
     <li><i class="bi bi-shield-check" aria-hidden="true"></i><span>Secure access</span></li>

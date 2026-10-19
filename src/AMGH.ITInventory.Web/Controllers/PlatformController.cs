@@ -34,6 +34,7 @@ public sealed class PlatformController : Controller
     public async Task<IActionResult> Create(CancellationToken cancellationToken) =>
         View(await WizardModelAsync(new CompanySetupRequest(), cancellationToken));
 
+    [BlockInDemo]
     [HttpPost("new")]
     [RequestSizeLimit(2 * 1024 * 1024)]
     public async Task<IActionResult> Create([Bind(Prefix = "Setup")] CompanySetupRequest setup, IFormFile? logo, CancellationToken cancellationToken)
@@ -95,6 +96,7 @@ public sealed class PlatformController : Controller
         return View(await EditModelAsync(id, details, cancellationToken));
     }
 
+    [BlockInDemo]
     [HttpPost("{id:int}/status")]
     public async Task<IActionResult> Status(int id, string status, CancellationToken cancellationToken)
     {

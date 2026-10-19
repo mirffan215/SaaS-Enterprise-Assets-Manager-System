@@ -21,7 +21,10 @@
     <span asp-validation-for="Code" class="invalid-feedback d-block"></span>
     <button type="submit" class="lp-submit">Continue <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
 </form>
-<p class="lp-notice">Try the sandbox with the company code <strong>demo</strong>.</p>
+@if (Model.ShowExploreDemo)
+{
+    <a class="lp-submit lp-submit-secondary" href="@Url.Action("ExploreDemo", "Account")"><i class="bi bi-play-circle" aria-hidden="true"></i> Explore Demo Environment</a>
+}
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
