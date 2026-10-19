@@ -179,7 +179,8 @@ function Test-PortUsable([int] $Candidate, [string] $Host_) {
     # something other than IIS (http.sys, process id 4) is listening on it
     $listener = Get-NetTCPConnection -State Listen -LocalPort $Candidate -ErrorAction SilentlyContinue | Where-Object { $_.OwningProcess -ne 4 } | Select-Object -First 1
     if ($listener) {
-        $name = (Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue).ProcessName
+        $proc = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue   # may have exited meanwhile; strict mode forbids reading a property of $null
+        $name = if ($proc) { $proc.ProcessName } else { "another program" }
         return "Port $Candidate is already used by '$name'."
     }
     # another IIS site uses this port for the same host name, or for every host name (which cannot be shared with a host-name binding)
