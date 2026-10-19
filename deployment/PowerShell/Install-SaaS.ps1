@@ -127,6 +127,22 @@ function Test-AppPassword([string] $Password) {
     return $null
 }
 
+# DNS names of a certificate. Windows PowerShell versions and certificates differ in what DnsNameList holds
+# (objects with a Unicode property, plain strings, or nothing), so every shape is accepted and errors are ignored.
+function Get-CertificateDnsNames($Certificate) {
+    $names = New-Object System.Collections.Generic.List[string]
+    try {
+        foreach ($entry in @($Certificate.DnsNameList)) {
+            if ($null -eq $entry) { continue }
+            if ($entry -is [string]) { $names.Add($entry) }
+            elseif ($entry.PSObject.Properties["Unicode"]) { $names.Add([string]$entry.Unicode) }
+            else { $names.Add([string]$entry) }
+        }
+    } catch { }
+    try { $cn = $Certificate.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::DnsName, $false); if ($cn) { $names.Add($cn) } } catch { }
+    return $names.ToArray()
+}
+
 # ---------------------------------------------------------------- 1. prerequisites
 Write-Step "Checking prerequisites"
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -313,11 +329,9 @@ Invoke-Native "icacls" @($SitePath, "/grant", "${poolIdentity}:(OI)(CI)RX", "/T"
 Write-Step "Configuring site '$SiteName' on https://${HostName}:$Port"
 if (-not $CertificateThumbprint) {
     $wanted = if ($TenantMode -eq "Subdomain") { "*.$BaseDomain" } else { $HostName }
-    # strict mode: read the DNS names defensively (some certificates have none)
     $existing = Get-ChildItem Cert:\LocalMachine\My | Where-Object {
-            $names = @($_.DnsNameList | ForEach-Object { "$($_.Unicode)" })
-            ($_.Subject -eq "CN=$wanted" -or $names -contains $wanted) -and $_.NotAfter -gt (Get-Date).AddDays(30)
-        } | Sort-Object NotAfter -Descending | Select-Object -First 1
+            (Get-CertificateDnsNames $_) -contains $wanted -or $_.Subject -eq "CN=$wanted"
+        } | Where-Object { $_.NotAfter -gt (Get-Date).AddDays(30) } | Sort-Object NotAfter -Descending | Select-Object -First 1
     if ($existing) { $CertificateThumbprint = $existing.Thumbprint }
     else {
         Write-Note "No certificate found for $wanted - creating a self-signed one (testing only; install a real certificate for production)." "Yellow"
