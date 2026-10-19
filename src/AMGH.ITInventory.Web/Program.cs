@@ -53,7 +53,7 @@ try
     var security = builder.Configuration.GetSection(SecurityOptions.SectionName).Get<SecurityOptions>() ?? new SecurityOptions();
 
     // ---------------------------------------------------------------- data protection (cookie encryption keys)
-    var dataProtection = builder.Services.AddDataProtection().SetApplicationName("AMGH.ITInventory");
+    var dataProtection = builder.Services.AddDataProtection().SetApplicationName("EAMS.Cloud");
     var keysPath = builder.Configuration["DataProtection:KeysPath"];
     if (!string.IsNullOrWhiteSpace(keysPath))
     {
@@ -66,7 +66,7 @@ try
     builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
         .AddCookie(options =>
         {
-            options.Cookie.Name = "__Host-AMGH.Auth";
+            options.Cookie.Name = "__Host-EAMS.Auth";
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             options.Cookie.SameSite = SameSiteMode.Strict;
@@ -85,7 +85,7 @@ try
 
     builder.Services.AddAntiforgery(options =>
     {
-        options.Cookie.Name = "__Host-AMGH.AF";
+        options.Cookie.Name = "__Host-EAMS.AF";
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Strict;
         options.HeaderName = "X-CSRF-TOKEN";

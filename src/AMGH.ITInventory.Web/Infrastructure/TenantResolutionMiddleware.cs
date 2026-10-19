@@ -16,7 +16,7 @@ internal sealed class TenantResolutionMiddleware
 {
     public const string HeaderName = "X-Tenant-Code";
     public const string QueryName = "tenant";
-    internal const string TenantCookie = "AMGH.Tenant";
+    internal const string TenantCookie = "EAMS.Tenant";
 
     private static readonly string[] PublicPaths = { "/health", "/tenant", "/branding/default-logo.svg", "/favicon" };
 

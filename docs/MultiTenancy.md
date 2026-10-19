@@ -28,6 +28,10 @@ creates `ITInv_Tenant_{companyCode}`, runs scripts 01 to 19 (order of `Deploy-Da
 administrator `admin`, renames the first company to the customer, registers the tenant in the catalog. A failed run drops the database it created.
 The scripts are copied to the web output (`SQLScripts/`); the demo data script is `deployment/LoadTest/Generate-DemoData.sql`.
 
+## Installing
+
+See `docs/Install-SaaS-Windows.md` (interactive installer with the default/custom port question).
+
 ## Existing databases
 
 Run `deployment/SQLScripts/19_CompanyDataExport.sql` once on every existing (single-database) installation.

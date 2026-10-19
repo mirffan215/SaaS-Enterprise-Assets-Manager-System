@@ -25,9 +25,9 @@ public sealed class AccountController : Controller
     };
 
     /// <summary>Remembers the last company (its code only) to skip the picker next time. Not used for authorisation.</summary>
-    internal const string WorkspaceCookie = "AMGH.Workspace";
+    internal const string WorkspaceCookie = "EAMS.Workspace";
     /// <summary>"Remember me": the user name only (never a password or session), HttpOnly, 90 days.</summary>
-    internal const string RememberUserCookie = "AMGH.RememberUser";
+    internal const string RememberUserCookie = "EAMS.RememberUser";
 
     private readonly IAccountService _accounts;
     private readonly IDateTimeProvider _clock;
