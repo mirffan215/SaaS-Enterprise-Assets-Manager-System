@@ -4,7 +4,7 @@
     Layout = "_LoginLayout";
     // no company chosen: direct sign-in (the person's default company is used after the password is checked)
     var direct = string.IsNullOrEmpty(Model.CompanyCode);
-    var logo = Model.LogoUrl ?? Url.Content("~/images/amgh-emblem.png");
+    var logo = Model.LogoUrl ?? Url.Action("DefaultLogo", "Branding");
 }
 <header class="lp-brand">
     <img class="lp-logo" src="@logo" alt="@Model.CompanyName" />

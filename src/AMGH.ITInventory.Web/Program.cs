@@ -31,7 +31,9 @@ try
     builder.Services.AddScoped<ICompanyContext>(sp =>
     {
         var accessor = sp.GetRequiredService<IHttpContextAccessor>();
-        return new CompanyContext(() => accessor.HttpContext?.User is { } user ? user.GetCompanyId() : null);
+        return new CompanyContext(
+            () => accessor.HttpContext?.User is { } user ? user.GetCompanyId() : null,
+            () => accessor.HttpContext?.User is { Identity.IsAuthenticated: true } user ? user.GetCompanyName() : null);
     });
     builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
     builder.Services.AddSingleton<IDisplayTime, DisplayTime>();

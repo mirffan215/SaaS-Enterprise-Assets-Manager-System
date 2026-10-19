@@ -43,9 +43,34 @@ public sealed partial class BrandingController : Controller
     public async Task<IActionResult> Logo(string code, CancellationToken cancellationToken)
     {
         var logo = await _directory.GetLogoAsync(code, cancellationToken);
-        if (logo is null) return NotFound();
         Response.Headers.XContentTypeOptions = "nosniff";
-        return File(logo.Content, logo.ContentType);
+        // No uploaded logo: a clean generated badge (inline SVG, initials of the company code) instead of a stock image.
+        return logo is null ? BadgeResult(code) : File(logo.Content, logo.ContentType);
+    }
+
+    /// <summary>The neutral badge shown when no company context is loaded.</summary>
+    [HttpGet("default-logo.svg")]
+    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Any)]
+    public IActionResult DefaultLogo()
+    {
+        Response.Headers.XContentTypeOptions = "nosniff";
+        return BadgeResult(null);
+    }
+
+    private static ContentResult BadgeResult(string? label) => new() { Content = BadgeSvg(label), ContentType = "image/svg+xml" };
+
+    /// <summary>Inline SVG badge. The label is reduced to up to three letters/digits, so nothing user-supplied reaches the markup.</summary>
+    internal static string BadgeSvg(string? label)
+    {
+        var text = new string((label ?? string.Empty).Where(char.IsAsciiLetterOrDigit).Take(3).ToArray()).ToUpperInvariant();
+        if (text.Length == 0) text = "IT";
+        var size = text.Length == 3 ? 38 : 48;
+        return "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 120 120\" role=\"img\" aria-label=\"Company badge\">" +
+               "<defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#2E6BD6\"/><stop offset=\"1\" stop-color=\"#123A86\"/></linearGradient></defs>" +
+               "<rect x=\"4\" y=\"4\" width=\"112\" height=\"112\" rx=\"26\" fill=\"url(#g)\"/>" +
+               "<rect x=\"10\" y=\"10\" width=\"100\" height=\"100\" rx=\"21\" fill=\"none\" stroke=\"#FFFFFF\" stroke-opacity=\".35\" stroke-width=\"2\"/>" +
+               $"<text x=\"60\" y=\"60\" text-anchor=\"middle\" dominant-baseline=\"central\" fill=\"#FFFFFF\" font-family=\"Segoe UI, Arial, sans-serif\" font-weight=\"700\" font-size=\"{size}\">{text}</text>" +
+               "</svg>";
     }
 
     private static (int R, int G, int B) Rgb(string hex) =>

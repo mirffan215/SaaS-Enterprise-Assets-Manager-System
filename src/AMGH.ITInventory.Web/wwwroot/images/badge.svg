@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="IT Inventory Cloud">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2E6BD6"/><stop offset="1" stop-color="#123A86"/></linearGradient></defs>
+  <rect x="4" y="4" width="112" height="112" rx="26" fill="url(#g)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32,74 a16,16 0 0 1 3,-31 a22,22 0 0 1 43,5 a14,14 0 0 1 2,26 z"/>
+    <path d="M48,88 h24"/>
+  </g>
+</svg>

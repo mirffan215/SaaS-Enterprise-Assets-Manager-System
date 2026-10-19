@@ -3,10 +3,13 @@
 @using AMGH.ITInventory.Web.Infrastructure
 @inject IOptions<SecurityOptions> SecurityOptions
 @inject INavigation Navigation
+@inject AMGH.ITInventory.Shared.Abstractions.ICompanyContext CompanyContext
 @inject AMGH.ITInventory.Application.Notifications.INotificationService Notifications
 @{
     var nav = await Navigation.BuildAsync(Context);
     var companyCode = User.GetCompanyCode();
+    // Brand: the active company's name when set, otherwise the neutral SaaS name.
+    var brandName = string.IsNullOrWhiteSpace(CompanyContext.CurrentCompanyName) ? AMGH.ITInventory.Shared.AppInfo.ShortName : CompanyContext.CurrentCompanyName;
     var displayName = User.GetDisplayName();
     var initials = string.Concat(displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
     var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => AMGH.ITInventory.Application.Common.DisplayText.Humanize(c.Value)).ToList();
@@ -37,8 +40,8 @@
     <aside class="app-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-brand">
             <a class="sidebar-brand-link" href="@nav.HomeUrl">
-                <span class="app-brand-mark" aria-hidden="true">@(companyCode.Length > 0 ? companyCode : "AMGH")</span>
-                <span class="sidebar-label sidebar-brand-text"><span class="sidebar-brand-name">@AMGH.ITInventory.Shared.AppInfo.ShortName</span><span class="sidebar-brand-sub">Enterprise Asset Management</span></span>
+                <span class="app-brand-mark" aria-hidden="true">@(companyCode.Length > 0 ? companyCode : "ITI")</span>
+                <span class="sidebar-label sidebar-brand-text"><span class="sidebar-brand-name">@brandName</span><span class="sidebar-brand-sub">@AMGH.ITInventory.Shared.AppInfo.Name</span></span>
             </a>
             <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Close menu"></button>
         </div>
@@ -144,7 +147,7 @@
             @RenderBody()
         </main>
         <footer class="app-footer">
-            @User.GetCompanyName() · @AMGH.ITInventory.Shared.AppInfo.Name @AMGH.ITInventory.Shared.AppInfo.Version · @AMGH.ITInventory.Shared.AppInfo.Owner. Authorised use only; activity is logged.
+            @User.GetCompanyName() · @AMGH.ITInventory.Shared.AppInfo.Name @AMGH.ITInventory.Shared.AppInfo.Version. Authorised use only; activity is logged.
         </footer>
     </div>
 

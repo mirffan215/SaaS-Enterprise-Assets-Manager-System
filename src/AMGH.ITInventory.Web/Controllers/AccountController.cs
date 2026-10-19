@@ -62,7 +62,7 @@ public sealed class AccountController : Controller
         {
             // Direct sign-in: user name and password only; the person's default company is used (Release 2.11).
             var direct = new LoginViewModel { ReturnUrl = returnUrl, SessionExpired = expired, CanChangeCompany = companies.Count > 1 };
-            await DescribeOwnerAsync(direct, cancellationToken);
+            DescribeProduct(direct);
             Remembered(direct);
             return View(direct);
         }
@@ -87,21 +87,19 @@ public sealed class AccountController : Controller
         model.RememberMe = true;
     }
 
-    /// <summary>Direct sign-in page: the group's logo and names (owner company's branding when set).</summary>
-    private async Task DescribeOwnerAsync(LoginViewModel model, CancellationToken ct)
+    /// <summary>Direct sign-in page with no company chosen: neutral product name and badge.</summary>
+    private void DescribeProduct(LoginViewModel model)
     {
-        var owner = await _directory.GetBrandingAsync(AMGH.ITInventory.Shared.AppInfo.OwnerCompanyCode, ct);
-        model.CompanyName = AMGH.ITInventory.Shared.AppInfo.Owner;
-        model.NameArabic = owner?.NameArabic ?? AMGH.ITInventory.Shared.AppInfo.OwnerArabic;
-        model.LogoUrl = owner?.HasLogo == true ? Url.Action("Logo", "Branding", new { code = owner.CompanyCode }) : Url.Content("~/images/amgh-emblem.png");
+        model.CompanyName = AMGH.ITInventory.Shared.AppInfo.Name;
+        model.LogoUrl = Url.Action("DefaultLogo", "Branding");
     }
 
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword(string? company, CancellationToken cancellationToken)
     {
-        var b = await _directory.GetBrandingAsync(string.IsNullOrWhiteSpace(company) ? AMGH.ITInventory.Shared.AppInfo.OwnerCompanyCode : company, cancellationToken);
-        if (b is not null && !string.IsNullOrWhiteSpace(company)) ViewData["BrandingCode"] = b.CompanyCode;
+        var b = string.IsNullOrWhiteSpace(company) ? null : await _directory.GetBrandingAsync(company, cancellationToken);
+        if (b is not null) ViewData["BrandingCode"] = b.CompanyCode;
         return View(new ForgotPasswordViewModel
         {
             CompanyCode = string.IsNullOrWhiteSpace(company) ? null : b?.CompanyCode,
@@ -126,7 +124,7 @@ public sealed class AccountController : Controller
         model.LoginTagline = b.LoginTagline;
         model.CanChangeCompany = companyCount > 1;
         model.NameArabic = b.NameArabic;
-        model.LogoUrl = b.HasLogo ? Url.Action("Logo", "Branding", new { code = b.CompanyCode }) : Url.Content("~/images/amgh-emblem.png");
+        model.LogoUrl = Url.Action("Logo", "Branding", new { code = b.CompanyCode }); // an uploaded logo, else the generated badge
         ViewData["BrandingCode"] = b.CompanyCode;
         return true;
     }
@@ -142,7 +140,7 @@ public sealed class AccountController : Controller
         {
             model.CompanyCode = null;                       // direct sign-in: the default company is used
             model.CanChangeCompany = companies.Count > 1;
-            await DescribeOwnerAsync(model, cancellationToken);
+            DescribeProduct(model);
         }
         else if (!await DescribeCompanyAsync(model, companies.Count, cancellationToken))
             return View("Workspace", new WorkspacePickerViewModel { Companies = companies, ReturnUrl = model.ReturnUrl,
