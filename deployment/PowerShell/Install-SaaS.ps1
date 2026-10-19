@@ -192,6 +192,12 @@ while ($true) {
 }
 if ($Port -lt 1024 -and $Port -ne 443) { Write-Note "Port $Port is below 1024; make sure that is what you want." "Yellow" }
 
+# updating an existing installation: take the company mode from its settings instead of asking again
+if ($Update -and -not $TenantMode -and (Test-Path (Join-Path $SitePath "appsettings.Production.json"))) {
+    $existingSettings = Get-Content (Join-Path $SitePath "appsettings.Production.json") -Raw | ConvertFrom-Json
+    $existingBase = [string]$existingSettings.Tenancy.BaseDomain
+    if ($existingBase) { $TenantMode = "Subdomain"; $BaseDomain = $existingBase } else { $TenantMode = "CompanyCode" }
+}
 if (-not $TenantMode) {
     $TenantMode = if ((Read-Choice "How do people reach their company?" @(
         "Company-code page: everyone uses the same address and types their company code (works everywhere)",
@@ -201,7 +207,7 @@ if ($TenantMode -eq "Subdomain" -and -not $BaseDomain) { $BaseDomain = (Read-Hos
 if ($TenantMode -eq "Subdomain" -and [string]::IsNullOrWhiteSpace($BaseDomain)) { throw "A base domain is required for sub-domain mode." }
 
 $demoPassword = $null
-if (-not $NoDemo) {
+if (-not $NoDemo -and -not $Update) {
     if (-not $CreateDemo) { $CreateDemo = [bool](Read-YesNo "Create the demo company with sample data (a sandbox people can explore)?" $true) }
     if ($CreateDemo) {
         while ($true) {
@@ -213,7 +219,7 @@ if (-not $NoDemo) {
     }
 }
 $showDemoCredentials = $false
-if ($CreateDemo) { $showDemoCredentials = [bool](Read-YesNo "Show the demo user name and password on the demo sign-in page (public sandbox)?" $false) }
+if ($CreateDemo -and -not $Update) { $showDemoCredentials = [bool](Read-YesNo "Show the demo user name and password on the demo sign-in page (public sandbox)?" $false) }
 
 Write-Host ""
 Write-Host "Summary" -ForegroundColor White
@@ -307,8 +313,11 @@ Invoke-Native "icacls" @($SitePath, "/grant", "${poolIdentity}:(OI)(CI)RX", "/T"
 Write-Step "Configuring site '$SiteName' on https://${HostName}:$Port"
 if (-not $CertificateThumbprint) {
     $wanted = if ($TenantMode -eq "Subdomain") { "*.$BaseDomain" } else { $HostName }
-    $existing = Get-ChildItem Cert:\LocalMachine\My | Where-Object { ($_.Subject -eq "CN=$wanted" -or $_.DnsNameList.Unicode -contains $wanted) -and $_.NotAfter -gt (Get-Date).AddDays(30) } |
-        Sort-Object NotAfter -Descending | Select-Object -First 1
+    # strict mode: read the DNS names defensively (some certificates have none)
+    $existing = Get-ChildItem Cert:\LocalMachine\My | Where-Object {
+            $names = @($_.DnsNameList | ForEach-Object { "$($_.Unicode)" })
+            ($_.Subject -eq "CN=$wanted" -or $names -contains $wanted) -and $_.NotAfter -gt (Get-Date).AddDays(30)
+        } | Sort-Object NotAfter -Descending | Select-Object -First 1
     if ($existing) { $CertificateThumbprint = $existing.Thumbprint }
     else {
         Write-Note "No certificate found for $wanted - creating a self-signed one (testing only; install a real certificate for production)." "Yellow"
