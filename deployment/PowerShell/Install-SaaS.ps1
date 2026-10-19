@@ -322,50 +322,56 @@ Write-Step "Deploying files to $SitePath"
 $offline = Join-Path $SitePath "app_offline.htm"
 Set-Content -Path $offline -Value "<html><body><h1>The application is being installed</h1><p>Please try again in a minute.</p></body></html>"
 Start-Sleep -Seconds 2
-& robocopy $publishDir $SitePath /MIR /NFL /NDL /NJH /NJS /NP /XF app_offline.htm appsettings.Production.json | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "File copy failed (robocopy exit code $LASTEXITCODE)." }
-Invoke-Native "icacls" @($SitePath, "/grant", "${poolIdentity}:(OI)(CI)RX", "/T", "/Q")
+# the offline page must never be left behind: remove it even when a later step fails
+try {
+    & robocopy $publishDir $SitePath /MIR /NFL /NDL /NJH /NJS /NP /XF app_offline.htm appsettings.Production.json | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "File copy failed (robocopy exit code $LASTEXITCODE)." }
+    Invoke-Native "icacls" @($SitePath, "/grant", "${poolIdentity}:(OI)(CI)RX", "/T", "/Q")
 
-# ---------------------------------------------------------------- 7. certificate, site and bindings
-Write-Step "Configuring site '$SiteName' on https://${HostName}:$Port"
-if (-not $CertificateThumbprint) {
-    $wanted = if ($TenantMode -eq "Subdomain") { "*.$BaseDomain" } else { $HostName }
-    $existing = Get-ChildItem Cert:\LocalMachine\My | Where-Object {
-            (Get-CertificateDnsNames $_) -contains $wanted -or $_.Subject -eq "CN=$wanted"
-        } | Where-Object { $_.NotAfter -gt (Get-Date).AddDays(30) } | Sort-Object NotAfter -Descending | Select-Object -First 1
-    if ($existing) { $CertificateThumbprint = $existing.Thumbprint }
-    else {
-        Write-Note "No certificate found for $wanted - creating a self-signed one (testing only; install a real certificate for production)." "Yellow"
-        $names = @($HostName, "localhost"); if ($TenantMode -eq "Subdomain") { $names += @($BaseDomain, "*.$BaseDomain") }
-        $cert = New-SelfSignedCertificate -DnsName $names -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(2) -KeyExportPolicy NonExportable -FriendlyName "EAMS Cloud (self-signed)"
-        $CertificateThumbprint = $cert.Thumbprint
-        $root = New-Object Security.Cryptography.X509Certificates.X509Store("Root", "LocalMachine"); $root.Open("ReadWrite"); $root.Add($cert); $root.Close()
+    # ---------------------------------------------------------------- 7. certificate, site and bindings
+    Write-Step "Configuring site '$SiteName' on https://${HostName}:$Port"
+    if (-not $CertificateThumbprint) {
+        $wanted = if ($TenantMode -eq "Subdomain") { "*.$BaseDomain" } else { $HostName }
+        $existing = Get-ChildItem Cert:\LocalMachine\My | Where-Object {
+                (Get-CertificateDnsNames $_) -contains $wanted -or $_.Subject -eq "CN=$wanted"
+            } | Where-Object { $_.NotAfter -gt (Get-Date).AddDays(30) } | Sort-Object NotAfter -Descending | Select-Object -First 1
+        if ($existing) { $CertificateThumbprint = $existing.Thumbprint }
+        else {
+            Write-Note "No certificate found for $wanted - creating a self-signed one (testing only; install a real certificate for production)." "Yellow"
+            $names = @($HostName, "localhost"); if ($TenantMode -eq "Subdomain") { $names += @($BaseDomain, "*.$BaseDomain") }
+            $cert = New-SelfSignedCertificate -DnsName $names -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(2) -KeyExportPolicy NonExportable -FriendlyName "EAMS Cloud (self-signed)"
+            $CertificateThumbprint = $cert.Thumbprint
+            $root = New-Object Security.Cryptography.X509Certificates.X509Store("Root", "LocalMachine"); $root.Open("ReadWrite"); $root.Add($cert); $root.Close()
+        }
     }
-}
 
-if (-not (Get-Website -Name $SiteName -ErrorAction SilentlyContinue)) {
-    New-Website -Name $SiteName -PhysicalPath $SitePath -ApplicationPool $AppPoolName -Port $Port -HostHeader $HostName -Ssl -SslFlags 1 | Out-Null
-} else {
-    Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath -Value $SitePath
-    Set-ItemProperty "IIS:\Sites\$SiteName" -Name applicationPool -Value $AppPoolName
-}
-try { Set-ItemProperty "IIS:\Sites\$SiteName" -Name applicationDefaults.preloadEnabled -Value $true } catch { Write-Note "Install the IIS 'Application Initialization' feature so the notification sender starts with IIS." "Yellow" }
-Get-WebBinding -Name $SiteName -Protocol "http" -ErrorAction SilentlyContinue | Remove-WebBinding   # HTTPS only
+    if (-not (Get-Website -Name $SiteName -ErrorAction SilentlyContinue)) {
+        New-Website -Name $SiteName -PhysicalPath $SitePath -ApplicationPool $AppPoolName -Port $Port -HostHeader $HostName -Ssl -SslFlags 1 | Out-Null
+    } else {
+        Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath -Value $SitePath
+        Set-ItemProperty "IIS:\Sites\$SiteName" -Name applicationPool -Value $AppPoolName
+    }
+    try { Set-ItemProperty "IIS:\Sites\$SiteName" -Name applicationDefaults.preloadEnabled -Value $true } catch { Write-Note "Install the IIS 'Application Initialization' feature so the notification sender starts with IIS." "Yellow" }
+    Get-WebBinding -Name $SiteName -Protocol "http" -ErrorAction SilentlyContinue | Remove-WebBinding   # HTTPS only
 
-$hosts = @($HostName); if ($TenantMode -eq "Subdomain") { $hosts += @($BaseDomain, "*.$BaseDomain") }
-foreach ($h in ($hosts | Select-Object -Unique)) {
-    $binding = Get-WebBinding -Name $SiteName -Protocol "https" -Port $Port -HostHeader $h
-    if (-not $binding) { New-WebBinding -Name $SiteName -Protocol "https" -Port $Port -HostHeader $h -SslFlags 1; $binding = Get-WebBinding -Name $SiteName -Protocol "https" -Port $Port -HostHeader $h }
-    $binding.AddSslCertificate($CertificateThumbprint, "My")
-}
+    $hosts = @($HostName); if ($TenantMode -eq "Subdomain") { $hosts += @($BaseDomain, "*.$BaseDomain") }
+    foreach ($h in ($hosts | Select-Object -Unique)) {
+        $binding = Get-WebBinding -Name $SiteName -Protocol "https" -Port $Port -HostHeader $h
+        if (-not $binding) { New-WebBinding -Name $SiteName -Protocol "https" -Port $Port -HostHeader $h -SslFlags 1; $binding = Get-WebBinding -Name $SiteName -Protocol "https" -Port $Port -HostHeader $h }
+        $binding.AddSslCertificate($CertificateThumbprint, "My")
+    }
 
-if ($OpenFirewall -or ($Port -ne 443 -and (Read-YesNo "Open Windows Firewall for TCP port $Port?" $true))) {
-    $ruleName = "EAMS Cloud HTTPS $Port"
-    if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort $Port -Action Allow | Out-Null }
+    if ($OpenFirewall -or ($Port -ne 443 -and (Read-YesNo "Open Windows Firewall for TCP port $Port?" $true))) {
+        $ruleName = "EAMS Cloud HTTPS $Port"
+        if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort $Port -Action Allow | Out-Null }
+    }
+
+}
+finally {
+    Remove-Item $offline -Force -ErrorAction SilentlyContinue
 }
 
 # ---------------------------------------------------------------- 8. start
-Remove-Item $offline -Force -ErrorAction SilentlyContinue
 if ((Get-WebAppPoolState -Name $AppPoolName).Value -ne "Started") { Start-WebAppPool -Name $AppPoolName }
 if ((Get-WebsiteState -Name $SiteName).Value -ne "Started") { Start-Website -Name $SiteName }
 
