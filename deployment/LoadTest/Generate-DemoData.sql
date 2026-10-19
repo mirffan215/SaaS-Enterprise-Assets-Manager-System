@@ -38,14 +38,18 @@ SELECT TOP (200) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS i INTO #n FROM sy
 CREATE UNIQUE CLUSTERED INDEX IX ON #n (i);
 
 -- ---------------------------------------------------------------- organisation
+-- the baseline seed data already holds location HQ and department IT: only what is missing is added, so a re-run or a seeded code never collides
 INSERT dbo.tblLocation (LocationCode, LocationName, City, Country, IsActive, CreatedBy)
 SELECT v.Code, v.Name, v.City, v.Country, 1, N'DEMOSEED' FROM (VALUES
     (N'HQ',  N'Headquarters',     N'London',    N'United Kingdom'),
     (N'BE',  N'Branch East',      N'Frankfurt', N'Germany'),
-    (N'DC',  N'Primary Data Center', N'Amsterdam', N'Netherlands')) v (Code, Name, City, Country);
+    (N'DC',  N'Primary Data Center', N'Amsterdam', N'Netherlands')) v (Code, Name, City, Country)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.tblLocation x WHERE x.LocationCode = v.Code);
+UPDATE dbo.tblLocation SET City = N'London', Country = N'United Kingdom' WHERE LocationCode = N'HQ' AND City IS NULL;
 INSERT dbo.tblBuilding (LocationId, BuildingCode, BuildingName, IsActive, CreatedBy)
 SELECT l.LocationId, CONCAT(l.LocationCode, N'-B1'), CONCAT(l.LocationName, N' Main Building'), 1, N'DEMOSEED'
-FROM dbo.tblLocation l WHERE l.CreatedBy = N'DEMOSEED';
+FROM dbo.tblLocation l WHERE l.LocationCode IN (N'HQ', N'BE', N'DC')
+  AND NOT EXISTS (SELECT 1 FROM dbo.tblBuilding b WHERE b.LocationId = l.LocationId AND b.BuildingCode = CONCAT(l.LocationCode, N'-B1'));
 INSERT dbo.tblFloor (BuildingId, FloorCode, FloorName, FloorNumber, IsActive, CreatedBy)
 SELECT b.BuildingId, CONCAT(b.BuildingCode, N'-F', f.i), CONCAT(N'Floor ', f.i), f.i, 1, N'DEMOSEED'
 FROM dbo.tblBuilding b CROSS JOIN (SELECT i FROM #n WHERE i <= 2) f WHERE b.CreatedBy = N'DEMOSEED';
@@ -55,7 +59,8 @@ FROM dbo.tblFloor f CROSS JOIN (SELECT i FROM #n WHERE i <= 3) r WHERE f.Created
 INSERT dbo.tblDepartment (DepartmentCode, DepartmentName, IsActive, CreatedBy)
 SELECT v.Code, v.Name, 1, N'DEMOSEED' FROM (VALUES
     (N'IT', N'Information Technology'), (N'FIN', N'Finance'), (N'HR', N'Human Resources'), (N'OPS', N'Operations'),
-    (N'SAL', N'Sales'), (N'MKT', N'Marketing'), (N'LEG', N'Legal and Compliance'), (N'PRC', N'Procurement')) v (Code, Name);
+    (N'SAL', N'Sales'), (N'MKT', N'Marketing'), (N'LEG', N'Legal and Compliance'), (N'PRC', N'Procurement')) v (Code, Name)
+WHERE NOT EXISTS (SELECT 1 FROM dbo.tblDepartment d WHERE d.DepartmentCode = v.Code);
 
 IF OBJECT_ID('tempdb..#room') IS NOT NULL DROP TABLE #room;
 SELECT ROW_NUMBER() OVER (ORDER BY r.RoomId) AS rn, r.RoomId, f.FloorId, b.BuildingId, b.LocationId
@@ -63,7 +68,9 @@ INTO #room FROM dbo.tblRoom r JOIN dbo.tblFloor f ON f.FloorId = r.FloorId JOIN 
 WHERE r.CreatedBy = N'DEMOSEED';
 DECLARE @rooms INT = (SELECT COUNT(*) FROM #room);
 IF OBJECT_ID('tempdb..#dept') IS NOT NULL DROP TABLE #dept;
-SELECT ROW_NUMBER() OVER (ORDER BY DepartmentId) AS rn, DepartmentId INTO #dept FROM dbo.tblDepartment WHERE CreatedBy = N'DEMOSEED';
+SELECT ROW_NUMBER() OVER (ORDER BY DepartmentId) AS rn, DepartmentId INTO #dept FROM dbo.tblDepartment
+WHERE DepartmentCode IN (N'IT', N'FIN', N'HR', N'OPS', N'SAL', N'MKT', N'LEG', N'PRC');
+DECLARE @depts INT = (SELECT COUNT(*) FROM #dept);
 
 INSERT dbo.tblEmployee (EmployeeNumber, FirstName, LastName, Email, JobTitle, DepartmentId, LocationId, HireDate, CreatedBy)
 SELECT CONCAT(N'E', FORMAT(n.i, '0000')),
@@ -72,17 +79,19 @@ SELECT CONCAT(N'E', FORMAT(n.i, '0000')),
        CONCAT(N'employee', n.i, N'@example.invalid'),
        CHOOSE(1 + n.i % 5, N'Analyst', N'Engineer', N'Manager', N'Coordinator', N'Specialist'),
        d.DepartmentId, r.LocationId, DATEADD(DAY, -(100 + (n.i * 37) % 1700), @Today), N'DEMOSEED'
-FROM #n n JOIN #dept d ON d.rn = 1 + n.i % 8 JOIN #room r ON r.rn = 1 + n.i % @rooms
+FROM #n n JOIN #dept d ON d.rn = 1 + n.i % @depts JOIN #room r ON r.rn = 1 + n.i % @rooms
 WHERE n.i <= 40;
 IF OBJECT_ID('tempdb..#emp') IS NOT NULL DROP TABLE #emp;
 SELECT ROW_NUMBER() OVER (ORDER BY EmployeeId) AS rn, EmployeeId, DepartmentId INTO #emp FROM dbo.tblEmployee WHERE CreatedBy = N'DEMOSEED';
 
--- ---------------------------------------------------------------- manufacturers and the printer category
+-- ---------------------------------------------------------------- manufacturers (the seed data has most of them) and the printer category
+IF OBJECT_ID('tempdb..#maker') IS NOT NULL DROP TABLE #maker;
+SELECT v.Maker, v.NewCode INTO #maker FROM (VALUES
+    (N'Dell', N'DELL'), (N'HP', N'HP'), (N'Lenovo', N'LEN'), (N'Hewlett Packard Enterprise', N'HPE'), (N'Cisco', N'CSCO'),
+    (N'Juniper', N'JNPR'), (N'Canon', N'CANON'), (N'Xerox', N'XRX'), (N'NetApp', N'NTAP'), (N'Synology', N'SYN')) v (Maker, NewCode);
 INSERT dbo.tblManufacturer (ManufacturerCode, ManufacturerName, IsActive, CreatedBy)
-SELECT v.Code, v.Name, 1, N'DEMOSEED' FROM (VALUES
-    (N'DELL', N'Dell'), (N'HP', N'HP'), (N'LENOVO', N'Lenovo'), (N'HPE', N'Hewlett Packard Enterprise'), (N'CISCO', N'Cisco'),
-    (N'JUNIPER', N'Juniper'), (N'CANON', N'Canon'), (N'XEROX', N'Xerox'), (N'NETAPP', N'NetApp'), (N'SYNOLOGY', N'Synology')) v (Code, Name)
-WHERE NOT EXISTS (SELECT 1 FROM dbo.tblManufacturer m WHERE m.ManufacturerCode = v.Code);
+SELECT m.NewCode, m.Maker, 1, N'DEMOSEED' FROM #maker m
+WHERE NOT EXISTS (SELECT 1 FROM dbo.tblManufacturer x WHERE x.ManufacturerName LIKE m.Maker + N'%' OR x.ManufacturerCode = m.NewCode);
 IF NOT EXISTS (SELECT 1 FROM dbo.tblAssetNumberSequence WHERE SequenceCode = N'PRN')
     INSERT dbo.tblAssetNumberSequence (SequenceCode, Prefix, LastNumber, PaddingLength, Description, SortOrder)
     VALUES (N'PRN', @Prefix, 0, 5, N'Printers and multifunction devices', 45);
@@ -91,7 +100,8 @@ IF NOT EXISTS (SELECT 1 FROM dbo.tblAssetCategory WHERE CategoryCode = N'PRN')
     SELECT N'PRN', N'Printer', s.AssetNumberSequenceId, 60, 1, 45 FROM dbo.tblAssetNumberSequence s WHERE s.SequenceCode = N'PRN';
 
 IF OBJECT_ID('tempdb..#man') IS NOT NULL DROP TABLE #man;
-SELECT ManufacturerCode AS Code, ManufacturerId INTO #man FROM dbo.tblManufacturer;
+SELECT m.Maker, (SELECT TOP 1 x.ManufacturerId FROM dbo.tblManufacturer x WHERE x.ManufacturerName LIKE m.Maker + N'%' OR x.ManufacturerCode = m.NewCode ORDER BY x.ManufacturerId) AS ManufacturerId
+INTO #man FROM #maker m;
 DECLARE @Currency INT = (SELECT TOP 1 CurrencyId FROM dbo.tblCurrency WHERE IsBaseCurrency = 1);
 DECLARE @stAssigned INT = (SELECT AssetStatusId FROM dbo.tblAssetStatus WHERE StatusCode = N'ASSIGNED'),
         @stStock INT = (SELECT AssetStatusId FROM dbo.tblAssetStatus WHERE StatusCode = N'IN_STOCK'),
@@ -158,11 +168,10 @@ CROSS APPLY (SELECT
                    WHEN N'NET' THEN CHOOSE(1 + s.j % 3, N'Catalyst 9300 Switch', N'EX4300 Switch', N'Catalyst 9200 Switch')
                    WHEN N'PRN' THEN CHOOSE(1 + s.j % 4, N'LaserJet Enterprise M611', N'imageRUNNER ADVANCE', N'VersaLink C405', N'Color LaserJet M555')
                    ELSE CHOOSE(1 + s.j % 3, N'FAS2750 Storage', N'PowerVault ME5024', N'RackStation RS2423+') END AS Model) mn
-JOIN #man m ON m.Code = CASE mn.Maker WHEN N'Dell' THEN N'DELL' WHEN N'HP' THEN N'HP' WHEN N'Lenovo' THEN N'LENOVO' WHEN N'Hewlett Packard Enterprise' THEN N'HPE'
-        WHEN N'Cisco' THEN N'CISCO' WHEN N'Juniper' THEN N'JUNIPER' WHEN N'Canon' THEN N'CANON' WHEN N'Xerox' THEN N'XEROX' WHEN N'NetApp' THEN N'NETAPP' ELSE N'SYNOLOGY' END
+JOIN #man m ON m.Maker = mn.Maker
 CROSS APPLY (SELECT DATEADD(DAY, -(60 + ABS(CHECKSUM(s.i * 7919)) % 1700), @Today) AS PurchaseDate) pd
 JOIN #emp e ON e.rn = 1 + s.i % 40
-JOIN #dept d ON d.rn = 1 + s.i % 8
+JOIN #dept d ON d.rn = 1 + s.i % @depts
 JOIN #room r ON r.rn = 1 + (s.i * 5) % @rooms;
 PRINT CONCAT('Assets: ', @@ROWCOUNT);
 
