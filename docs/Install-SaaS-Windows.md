@@ -48,6 +48,25 @@ see `Get-Help .\Install-SaaS.ps1 -Full`. Run it on a test server first.
 * `appsettings.Production.json` with generated secrets, readable only by Administrators and the pool. The master-key password is printed once:
   **write it down** (it is needed to restore a customer database backup), and back up the `Keys` folder.
 
+## Creating companies (customers)
+
+Open `https://<host>[:port]/Tenant/Admin` and enter the **operator key** (printed at the end of the install, also in `appsettings.Production.json` as
+`Tenancy:OperatorKey`), then a company code (2-10 letters or digits), the company name and the first administrator's e-mail and password.
+The company gets its own database (this takes a minute or two). The administrator signs in as `admin` at the company-code page. *Show companies*
+lists what exists. The page is hidden while no operator key is set, is rate-limited, and customers never see it.
+
+For an installation made before this existed, add a key once (PowerShell as administrator):
+
+```powershell
+$f = "C:\inetpub\EAMSCloud\appsettings.Production.json"
+$key = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 32 | ForEach-Object { [char]$_ })
+$j = Get-Content $f -Raw | ConvertFrom-Json
+$j.Tenancy | Add-Member -NotePropertyName OperatorKey -NotePropertyValue $key -Force
+$j | ConvertTo-Json -Depth 8 | Set-Content $f -Encoding UTF8
+Restart-WebAppPool EAMSCloud
+$key   # write it down
+```
+
 ## After it finishes
 
 * Open `https://<host>[:port]`. With the company-code page you land on *Find your company*; with the demo enabled use *Explore Demo Environment*

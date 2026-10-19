@@ -1,0 +1,39 @@
+@model TenantAdminViewModel
+@{
+    ViewData["Title"] = "Operator: companies";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">Create a company</h1>
+    <p class="lp-tagline">Operator page</p>
+</header>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert @(Model.Succeeded ? "alert-success" : "alert-danger") py-2" role="status">@Model.Message</div>
+}
+
+<form asp-action="Create" method="post" novalidate class="lp-form" data-confirm="Create this company now? It takes a minute or two; keep this page open.">
+    <div class="lp-field"><i class="bi bi-key" aria-hidden="true"></i><input asp-for="OperatorKey" class="form-control" placeholder="Operator key" autocomplete="off" /></div>
+    <div class="lp-field"><i class="bi bi-hash" aria-hidden="true"></i><input asp-for="Code" class="form-control" placeholder="Company code (2-10 letters or digits)" maxlength="10" autocomplete="off" /></div>
+    <div class="lp-field"><i class="bi bi-buildings" aria-hidden="true"></i><input asp-for="Name" class="form-control" placeholder="Company name" maxlength="100" autocomplete="off" /></div>
+    <div class="lp-field"><i class="bi bi-envelope" aria-hidden="true"></i><input asp-for="AdminEmail" class="form-control" placeholder="Administrator e-mail" autocomplete="off" /></div>
+    <div class="lp-field"><i class="bi bi-lock-fill" aria-hidden="true"></i><input asp-for="AdminPassword" class="form-control" placeholder="Administrator password (12+ characters)" autocomplete="new-password" /></div>
+    <button type="submit" class="lp-submit">Create company <i class="bi bi-plus-circle" aria-hidden="true"></i></button>
+    <button type="submit" asp-action="List" formnovalidate class="lp-submit lp-submit-secondary" data-no-confirm="true">Show companies</button>
+</form>
+
+@if (Model.Tenants.Count > 0)
+{
+    <ul class="list-unstyled small mt-3">
+        @foreach (var t in Model.Tenants)
+        {
+            <li class="mb-1"><strong>@t.Code</strong> · @t.Name@(t.IsDemo ? " (demo)" : "")@(t.IsActive ? "" : " (inactive)") · <a href="@t.Url">sign in</a></li>
+        }
+    </ul>
+}
+
+@section Scripts {
+    <script src="~/js/tenant-admin.js" asp-append-version="true"></script>
+}

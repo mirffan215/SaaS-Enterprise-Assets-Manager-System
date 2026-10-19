@@ -280,6 +280,7 @@ if (-not $Update -or -not (Test-Path $settingsFile)) {
     Write-Step "Preparing SQL Server ($SqlServer)"
     $provisionerPassword = New-Secret 32
     $masterKeyPassword   = New-Secret 32
+    $operatorKey         = New-Secret 32
     $sqlArgs = @("-S", $SqlServer, "-E", "-b", "-I", "-C", "-i", $sqlSetup)
     $vars = @{ CatalogDatabase = $CatalogDatabase; ProvisionerLogin = $ProvisionerLogin; ProvisionerPassword = $provisionerPassword; AppIdentity = "IIS APPPOOL\$AppPoolName" }
     foreach ($k in $vars.Keys) { [Environment]::SetEnvironmentVariable($k, [string]$vars[$k], "Process") }
@@ -299,6 +300,7 @@ if (-not $Update -or -not (Test-Path $settingsFile)) {
         ScriptsPath = "SQLScripts"
         AppLogin = "IIS APPPOOL\$AppPoolName"
         MasterKeyPassword = $masterKeyPassword
+        OperatorKey = $operatorKey
         DemoEnabled = [bool]$CreateDemo
         DemoAdminPassword = $(if ($CreateDemo) { $demoPassword } else { "" })
         ShowDemoCredentials = [bool]$showDemoCredentials
@@ -314,7 +316,7 @@ if (-not $Update -or -not (Test-Path $settingsFile)) {
     [IO.File]::WriteAllText($settingsFile, $json, (New-Object Text.UTF8Encoding($false)))
     # only Administrators, SYSTEM and the application pool may read it (it holds secrets)
     Invoke-Native "icacls" @($settingsFile, "/inheritance:r", "/grant:r", "Administrators:F", "SYSTEM:F", "${poolIdentity}:R")
-    $secretsToShow = @{ MasterKey = $masterKeyPassword; ProvisionerLogin = $ProvisionerLogin }
+    $secretsToShow = @{ MasterKey = $masterKeyPassword; ProvisionerLogin = $ProvisionerLogin; OperatorKey = $operatorKey }
 }
 
 # ---------------------------------------------------------------- 6. files (site offline meanwhile)
@@ -393,6 +395,7 @@ if ($secretsToShow) {
     Write-Host ""
     Write-Host "KEEP THESE (shown once; they are also in $settingsFile, readable only by Administrators):" -ForegroundColor Yellow
     Write-Note "Database master-key password (needed to restore a customer database backup): $($secretsToShow.MasterKey)" "Yellow"
+    Write-Note "Operator key for the page that creates companies ($baseUrl/Tenant/Admin): $($secretsToShow.OperatorKey)" "Yellow"
     Write-Note "SQL login for creating customer databases: $($secretsToShow.ProvisionerLogin) (password is in the settings file)" "Yellow"
     Write-Note "Back up the Keys folder ($keysPath) too: without it, signed-in sessions and stored secrets cannot be read after a rebuild." "Yellow"
 }
