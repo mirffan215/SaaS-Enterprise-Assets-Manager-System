@@ -7,7 +7,7 @@ namespace AMGH.ITInventory.Security.Claims;
 /// <summary>Builds the cookie principal for an authenticated user.</summary>
 public static class PrincipalFactory
 {
-    public static ClaimsPrincipal Create(AuthenticatedUser user, string authenticationScheme, DateTime authTimeUtc)
+    public static ClaimsPrincipal Create(AuthenticatedUser user, string authenticationScheme, DateTime authTimeUtc, string? tenantCode = null)
     {
         ArgumentNullException.ThrowIfNull(user);
         var claims = new List<Claim>
@@ -24,6 +24,7 @@ public static class PrincipalFactory
             new(AppClaimTypes.AuthTime,
                 new DateTimeOffset(DateTime.SpecifyKind(authTimeUtc, DateTimeKind.Utc)).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture))
         };
+        if (!string.IsNullOrEmpty(tenantCode)) claims.Add(new Claim(AppClaimTypes.Tenant, tenantCode));
         claims.AddRange(user.Roles.Select(r => new Claim(ClaimTypes.Role, r)));
         claims.AddRange(user.Permissions.Select(p => new Claim(AppClaimTypes.Permission, p)));
         return new ClaimsPrincipal(new ClaimsIdentity(claims, authenticationScheme, ClaimTypes.Name, ClaimTypes.Role));

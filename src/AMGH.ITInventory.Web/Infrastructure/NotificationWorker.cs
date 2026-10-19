@@ -36,8 +36,31 @@ internal sealed class NotificationWorker : BackgroundService
 
     internal async Task RunOnceAsync(CancellationToken ct)
     {
+        // Database per tenant: each customer's database is processed in turn; the demo sandbox never sends e-mail.
+        List<TenantInfo?> tenants = new() { null };
+        using (var scope = _scopes.CreateScope())
+        {
+            if (scope.ServiceProvider.GetRequiredService<ITenantAccessor>().IsMultiTenant)
+            {
+                var all = await scope.ServiceProvider.GetRequiredService<AMGH.ITInventory.Application.Tenancy.ITenantCatalog>().ListAsync(ct);
+                tenants = all.Where(t => t.IsActive && !t.IsDemo).Select(t => (TenantInfo?)t.ToInfo()).ToList();
+            }
+        }
+        foreach (var tenant in tenants)
+        {
+            try { await RunTenantAsync(tenant, ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Notifications for tenant {Tenant} failed; other tenants continue", tenant?.Code ?? "(single database)");
+            }
+        }
+    }
+
+    private async Task RunTenantAsync(TenantInfo? tenant, CancellationToken ct)
+    {
         List<int> companies;
         using (var scope = _scopes.CreateScope())
+        using (EnterTenant(scope, tenant))
         {
             var context = scope.ServiceProvider.GetRequiredService<ICompanyContext>();
             using var platform = context.EnterPlatform();
@@ -50,6 +73,7 @@ internal sealed class NotificationWorker : BackgroundService
             try
             {
                 using var scope = _scopes.CreateScope();
+                using var tenantScope = EnterTenant(scope, tenant);
                 using var company = scope.ServiceProvider.GetRequiredService<ICompanyContext>().Enter(id);
                 if (runReminders)
                 {
@@ -66,4 +90,9 @@ internal sealed class NotificationWorker : BackgroundService
             }
         }
     }
+
+    private static IDisposable EnterTenant(IServiceScope scope, TenantInfo? tenant) =>
+        tenant is null ? new NoScope() : scope.ServiceProvider.GetRequiredService<ITenantAccessor>().Enter(tenant);
+
+    private sealed class NoScope : IDisposable { public void Dispose() { } }
 }

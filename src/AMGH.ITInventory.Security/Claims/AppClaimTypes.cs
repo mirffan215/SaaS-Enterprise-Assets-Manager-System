@@ -13,4 +13,6 @@ public static class AppClaimTypes
     public const string CompanyCode = "amgh:ccode";
     public const string CompanyName = "amgh:cname";
     public const string PlatformAdmin = "amgh:padmin";
+    /// <summary>The tenant (customer database) the session was issued for; a cookie is never valid in another tenant.</summary>
+    public const string Tenant = "amgh:tenant";
 }

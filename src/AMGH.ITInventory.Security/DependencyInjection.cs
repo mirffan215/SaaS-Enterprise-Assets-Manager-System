@@ -19,6 +19,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
         services.AddSingleton<IPasswordPolicy, PasswordPolicy>();
+        services.AddSingleton<Application.Tenancy.ITenantAdminPasswordHasher, TenantAdminPasswordHasher>();
         services.AddScoped<AccountService>();
         services.AddScoped<IAccountService>(sp => sp.GetRequiredService<AccountService>());
         services.AddScoped<IUserAdministrationService, UserAdministrationService>();

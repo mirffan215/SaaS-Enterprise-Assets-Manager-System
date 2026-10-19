@@ -31,9 +31,12 @@ public sealed class AccountController : Controller
     private readonly IDateTimeProvider _clock;
     private readonly ILogger<AccountController> _logger;
     private readonly ICompanyDirectory _directory;
+    private readonly ITenantAccessor _tenants;
 
-    public AccountController(IAccountService accounts, IDateTimeProvider clock, ILogger<AccountController> logger, ICompanyDirectory directory)
+    public AccountController(IAccountService accounts, IDateTimeProvider clock, ILogger<AccountController> logger, ICompanyDirectory directory,
+        ITenantAccessor tenants)
     {
+        _tenants = tenants;
         _directory = directory;
         _accounts = accounts;
         _clock = clock;
@@ -253,7 +256,7 @@ public sealed class AccountController : Controller
     private Task IssueCookieAsync(AuthenticatedUser user)
     {
         var now = _clock.UtcNow;
-        var principal = PrincipalFactory.Create(user, CookieAuthenticationDefaults.AuthenticationScheme, now);
+        var principal = PrincipalFactory.Create(user, CookieAuthenticationDefaults.AuthenticationScheme, now, _tenants.CurrentTenant?.Code);
         return HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
             new AuthenticationProperties { IsPersistent = false, AllowRefresh = true, IssuedUtc = now });
     }

@@ -25,14 +25,35 @@ public sealed partial class AMGHDbContext : DbContext
     private readonly ICurrentUserService _currentUser;
     private readonly IDateTimeProvider _clock;
     private readonly ICompanyContext _company;
+    private readonly ITenantAccessor _tenants;
 
     public AMGHDbContext(DbContextOptions<AMGHDbContext> options, ICurrentUserService currentUser, IDateTimeProvider clock,
-        ICompanyContext company)
+        ICompanyContext company, ITenantAccessor? tenants = null)
         : base(options)
     {
         _currentUser = currentUser;
         _clock = clock;
         _company = company;
+        _tenants = tenants ?? new TenantAccessor();
+    }
+
+    /// <summary>
+    /// Database per tenant: when a tenant is active its dedicated database replaces the default connection string.
+    /// In multi-tenant mode a context without a tenant is refused, so data can never fall back to another customer's database.
+    /// </summary>
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (_tenants.CurrentTenant is { } tenant)
+        {
+            optionsBuilder.UseSqlServer(tenant.ConnectionString, sql =>
+            {
+                sql.CommandTimeout(60);
+                sql.MigrationsAssembly(typeof(AMGHDbContext).Assembly.FullName);
+                sql.MigrationsHistoryTable("__EFMigrationsHistory", "dbo");
+            });
+        }
+        else if (_tenants.IsMultiTenant)
+            throw new InvalidOperationException("No tenant is active: the request or job must run inside a tenant (ITenantAccessor).");
     }
 
     /// <summary>Company used by the query filters; -1 (matches nothing) when no company is active.</summary>

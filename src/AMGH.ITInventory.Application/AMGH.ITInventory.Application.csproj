@@ -2,10 +2,18 @@
   <PropertyGroup>
     <RootNamespace>AMGH.ITInventory.Application</RootNamespace>
     <Description>Use cases and the abstractions they depend on. Implementations live in Persistence/Infrastructure.</Description>
+    <!-- Provisioning logs a handful of events per run; LoggerMessage delegates would add noise, not speed. -->
+    <NoWarn>$(NoWarn);CA1848</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="11.10.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.6" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AMGH.ITInventory.UnitTests" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AMGH.ITInventory.Domain\AMGH.ITInventory.Domain.csproj" />

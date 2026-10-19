@@ -58,6 +58,13 @@ public static class ClaimsPrincipalExtensions
             ? id : null;
     }
 
+    /// <summary>The tenant the session was issued for, or null (single-database mode).</summary>
+    public static string? GetTenantCode(this ClaimsPrincipal principal)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        return principal.FindFirstValue(AppClaimTypes.Tenant);
+    }
+
     public static string GetCompanyName(this ClaimsPrincipal principal)
     {
         ArgumentNullException.ThrowIfNull(principal);

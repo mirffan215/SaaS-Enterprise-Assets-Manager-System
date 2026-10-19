@@ -67,6 +67,8 @@ public static class DependencyInjection
         services.AddSingleton<IMasterDataDefinition, CategoryDefinition>();
         services.AddSingleton<IMasterDataDefinition, SubCategoryDefinition>();
         services.AddScoped<IMasterDataService, MasterDataService>();
+        // multi-tenancy: provisioning of customer databases
+        services.AddScoped<Tenancy.ITenantProvisioningService, Tenancy.TenantProvisioningService>();
         return services;
     }
 }

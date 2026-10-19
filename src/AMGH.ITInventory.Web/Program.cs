@@ -1,7 +1,9 @@
 using System.Threading.RateLimiting;
 using AMGH.ITInventory.Application;
+using AMGH.ITInventory.Application.Tenancy;
 using AMGH.ITInventory.Infrastructure;
 using AMGH.ITInventory.Persistence;
+using AMGH.ITInventory.Persistence.Tenancy;
 using AMGH.ITInventory.Security;
 using AMGH.ITInventory.Security.Claims;
 using AMGH.ITInventory.Shared.Abstractions;
@@ -10,6 +12,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
@@ -130,6 +133,15 @@ try
     app.UseSerilogRequestLogging();
     app.UseRouting();
     app.UseRateLimiter();
+    // Database per tenant: the tenant is resolved before authentication, which already reads the tenant's database.
+    var tenancy = app.Services.GetRequiredService<IOptions<TenancyOptions>>().Value;
+    if (tenancy.Enabled)
+    {
+        using var scope = app.Services.CreateScope();
+        try { await TenantCatalogInitializer.EnsureAsync(scope.ServiceProvider.GetRequiredService<TenantCatalogDbContext>()); }
+        catch (Exception ex) { Log.Error(ex, "The tenant catalog could not be initialised"); }
+        app.UseMiddleware<TenantResolutionMiddleware>();
+    }
     app.UseAuthentication();
     app.UseMiddleware<ForcePasswordChangeMiddleware>();
     app.UseAuthorization();

@@ -18,7 +18,7 @@
             <section class="label label-@key" aria-label="@a.AssetNumber">
                 <div class="label-qr">@Html.Raw(item.QrSvg)</div>
                 <div class="label-text">
-                    <div class="label-org">AMGH IT · Property of Al Murjan Group</div>
+                    <div class="label-org">@(string.IsNullOrWhiteSpace(User.GetCompanyName()) ? "IT" : User.GetCompanyName() + " IT") · Property of @(string.IsNullOrWhiteSpace(User.GetCompanyName()) ? "the company" : User.GetCompanyName())</div>
                     <div class="label-number">@a.AssetNumber</div>
                     <div class="label-name">@a.AssetName</div>
                     @if (size != LabelSize.Size50x30)
