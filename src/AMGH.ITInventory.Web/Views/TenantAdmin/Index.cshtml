@@ -22,6 +22,7 @@
     <div class="lp-field"><i class="bi bi-lock-fill" aria-hidden="true"></i><input asp-for="AdminPassword" class="form-control" placeholder="Administrator password (12+ characters)" autocomplete="new-password" /></div>
     <button type="submit" class="lp-submit">Create company <i class="bi bi-plus-circle" aria-hidden="true"></i></button>
     <button type="submit" asp-action="List" formnovalidate class="lp-submit lp-submit-secondary" data-no-confirm="true">Show companies</button>
+    <button type="submit" asp-action="CreateDemo" formnovalidate class="lp-submit lp-submit-secondary" data-no-confirm="true">Create demo company now</button>
 </form>
 
 @if (Model.Tenants.Count > 0)

@@ -46,7 +46,7 @@ public sealed partial class TenantProvisioningService : ITenantProvisioningServi
     }
 
     public async Task<Result<TenantInfo>> ProvisionTenantAsync(string companyCode, string companyName, string adminEmail, string adminPassword,
-        bool isDemo = false, CancellationToken cancellationToken = default)
+        bool isDemo = false, bool includeErrorDetail = false, CancellationToken cancellationToken = default)
     {
         companyCode = (companyCode ?? string.Empty).Trim();
         companyName = (companyName ?? string.Empty).Trim();
@@ -123,7 +123,8 @@ public sealed partial class TenantProvisioningService : ITenantProvisioningServi
         {
             _logger.LogError(ex, "Provisioning tenant {Code} failed", lower);
             if (created) await TryDropAsync(server, database);
-            return Result<TenantInfo>.Failure(Error.BusinessRule("The company could not be created. Nothing was kept; try again or contact support.", "tenant.failed"));
+            var detail = includeErrorDetail ? " Reason: " + (ex.Message.Split('\n')[0].Trim()) : string.Empty;
+            return Result<TenantInfo>.Failure(Error.BusinessRule("The company could not be created. Nothing was kept; try again or contact support." + detail, "tenant.failed"));
         }
     }
 

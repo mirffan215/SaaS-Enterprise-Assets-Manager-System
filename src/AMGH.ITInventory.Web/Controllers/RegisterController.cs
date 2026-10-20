@@ -39,7 +39,7 @@ public sealed class RegisterController : Controller
 
         // Not tied to the browser: closing the tab must not leave a half-built database behind (it takes a minute or two).
         var result = await _provisioning.ProvisionTenantAsync(model.Code ?? string.Empty, model.Name ?? string.Empty, model.AdminEmail ?? string.Empty,
-            model.AdminPassword ?? string.Empty, isDemo: false, CancellationToken.None);
+            model.AdminPassword ?? string.Empty, isDemo: false, cancellationToken: CancellationToken.None);
         model.AdminPassword = null;
         if (result.IsFailure)
         {

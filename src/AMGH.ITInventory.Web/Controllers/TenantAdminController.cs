@@ -62,7 +62,7 @@ public sealed class TenantAdminController : Controller
 
         // Not tied to the browser: closing the tab must not leave a half-built database behind (it takes a minute or two).
         var result = await _provisioning.ProvisionTenantAsync(model.Code ?? string.Empty, model.Name ?? string.Empty, model.AdminEmail ?? string.Empty,
-            model.AdminPassword ?? string.Empty, isDemo: false, CancellationToken.None);
+            model.AdminPassword ?? string.Empty, isDemo: false, includeErrorDetail: true, cancellationToken: CancellationToken.None);
         model.AdminPassword = null;
         model.Succeeded = result.IsSuccess;
         model.Message = result.IsSuccess
@@ -71,6 +71,37 @@ public sealed class TenantAdminController : Controller
         model.Tenants = await TenantsAsync(CancellationToken.None);
         if (result.IsSuccess) { model.Code = null; model.Name = null; model.AdminEmail = null; }
         model.OperatorKey = null;
+        return View("Index", model);
+    }
+
+    /// <summary>Creates the demo company right now (uses Tenancy:DemoAdminPassword) and shows the exact reason when it fails.</summary>
+    [HttpPost("create-demo")]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<IActionResult> CreateDemo(TenantAdminViewModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        if (!Enabled) return NotFound();
+        if (!KeyIsValid(model.OperatorKey)) return Rejected(model);
+        model.OperatorKey = null;
+        if (string.IsNullOrWhiteSpace(_options.DemoAdminPassword))
+        {
+            model.Message = "Set Tenancy:DemoAdminPassword in appsettings.Production.json first (the demo administrator's password), then try again.";
+            model.Tenants = await TenantsAsync(CancellationToken.None);
+            return View("Index", model);
+        }
+        if (await _catalog!.ExistsAsync(TenancyOptions.DemoCode, CancellationToken.None))
+        {
+            model.Succeeded = true;
+            model.Message = "The demo company already exists.";
+            model.Tenants = await TenantsAsync(CancellationToken.None);
+            return View("Index", model);
+        }
+        var result = await _provisioning.ProvisionTenantAsync(TenancyOptions.DemoCode, "Demo Company", "demo.admin@example.invalid", _options.DemoAdminPassword,
+            isDemo: true, includeErrorDetail: true, cancellationToken: CancellationToken.None);
+        model.Succeeded = result.IsSuccess;
+        model.Message = result.IsSuccess ? "The demo company was created. Use Explore Demo Environment on the sign-in page."
+                                         : string.Join(" ", result.Errors.Select(e => e.Message));
+        model.Tenants = await TenantsAsync(CancellationToken.None);
         return View("Index", model);
     }
 

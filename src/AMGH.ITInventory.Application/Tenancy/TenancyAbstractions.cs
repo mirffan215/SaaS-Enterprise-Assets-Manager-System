@@ -102,6 +102,13 @@ public interface ITenantAdminPasswordHasher
 /// <summary>Creates a tenant: its own database, schema, seed data, administrator and catalog entry.</summary>
 public interface ITenantProvisioningService
 {
+    /// <param name="companyCode">2 to 10 letters or digits; also the suffix of the database name.</param>
+    /// <param name="companyName">Display name of the company.</param>
+    /// <param name="adminEmail">E-mail of the first administrator (the user name is "admin").</param>
+    /// <param name="adminPassword">Initial password of that administrator; must satisfy the password policy.</param>
+    /// <param name="isDemo">Marks the sandbox tenant and loads its sample data.</param>
+    /// <param name="cancellationToken">Cancellation of the whole operation.</param>
+    /// <param name="includeErrorDetail">Add the technical reason (first line of the database error) to a failure; only for the operator, never for the public.</param>
     Task<Result<TenantInfo>> ProvisionTenantAsync(string companyCode, string companyName, string adminEmail, string adminPassword,
-        bool isDemo = false, CancellationToken cancellationToken = default);
+        bool isDemo = false, bool includeErrorDetail = false, CancellationToken cancellationToken = default);
 }

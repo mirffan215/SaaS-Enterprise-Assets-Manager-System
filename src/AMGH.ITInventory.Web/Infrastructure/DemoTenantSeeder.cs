@@ -40,7 +40,7 @@ internal sealed class DemoTenantSeeder : BackgroundService
 
                 var provisioning = scope.ServiceProvider.GetRequiredService<ITenantProvisioningService>();
                 var result = await provisioning.ProvisionTenantAsync(TenancyOptions.DemoCode, "Demo Company", "demo.admin@example.invalid",
-                    _options.DemoAdminPassword, isDemo: true, stoppingToken);
+                    _options.DemoAdminPassword, isDemo: true, cancellationToken: stoppingToken);
                 if (result.IsSuccess) { _logger.LogInformation("Demo tenant created"); return; }
                 _logger.LogError("The demo tenant could not be created (attempt {Attempt} of {Attempts}): {Error}", attempt, attempts, result.FirstError?.Message);
             }

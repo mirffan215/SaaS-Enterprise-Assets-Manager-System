@@ -188,12 +188,14 @@ SELECT a.AssetId, ROW_NUMBER() OVER (ORDER BY a.AssetId) AS i, a.AssignedEmploye
 INTO #a FROM dbo.tblAsset a WHERE a.CreatedBy = N'DEMOSEED';
 
 -- ---------------------------------------------------------------- assignments (current), and an earlier returned one for a third
-INSERT dbo.tblAssetAssignment (AssetId, EmployeeId, DepartmentId, AssignmentType, AssignedDate, IsCurrent, AcknowledgementReceived, AssignedBy, CreatedBy)
-SELECT a.AssetId, a.AssignedEmployeeId, a.DepartmentId, N'Permanent', DATEADD(DAY, -(20 + a.i * 11 % 600), SYSUTCDATETIME()), 1, CASE WHEN a.i % 5 = 0 THEN 0 ELSE 1 END, N'admin', N'DEMOSEED'
+-- a signed acknowledgement always carries its date (CK_tblAssetAssignment_Rule05)
+INSERT dbo.tblAssetAssignment (AssetId, EmployeeId, DepartmentId, AssignmentType, AssignedDate, IsCurrent, AcknowledgementReceived, AcknowledgementDate, AssignedBy, CreatedBy)
+SELECT a.AssetId, a.AssignedEmployeeId, a.DepartmentId, N'Permanent', DATEADD(DAY, -(20 + a.i * 11 % 600), SYSUTCDATETIME()), 1, CASE WHEN a.i % 5 = 0 THEN 0 ELSE 1 END,
+       CASE WHEN a.i % 5 = 0 THEN NULL ELSE DATEADD(DAY, -(19 + a.i * 11 % 600), SYSUTCDATETIME()) END, N'admin', N'DEMOSEED'
 FROM #a a WHERE a.AssignedEmployeeId IS NOT NULL;
-INSERT dbo.tblAssetAssignment (AssetId, EmployeeId, DepartmentId, AssignmentType, AssignedDate, ReturnedDate, IsCurrent, AcknowledgementReceived, AssignedBy, ReturnedTo, CreatedBy)
+INSERT dbo.tblAssetAssignment (AssetId, EmployeeId, DepartmentId, AssignmentType, AssignedDate, ReturnedDate, IsCurrent, AcknowledgementReceived, AcknowledgementDate, AssignedBy, ReturnedTo, CreatedBy)
 SELECT a.AssetId, e.EmployeeId, e.DepartmentId, N'Permanent', DATEADD(DAY, -(800 + a.i % 500), SYSUTCDATETIME()), DATEADD(DAY, -(710 + a.i % 80), SYSUTCDATETIME()),
-       0, 1, N'admin', N'admin', N'DEMOSEED'
+       0, 1, DATEADD(DAY, -(799 + a.i % 500), SYSUTCDATETIME()), N'admin', N'admin', N'DEMOSEED'
 FROM #a a JOIN #emp e ON e.rn = 1 + (a.i * 13) % 40 WHERE a.i % 3 = 0 AND a.AssignedEmployeeId IS NOT NULL;
 
 -- ---------------------------------------------------------------- warranties: a fifth expired, a fifth ending in about 30 days, the rest valid
