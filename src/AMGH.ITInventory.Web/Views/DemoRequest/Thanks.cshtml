@@ -1,0 +1,11 @@
+@{
+    ViewData["Title"] = "Request received";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">Thank you</h1>
+    <p class="lp-tagline">@AMGH.ITInventory.Shared.AppInfo.Name</p>
+</header>
+<div class="alert alert-success" role="status">We received your request. We will e-mail you a company key. Use it on the <a href="@Url.Action("Index", "Register")">Create your company</a> page.</div>
+<p class="lp-notice"><a href="@Url.Action("Select", "Tenant")">Back to sign-in</a></p>

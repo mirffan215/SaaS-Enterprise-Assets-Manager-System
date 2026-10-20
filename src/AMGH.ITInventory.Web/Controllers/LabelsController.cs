@@ -101,6 +101,10 @@ public sealed class ScanController : Controller
 
     public ScanController(Application.Assets.IAssetService assets) => _assets = assets;
 
+    /// <summary>The scan page of the mobile app: camera (QR label, barcode) or typed number, then the asset opens.</summary>
+    [HttpGet("scan")]
+    public IActionResult Index() => View("Scan");
+
     [HttpGet("a/{assetNumber}")]
     public async Task<IActionResult> Open(string assetNumber, CancellationToken cancellationToken)
     {

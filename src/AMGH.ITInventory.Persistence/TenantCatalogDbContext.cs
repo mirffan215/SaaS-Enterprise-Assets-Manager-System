@@ -14,6 +14,39 @@ public sealed class Tenant
     public DateTime CreatedAtUtc { get; set; }
 }
 
+/// <summary>A company key (only its hash is stored).</summary>
+public sealed class CompanyKeyRow
+{
+    public int Id { get; set; }
+    public string KeyHash { get; set; } = string.Empty;
+    public string KeyHint { get; set; } = string.Empty;
+    public string? IssuedTo { get; set; }
+    public string? Note { get; set; }
+    public int? RequestId { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public DateTime ExpiresAtUtc { get; set; }
+    public DateTime? UsedAtUtc { get; set; }
+    public string? UsedCompanyCode { get; set; }
+    public DateTime? RevokedAtUtc { get; set; }
+}
+
+/// <summary>Someone asked for a demo (public form on the front page).</summary>
+public sealed class DemoRequestRow
+{
+    public int Id { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string CompanyName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string? Message { get; set; }
+    public string Status { get; set; } = "New";
+    public int? KeyId { get; set; }
+    public DateTime? HandledAtUtc { get; set; }
+    public string? IpAddress { get; set; }
+}
+
 /// <summary>One line of the operator's activity log.</summary>
 public sealed class TenantEventRow
 {
@@ -35,6 +68,8 @@ public sealed class TenantCatalogDbContext : DbContext
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<TenantEventRow> Events => Set<TenantEventRow>();
+    public DbSet<CompanyKeyRow> CompanyKeys => Set<CompanyKeyRow>();
+    public DbSet<DemoRequestRow> DemoRequests => Set<DemoRequestRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,6 +84,36 @@ public sealed class TenantCatalogDbContext : DbContext
             e.Property(t => t.ConnectionString).HasMaxLength(2000).IsRequired();
             e.Property(t => t.CreatedAtUtc).HasColumnType("datetime2(3)");
             e.HasIndex(t => t.Code).IsUnique();
+        });
+        modelBuilder.Entity<CompanyKeyRow>(e =>
+        {
+            e.ToTable("CompanyKeys");
+            e.HasKey(t => t.Id);
+            e.Property(t => t.KeyHash).HasColumnType("char(64)").HasMaxLength(64).IsRequired();
+            e.Property(t => t.KeyHint).HasMaxLength(8).IsRequired();
+            e.Property(t => t.IssuedTo).HasMaxLength(256);
+            e.Property(t => t.Note).HasMaxLength(200);
+            e.Property(t => t.CreatedBy).HasMaxLength(100).IsRequired();
+            e.Property(t => t.UsedCompanyCode).HasMaxLength(10);
+            e.Property(t => t.CreatedAtUtc).HasColumnType("datetime2(3)");
+            e.Property(t => t.ExpiresAtUtc).HasColumnType("datetime2(3)");
+            e.Property(t => t.UsedAtUtc).HasColumnType("datetime2(3)");
+            e.Property(t => t.RevokedAtUtc).HasColumnType("datetime2(3)");
+            e.HasIndex(t => t.KeyHash).IsUnique();
+        });
+        modelBuilder.Entity<DemoRequestRow>(e =>
+        {
+            e.ToTable("DemoRequests");
+            e.HasKey(t => t.Id);
+            e.Property(t => t.FullName).HasMaxLength(150).IsRequired();
+            e.Property(t => t.CompanyName).HasMaxLength(150).IsRequired();
+            e.Property(t => t.Email).HasMaxLength(256).IsRequired();
+            e.Property(t => t.Phone).HasMaxLength(50);
+            e.Property(t => t.Message).HasMaxLength(1000);
+            e.Property(t => t.Status).HasMaxLength(20).IsRequired();
+            e.Property(t => t.IpAddress).HasMaxLength(45);
+            e.Property(t => t.CreatedAtUtc).HasColumnType("datetime2(3)");
+            e.Property(t => t.HandledAtUtc).HasColumnType("datetime2(3)");
         });
         modelBuilder.Entity<TenantEventRow>(e =>
         {

@@ -1,0 +1,27 @@
+@{
+    ViewData["Title"] = "Scan an asset";
+}
+<div class="page-head"><h1 class="page-title">Scan an asset</h1></div>
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <section class="panel">
+            <p class="text-body-secondary">Point the camera at the QR label (or the barcode on an asset tag) to open the asset. On a phone this works best from the installed app.</p>
+            <div class="scan-frame mb-3"><video id="scan-video" class="scan-video" playsinline muted hidden></video></div>
+            <div class="d-flex gap-2 mb-2">
+                <button type="button" id="scan-start" class="btn btn-primary btn-lg flex-fill"><i class="bi bi-camera" aria-hidden="true"></i> Start camera</button>
+                <button type="button" id="scan-stop" class="btn btn-outline-secondary btn-lg flex-fill" hidden><i class="bi bi-stop-circle" aria-hidden="true"></i> Stop</button>
+            </div>
+            <p id="scan-status" class="small text-body-secondary mb-3" role="status" aria-live="polite"></p>
+            <form id="scan-form" class="d-flex gap-2" novalidate>
+                <label for="scan-input" class="visually-hidden">Asset number or RFID tag number</label>
+                <input id="scan-input" class="form-control" placeholder="Asset number or RFID tag" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <button type="submit" class="btn btn-outline-primary">Open</button>
+            </form>
+            <p class="small text-body-secondary mt-2 mb-0">A Bluetooth or USB scanner types into the box above: scan, and the asset opens.</p>
+        </section>
+    </div>
+</div>
+@section Scripts {
+    <script src="~/lib/jsqr/jsQR.js"></script>
+    <script src="~/js/scan.js" asp-append-version="true"></script>
+}

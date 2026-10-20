@@ -76,6 +76,7 @@ internal sealed class Navigation : INavigation
             (true, new NavItem("Notifications", A("Index", "Notifications"), "bi-bell", M("/notifications"))));
         Section("Asset management",
             (P(Permissions.Assets.View), new NavItem("Asset register", A("Index", "Assets"), "bi-box-seam", M("/Assets", "/labels", "/a/"))),
+            (P(Permissions.Assets.View), new NavItem("Scan an asset", A("Index", "Scan"), "bi-qr-code-scan", M("/scan"))),
             (P(Permissions.Assets.Create), new NavItem("Add new asset", A("Create", "Assets"), "bi-plus-square", M("/Assets/Create"))),
             (P(Permissions.Assets.Import), new NavItem("Import from Excel", A("Import", "Assets"), "bi-file-earmark-arrow-up", M("/Assets/Import"))),
             (P(Permissions.MasterData.View), new NavItem("Asset categories", A("Categories", "AssetConfiguration"), "bi-tags", M("/admin/asset-configuration/categories", "/master-data/categories", "/master-data/subcategories"))),

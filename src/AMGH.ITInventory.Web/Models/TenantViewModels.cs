@@ -30,6 +30,17 @@ public sealed class TenantAdminViewModel
     public AMGH.ITInventory.Web.Infrastructure.PlatformSnapshot? Snapshot { get; set; }
     public IReadOnlyList<AMGH.ITInventory.Application.Tenancy.TenantEvent> Events { get; set; } = Array.Empty<AMGH.ITInventory.Application.Tenancy.TenantEvent>();
     public bool EventsUnavailable { get; set; }
+
+    // company keys and demo requests (Super Admin page)
+    public IReadOnlyList<AMGH.ITInventory.Application.Tenancy.CompanyKeyInfo> Keys { get; set; } = Array.Empty<AMGH.ITInventory.Application.Tenancy.CompanyKeyInfo>();
+    public IReadOnlyList<AMGH.ITInventory.Application.Tenancy.DemoRequestInfo> Requests { get; set; } = Array.Empty<AMGH.ITInventory.Application.Tenancy.DemoRequestInfo>();
+    public bool KeysUnavailable { get; set; }
+    public bool MailReady { get; set; }
+    /// <summary>The key just made: shown once, never stored in a form that can be read back.</summary>
+    public string? NewKey { get; set; }
+    public string? NewKeyFor { get; set; }
+    public DateTime? NewKeyExpires { get; set; }
+    public bool KeyEmailed { get; set; }
 }
 
 public sealed record BackupRow(string FileName, long SizeBytes, DateTime CreatedUtc, DateTime? VerifiedUtc = null, bool VerifyOk = false, string? VerifyNote = null,
@@ -59,5 +70,9 @@ public sealed class RegisterViewModel
     [StringLength(100)] public string? Name { get; set; }
     [StringLength(256)] public string? AdminEmail { get; set; }
     [DataType(DataType.Password)] [StringLength(128)] public string? AdminPassword { get; set; }
+    /// <summary>The company key from the operator (EAMS-XXXX-XXXX-XXXX).</summary>
+    [StringLength(40)] public string? CompanyKey { get; set; }
+    /// <summary>False when open sign-up is on and the key is optional (display only).</summary>
+    public bool KeyRequired { get; set; } = true;
     public string? Message { get; set; }
 }

@@ -26,6 +26,12 @@
     <a class="lp-submit lp-submit-secondary" href="@Url.Action("ExploreDemo", "Account")"><i class="bi bi-play-circle" aria-hidden="true"></i> Explore Demo Environment</a>
 }
 
+<p class="lp-notice">
+    New here? <a href="@Url.Action("Index", "DemoRequest")">Request a demo</a> · <a href="@Url.Action("Index", "Register")">I have a company key</a>
+</p>
+
+<partial name="_InstallApp" />
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }

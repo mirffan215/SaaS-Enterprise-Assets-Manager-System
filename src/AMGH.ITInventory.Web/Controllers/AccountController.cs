@@ -307,7 +307,7 @@ public sealed class AccountController : Controller
         DescribeProduct(model);
         model.CompanyCode = null;
         model.GlobalSignIn = true;
-        model.ShowRegister = _tenancy.AllowSelfRegistration;
+        model.ShowRegister = _tenancy.Enabled;
         ApplyDemoOptions(model);
     }
 

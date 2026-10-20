@@ -76,6 +76,7 @@ public static class DependencyInjection
         services.AddScoped<Tenancy.TenantCatalog>();
         services.AddScoped<Application.Tenancy.ITenantCatalog>(sp => sp.GetRequiredService<Tenancy.TenantCatalog>());
         services.AddScoped<Application.Tenancy.ITenantAdminStore>(sp => sp.GetRequiredService<Tenancy.TenantCatalog>());
+        services.AddScoped<Application.Tenancy.ICompanyKeyStore, Tenancy.CompanyKeyStore>();
         return services;
     }
 }

@@ -81,7 +81,8 @@
 
 @if (Model.ShowRegister)
 {
-    <a class="lp-submit lp-submit-secondary" href="@Url.Action("Index", "Register")"><i class="bi bi-building-add" aria-hidden="true"></i> Register your company</a>
+    <a class="lp-submit lp-submit-secondary" href="@Url.Action("Index", "Register")"><i class="bi bi-building-add" aria-hidden="true"></i> Register your company (company key)</a>
+    <p class="text-center small mt-2 mb-0"><a href="@Url.Action("Index", "DemoRequest")">No key yet? Request a demo</a></p>
 }
 @if (Model.ShowExploreDemo)
 {
@@ -95,6 +96,8 @@
     <li><i class="bi bi-bar-chart-fill" aria-hidden="true"></i><span>Real-time reporting</span></li>
 </ul>
 <p class="lp-notice">@(Model.LoginTagline ?? $"For authorised {Model.CompanyName} users only. Sign-ins and changes are logged.")</p>
+
+<partial name="_InstallApp" />
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

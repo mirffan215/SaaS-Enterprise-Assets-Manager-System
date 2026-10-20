@@ -32,6 +32,15 @@ param(
     [switch] $NewOffsitePassword,
     # https address of a Slack/Teams/other incoming webhook that is told when a backup, its check or its off-site copy fails
     [string] $AlertWebhookUrl,
+    # demo requests and company keys: where requests are reported, the platform's own outgoing mail, and the address customers use
+    [string] $OperatorEmail,
+    [string] $SmtpHost,
+    [int] $SmtpPort = 587,
+    [ValidateSet("StartTls", "SslOnConnect", "None")] [string] $SmtpSecurity = "StartTls",
+    [string] $SmtpUser,
+    [string] $SmtpPassword,
+    [string] $SmtpFrom,
+    [string] $PublicBaseUrl,
     [switch] $NoRestart
 )
 
@@ -133,6 +142,13 @@ if ($OffsiteFolder -or $OffsiteBlobUrl) {
         Set-Setting "OffsitePassword" $op
         $shown["Off-site zip password (keep it in your vault: without it the off-site copies cannot be opened)"] = $op
     }
+}
+if ($OperatorEmail) { Set-Setting "OperatorEmail" $OperatorEmail }
+if ($PublicBaseUrl) { Set-Setting "PublicBaseUrl" $PublicBaseUrl.TrimEnd('/') }
+if ($SmtpHost) {
+    if (-not $SmtpFrom) { throw "-SmtpFrom (the address the mail comes from) is needed with -SmtpHost." }
+    Set-Setting "Smtp" ([pscustomobject]@{ Host = $SmtpHost; Port = $SmtpPort; Security = $SmtpSecurity; Username = $SmtpUser; Password = $SmtpPassword; FromAddress = $SmtpFrom; FromName = "EAMS" })
+    $shown["Platform mail (set)"] = "$SmtpHost`:$SmtpPort"
 }
 if ($AlertWebhookUrl) {
     if ($AlertWebhookUrl -notmatch '^https://') { throw "-AlertWebhookUrl must start with https://" }

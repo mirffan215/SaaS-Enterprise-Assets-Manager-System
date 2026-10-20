@@ -112,7 +112,7 @@ try
         // company self-registration builds a database: at most 3 per hour per address
         options.AddPolicy(RateLimitPolicies.Register, context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions { PermitLimit = 3, Window = TimeSpan.FromHours(1), QueueLimit = 0 }));
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 8, Window = TimeSpan.FromHours(1), QueueLimit = 0 }));
         options.AddPolicy(RateLimitPolicies.Login, context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
@@ -122,6 +122,7 @@ try
     builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database").AddCheck<BackupHealthCheck>("backups", tags: new[] { "backups" });
     builder.Services.AddSingleton<BackupAlerts>();
     builder.Services.AddSingleton<BackgroundJobs>();
+    builder.Services.AddSingleton<PlatformMailer>();
 
     // ---------------------------------------------------------------- pipeline
     var tenancySettings = builder.Configuration.GetSection(TenancyOptions.SectionName).Get<TenancyOptions>() ?? new TenancyOptions();

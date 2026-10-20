@@ -1,7 +1,7 @@
 @using System.Globalization
 @model TenantAdminViewModel
 @{
-    ViewData["Title"] = "Platform console";
+    ViewData["Title"] = "EAMS Super Admin";
     Layout = "_PlatformLayout";
     var snapshot = Model.Snapshot;
     string Size(long bytes) => bytes >= 1073741824 ? (bytes / 1073741824.0).ToString("N1", CultureInfo.InvariantCulture) + " GB" : (bytes / 1048576.0).ToString("N0", CultureInfo.InvariantCulture) + " MB";
@@ -15,7 +15,7 @@
 }
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
-        <h1 class="h3 mb-0"><i class="bi bi-hdd-network" aria-hidden="true"></i> Platform console</h1>
+        <h1 class="h3 mb-0"><i class="bi bi-hdd-network" aria-hidden="true"></i> EAMS Super Admin</h1>
         <div class="small text-body-secondary">@(snapshot?.Companies.Count ?? 0) companies · @(warned == 0 ? "no open warnings" : warned + " with warnings") · refreshed @snapshot?.AtUtc.ToString("HH:mm:ss", CultureInfo.InvariantCulture) UTC</div>
     </div>
     <div class="d-flex gap-2">
@@ -105,6 +105,104 @@
             </tbody>
         </table>
     </div>
+</div>
+
+@if (Model.NewKey is not null)
+{
+    <div class="alert alert-warning border-warning" role="alert">
+        <div class="fw-semibold mb-1"><i class="bi bi-key-fill" aria-hidden="true"></i> New company key@(Model.NewKeyFor is null ? "" : " for " + Model.NewKeyFor)</div>
+        <div class="font-monospace fs-4 user-select-all">@Model.NewKey</div>
+        <div class="small mb-2">Shown only once, valid until @Model.NewKeyExpires?.ToString("d MMM yyyy", CultureInfo.InvariantCulture), can be used for one company. Give it to the customer: they open <code>/Register</code> and enter it.</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            @if (Model.NewKeyFor is not null)
+            {
+                <a class="btn btn-sm btn-outline-dark" href="mailto:@Model.NewKeyFor?subject=@Uri.EscapeDataString("Your company key for " + AMGH.ITInventory.Shared.AppInfo.Name)&body=@Uri.EscapeDataString("Your company key: " + Model.NewKey + "\n\nCreate your company at " + Context.Request.Scheme + "://" + Context.Request.Host + "/Register?key=" + Uri.EscapeDataString(Model.NewKey) + "\nThe key can be used once.")"><i class="bi bi-envelope" aria-hidden="true"></i> Open in my e-mail program</a>
+                @if (Model.MailReady && !Model.KeyEmailed)
+                {
+                    <form asp-action="SendKey" method="post" class="d-inline"><input type="hidden" name="key" value="@Model.NewKey" /><input type="hidden" name="email" value="@Model.NewKeyFor" /><button type="submit" class="btn btn-sm btn-dark"><i class="bi bi-send" aria-hidden="true"></i> E-mail it from here</button></form>
+                }
+            }
+        </div>
+    </div>
+}
+
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-inbox" aria-hidden="true"></i> Demo requests</span>
+        @if (!Model.MailReady) { <span class="small text-body-secondary">E-mail is not set up: requests are only listed here (see docs/Super-Admin-and-Company-Keys.md)</span> }</div>
+    @if (Model.KeysUnavailable)
+    {
+        <div class="card-body text-danger small">The catalog needs an update for company keys: run <code>Install-SaaS.ps1 -Update</code>.</div>
+    }
+    else if (Model.Requests.Count == 0)
+    {
+        <div class="card-body small text-body-secondary">No requests yet. People ask for a demo on the front page ("Request a demo").</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Received</th><th>Who</th><th>Company</th><th>Message</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model.Requests)
+                    {
+                        <tr>
+                            <td class="text-nowrap small">@r.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)</td>
+                            <td>@r.FullName<div class="small"><a href="mailto:@r.Email">@r.Email</a>@(r.Phone is null ? "" : " · " + r.Phone)</div></td>
+                            <td>@r.CompanyName</td>
+                            <td class="small">@r.Message</td>
+                            <td>@if (r.Status == "New") { <span class="badge text-bg-primary">New</span> } else if (r.Status == "KeySent") { <span class="badge text-bg-success">Key made</span> } else { <span class="badge text-bg-secondary">Declined</span> }</td>
+                            <td class="text-nowrap text-end">
+                                <form asp-action="GenerateKey" method="post" class="d-inline-flex gap-1 align-items-center">
+                                    <input type="hidden" name="requestId" value="@r.Id" />
+                                    <input class="form-control form-control-sm input-days" type="number" name="days" value="14" min="1" max="365" aria-label="Days the key is valid" title="Days the key is valid" />
+                                    @if (Model.MailReady) { <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" name="sendEmail" value="true" id="mail_@r.Id" checked /><label class="form-check-label small" for="mail_@r.Id">e-mail</label></div> }
+                                    <button type="submit" class="btn btn-sm btn-primary">@(r.Status == "KeySent" ? "New key" : "Generate key")</button>
+                                </form>
+                                @if (r.Status == "New") { <form asp-action="DeclineRequest" asp-route-id="@r.Id" method="post" class="d-inline"><button type="submit" class="btn btn-sm btn-outline-secondary">Decline</button></form> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-key" aria-hidden="true"></i> Company keys</div>
+    <div class="card-body border-bottom">
+        <form asp-action="GenerateKey" method="post" class="row g-2 align-items-end">
+            <div class="col-md-4"><label class="form-label small mb-0" for="gk_email">For (e-mail, optional)</label><input class="form-control form-control-sm" id="gk_email" name="email" type="email" maxlength="256" autocomplete="off" /></div>
+            <div class="col-md-4"><label class="form-label small mb-0" for="gk_note">Note (optional)</label><input class="form-control form-control-sm" id="gk_note" name="note" maxlength="200" placeholder="e.g. Acme Ltd, trial" autocomplete="off" /></div>
+            <div class="col-md-2"><label class="form-label small mb-0" for="gk_days">Valid (days)</label><input class="form-control form-control-sm" id="gk_days" name="days" type="number" value="14" min="1" max="365" /></div>
+            <div class="col-md-2 d-flex gap-2 align-items-center">
+                @if (Model.MailReady) { <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="sendEmail" value="true" id="gk_mail" /><label class="form-check-label small" for="gk_mail">e-mail</label></div> }
+                <button type="submit" class="btn btn-sm btn-primary">Generate key</button>
+            </div>
+        </form>
+    </div>
+    @if (Model.Keys.Count > 0)
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Key</th><th>For</th><th>Made</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var k in Model.Keys)
+                    {
+                        var st = k.Status(DateTime.UtcNow);
+                        <tr>
+                            <td class="font-monospace">EAMS-····-····-@k.Hint</td>
+                            <td class="small">@k.IssuedTo@(k.Note is null ? "" : (k.IssuedTo is null ? "" : " · ") + k.Note)</td>
+                            <td class="small text-nowrap">@k.CreatedAtUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
+                            <td class="small text-nowrap">@k.ExpiresAtUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
+                            <td>@if (st == "Unused") { <span class="badge text-bg-primary">Unused</span> } else if (st == "Used") { <span class="badge text-bg-success">Used by @k.UsedCompanyCode</span> } else { <span class="badge text-bg-secondary">@st</span> }</td>
+                            <td class="text-end">@if (st == "Unused") { <form asp-action="RevokeKey" asp-route-id="@k.Id" method="post" class="d-inline" data-confirm="Withdraw this key? It will no longer create a company."><button type="submit" class="btn btn-sm btn-outline-danger">Withdraw</button></form> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>
 
 <div class="row g-3">

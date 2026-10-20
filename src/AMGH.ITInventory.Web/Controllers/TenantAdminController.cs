@@ -26,9 +26,10 @@ public sealed class TenantAdminController : Controller
     private readonly ITenantMigrationService _migrations;
     private readonly OperatorSession _session;
     private readonly IServiceProvider _services;
+    private readonly PlatformMailer _mailer;
 
     public TenantAdminController(IOptions<TenancyOptions> options, IServiceProvider services, ITenantProvisioningService provisioning,
-        ITenantBackupService backups, ITenantMigrationService migrations, OperatorSession session)
+        ITenantBackupService backups, ITenantMigrationService migrations, OperatorSession session, PlatformMailer mailer)
     {
         _options = options.Value;
         _catalog = services.GetService<ITenantCatalog>();
@@ -37,6 +38,7 @@ public sealed class TenantAdminController : Controller
         _migrations = migrations;
         _session = session;
         _services = services;
+        _mailer = mailer;
     }
 
     private bool Enabled => _catalog is not null && !string.IsNullOrWhiteSpace(_options.OperatorKey);
@@ -182,6 +184,87 @@ public sealed class TenantAdminController : Controller
         return await ConsoleAsync(model);
     }
 
+    // ---------------------------------------------------------------- company keys and demo requests
+    private string PublicBase => string.IsNullOrWhiteSpace(_options.PublicBaseUrl) ? $"{Request.Scheme}://{Request.Host}" : _options.PublicBaseUrl.TrimEnd('/');
+
+    /// <summary>Makes a company key (optionally for a demo request) and shows it once; it can be e-mailed to the requester straight away.</summary>
+    [HttpPost("keys/generate")]
+    public async Task<IActionResult> GenerateKey(string? email, string? note, int? requestId, int days, bool sendEmail)
+    {
+        if (!Enabled) return NotFound();
+        if (!SignedIn) return RedirectToAction(nameof(Index));
+        var keys = _services.GetService<ICompanyKeyStore>();
+        var model = new TenantAdminViewModel();
+        if (keys is null) { model.Message = "Company keys are not available (the catalog needs updating: run Install-SaaS.ps1 -Update)."; return await ConsoleAsync(model); }
+        DemoRequestInfo? request = requestId is { } rid ? await keys.GetRequestAsync(rid) : null;
+        var to = (email ?? request?.Email)?.Trim();
+        if (!string.IsNullOrEmpty(to) && !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(to)) { model.Message = "That e-mail address is not valid."; return await ConsoleAsync(model); }
+        var (key, info) = await keys.IssueAsync(to, note ?? (request is null ? null : request.CompanyName), request?.Id, days <= 0 ? 14 : days, "operator " + HttpContext.Connection.RemoteIpAddress);
+        if (request is not null) await keys.SetRequestStatusAsync(request.Id, DemoRequestStatus.KeySent, info.Id);
+        await LogAsync(null, "Company key made", $"…{info.Hint} for {to ?? note ?? "nobody in particular"}, valid until {info.ExpiresAtUtc:yyyy-MM-dd}");
+        model.NewKey = key;
+        model.NewKeyFor = to;
+        model.NewKeyExpires = info.ExpiresAtUtc;
+        model.Succeeded = true;
+        model.Message = "Company key made. Copy it now: it is shown only once.";
+        if (sendEmail && !string.IsNullOrEmpty(to))
+        {
+            var sent = await SendKeyAsync(key, to, info.ExpiresAtUtc, request?.FullName);
+            model.KeyEmailed = sent;
+            model.Message += sent ? $" It was e-mailed to {to}." : " It could not be e-mailed (mail is not set up, or the server refused): send it yourself.";
+        }
+        return await ConsoleAsync(model);
+    }
+
+    /// <summary>E-mails an unused key (the operator pressed the button next to the key just made).</summary>
+    [HttpPost("keys/send")]
+    public async Task<IActionResult> SendKey(string? key, string? email)
+    {
+        if (!Enabled) return NotFound();
+        if (!SignedIn) return RedirectToAction(nameof(Index));
+        var model = new TenantAdminViewModel();
+        var keys = _services.GetService<ICompanyKeyStore>();
+        if (keys is null || string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(email) || !await keys.IsValidAsync(key))
+            model.Message = "That key cannot be sent (it is not valid any more).";
+        else
+        {
+            var sent = await SendKeyAsync(key, email.Trim(), DateTime.UtcNow.AddDays(14), null);
+            model.Succeeded = sent;
+            model.Message = sent ? $"Key e-mailed to {email.Trim()}." : "It could not be e-mailed (mail is not set up, or the server refused): send it yourself.";
+        }
+        return await ConsoleAsync(model);
+    }
+
+    private async Task<bool> SendKeyAsync(string key, string to, DateTime expiresUtc, string? name)
+    {
+        var link = $"{PublicBase}/Register?key={Uri.EscapeDataString(key)}";
+        var until = expiresUtc.ToString("d MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        var text = $"Hello{(name is null ? "" : " " + name)},\n\nThank you for your interest in {AMGH.ITInventory.Shared.AppInfo.Name}. Here is your company key:\n\n    {key}\n\nOpen {link}\nor go to {PublicBase}/Register and enter the key, choose your company code and name, and set the administrator's e-mail and password.\nThe key can be used once and is valid until {until}.\n";
+        var html = $"<p>Hello{(name is null ? "" : " " + PlatformMailer.Html(name))},</p><p>Thank you for your interest in {PlatformMailer.Html(AMGH.ITInventory.Shared.AppInfo.Name)}. Here is your company key:</p>" +
+                   $"<p style=\"font-size:20px;font-family:monospace\"><strong>{PlatformMailer.Html(key)}</strong></p><p><a href=\"{PlatformMailer.Html(link)}\">Create your company</a>, or go to {PlatformMailer.Html(PublicBase)}/Register and enter the key, " +
+                   $"choose your company code and name, and set the administrator's e-mail and password.</p><p>The key can be used once and is valid until {until}.</p>";
+        return await _mailer.TrySendAsync(to, "Your company key for " + AMGH.ITInventory.Shared.AppInfo.Name, html, text, _mailer.OperatorEmail, CancellationToken.None);
+    }
+
+    [HttpPost("keys/revoke/{id:int}")]
+    public async Task<IActionResult> RevokeKey(int id)
+    {
+        if (!Enabled) return NotFound();
+        if (!SignedIn) return RedirectToAction(nameof(Index));
+        var done = _services.GetService<ICompanyKeyStore>() is { } keys && await keys.RevokeAsync(id);
+        if (done) await LogAsync(null, "Company key withdrawn", "key #" + id);
+        return await ConsoleAsync(new TenantAdminViewModel { Succeeded = done, Message = done ? "The key was withdrawn." : "That key is already used or withdrawn." });
+    }
+
+    [HttpPost("requests/decline/{id:int}")]
+    public async Task<IActionResult> DeclineRequest(int id)
+    {
+        if (!Enabled) return NotFound();
+        if (!SignedIn) return RedirectToAction(nameof(Index));
+        if (_services.GetService<ICompanyKeyStore>() is { } keys) { await keys.SetRequestStatusAsync(id, DemoRequestStatus.Declined, null); await LogAsync(null, "Demo request declined", "request #" + id); }
+        return await ConsoleAsync(new TenantAdminViewModel { Succeeded = true, Message = "The request was marked as declined." });
+    }
+
     // ---------------------------------------------------------------- backups
     [HttpGet("backups/{code}")]
     public async Task<IActionResult> Backups(string code)
@@ -245,6 +328,12 @@ public sealed class TenantAdminController : Controller
         model.Tenants = snapshot.Companies.Select(c => new TenantRow(c.Tenant.Code, c.Tenant.Name, c.Tenant.IsDemo, c.Tenant.IsActive, c.Tenant.CreatedAtUtc,
             TenantUrls.For(Request, _options, c.Tenant.Code, "/Account/Login"))).ToList();
         model.Snapshot = snapshot;
+        if (_services.GetService<ICompanyKeyStore>() is { } keyStore)
+        {
+            try { model.Keys = await keyStore.ListAsync(30, CancellationToken.None); model.Requests = await keyStore.ListRequestsAsync(30, CancellationToken.None); }
+            catch (Microsoft.Data.SqlClient.SqlException) { model.KeysUnavailable = true; }
+        }
+        model.MailReady = _mailer.IsConfigured;
         if (_services.GetService<ITenantAdminStore>() is { } store)
         {
             try { model.Events = await store.RecentEventsAsync(15, CancellationToken.None); }

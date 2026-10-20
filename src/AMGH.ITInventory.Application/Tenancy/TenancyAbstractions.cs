@@ -87,6 +87,18 @@ public sealed class TenancyOptions
     /// <summary>Optional https address that receives a JSON message {"text": "..."} when a scheduled backup, its check or its off-site copy fails (Slack, Teams and similar incoming webhooks).</summary>
     public string? AlertWebhookUrl { get; set; }
 
+    /// <summary>
+    /// Where demo requests are reported (an e-mail address of the operator). With <see cref="Smtp"/> set, each request is mailed here as it arrives; without it
+    /// the requests are still saved and listed on the Super Admin page.
+    /// </summary>
+    public string? OperatorEmail { get; set; }
+
+    /// <summary>The platform's own outgoing mail (demo-request alerts, company keys sent to customers). Separate from each company's mail settings.</summary>
+    public PlatformSmtpOptions Smtp { get; set; } = new();
+
+    /// <summary>Address customers use, for the link in e-mails (https://eams.example.com:8443). Empty: the address of the page being used.</summary>
+    public string? PublicBaseUrl { get; set; }
+
     /// <summary>Code of the sandbox tenant.</summary>
     public const string DemoCode = "demo";
 
@@ -98,6 +110,21 @@ public sealed class TenancyOptions
 
     /// <summary>Off by default. Turn on only for a public sandbox: shows the demo user name and password on the demo sign-in page (they open fictitious data only).</summary>
     public bool ShowDemoCredentials { get; set; }
+}
+
+/// <summary>Outgoing mail of the platform operator (appsettings "Tenancy:Smtp").</summary>
+public sealed class PlatformSmtpOptions
+{
+    public string? Host { get; set; }
+    public int Port { get; set; } = 587;
+    /// <summary>StartTls (587), SslOnConnect (465) or None.</summary>
+    public string Security { get; set; } = "StartTls";
+    public string? Username { get; set; }
+    public string? Password { get; set; }
+    public string? FromAddress { get; set; }
+    public string FromName { get; set; } = "EAMS";
+
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(Host) && !string.IsNullOrWhiteSpace(FromAddress);
 }
 
 /// <summary>A row of the central tenant catalog.</summary>

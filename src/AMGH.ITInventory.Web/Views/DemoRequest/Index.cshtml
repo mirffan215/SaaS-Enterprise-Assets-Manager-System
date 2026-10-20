@@ -1,0 +1,26 @@
+@model AMGH.ITInventory.Web.Controllers.DemoRequestViewModel
+@{
+    ViewData["Title"] = "Request a demo";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">Request a demo</h1>
+    <p class="lp-tagline">@AMGH.ITInventory.Shared.AppInfo.Name</p>
+</header>
+<p class="lp-context"><span>Tell us who you are. We reply by e-mail with a <strong>company key</strong> that lets you create your own company here.</span></p>
+<form asp-action="Send" method="post" novalidate class="lp-form">
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+    <div class="lp-field"><i class="bi bi-person" aria-hidden="true"></i><input asp-for="FullName" class="form-control" placeholder="Your name" autocomplete="name" maxlength="150" /></div>
+    <span asp-validation-for="FullName" class="invalid-feedback d-block"></span>
+    <div class="lp-field"><i class="bi bi-buildings" aria-hidden="true"></i><input asp-for="CompanyName" class="form-control" placeholder="Company name" autocomplete="organization" maxlength="150" /></div>
+    <span asp-validation-for="CompanyName" class="invalid-feedback d-block"></span>
+    <div class="lp-field"><i class="bi bi-envelope" aria-hidden="true"></i><input asp-for="Email" class="form-control" placeholder="Work e-mail" autocomplete="email" maxlength="256" /></div>
+    <span asp-validation-for="Email" class="invalid-feedback d-block"></span>
+    <div class="lp-field"><i class="bi bi-telephone" aria-hidden="true"></i><input asp-for="Phone" class="form-control" placeholder="Phone (optional)" autocomplete="tel" maxlength="50" /></div>
+    <div class="lp-field"><i class="bi bi-chat-text" aria-hidden="true"></i><input asp-for="Message" class="form-control" placeholder="Anything we should know? (optional)" maxlength="1000" /></div>
+    <div class="visually-hidden" aria-hidden="true"><label>Leave this empty <input asp-for="Website" tabindex="-1" autocomplete="off" /></label></div>
+    <button type="submit" class="lp-submit">Send request <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+</form>
+<p class="lp-notice"><a href="@Url.Action("Select", "Tenant")">Back to sign-in</a></p>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

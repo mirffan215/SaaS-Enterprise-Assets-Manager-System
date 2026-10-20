@@ -18,7 +18,7 @@ internal sealed class TenantResolutionMiddleware
     public const string QueryName = "tenant";
     internal const string TenantCookie = "EAMS.Tenant";
 
-    private static readonly string[] PublicPaths = { "/health", "/platform", "/tenant", "/account/login", "/account/exploredemo", "/register", "/branding/default-logo.svg", "/favicon" };
+    private static readonly string[] PublicPaths = { "/health", "/platform", "/tenant", "/account/login", "/account/exploredemo", "/register", "/requestdemo", "/manifest.webmanifest", "/sw.js", "/offline.html", "/branding/default-logo.svg", "/favicon" };
 
     private readonly RequestDelegate _next;
     private readonly TenancyOptions _options;

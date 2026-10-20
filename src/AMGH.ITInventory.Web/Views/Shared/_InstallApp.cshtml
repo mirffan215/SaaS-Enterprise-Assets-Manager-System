@@ -1,0 +1,16 @@
+@inject AMGH.ITInventory.Application.Abstractions.QrCodes.IQrCodeGenerator Qr
+@{
+    var address = $"{Context.Request.Scheme}://{Context.Request.Host}/";
+}
+@* "Get the mobile app": the web app is installed from the browser on iPhone/iPad and Android. pwa.js decides which part to show. *@
+<section class="install-card" data-pwa-card aria-labelledby="installTitle" hidden>
+    <div class="install-card-head"><i class="bi bi-phone" aria-hidden="true"></i> <strong id="installTitle">Get the mobile app</strong> <span class="install-card-sub">iPhone, iPad and Android</span></div>
+    <button type="button" class="install-card-button" data-pwa-install hidden><i class="bi bi-download" aria-hidden="true"></i> Install app</button>
+    <p class="install-card-text" data-pwa-ios hidden>On iPhone or iPad, open this page in <strong>Safari</strong>, tap <i class="bi bi-box-arrow-up" aria-hidden="true"></i> <strong>Share</strong>, then <strong>Add to Home Screen</strong>.</p>
+    <p class="install-card-text" data-pwa-other hidden>On Android open this page in <strong>Chrome</strong> and choose <strong>Install app</strong> (or <em>Add to Home screen</em>) from the menu. On iPhone use Safari: <strong>Share</strong>, then <strong>Add to Home Screen</strong>.</p>
+    <details class="install-card-qr">
+        <summary>Show a QR code to open it on your phone</summary>
+        <div class="install-card-qr-code" role="img" aria-label="QR code with the address of this site">@Html.Raw(Qr.Generate(address, 2).Svg)</div>
+        <div class="install-card-address">@address</div>
+    </details>
+</section>

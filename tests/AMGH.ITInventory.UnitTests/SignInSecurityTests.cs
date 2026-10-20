@@ -138,3 +138,52 @@ public class RfidEncodingTests
         Assert.StartsWith("^XA", zpl);
     }
 }
+
+public class CompanyKeyFormatTests
+{
+    [Fact]
+    public void A_key_looks_like_EAMS_and_twelve_unambiguous_characters()
+    {
+        var key = Application.Tenancy.CompanyKeyFormat.Generate();
+        Assert.Matches(@"^EAMS-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$", key);
+        Assert.True(Application.Tenancy.CompanyKeyFormat.IsWellFormed(key));
+        Assert.NotEqual(key, Application.Tenancy.CompanyKeyFormat.Generate());
+    }
+
+    [Theory]
+    [InlineData("EAMS-7K3Q-M9XD-4TWB")]
+    [InlineData("eams 7k3q m9xd 4twb")]
+    [InlineData("  7K3QM9XD4TWB ")]
+    [InlineData("EAMS7K3QM9XD4TWB")]
+    public void However_it_is_typed_the_same_key_gives_the_same_hash(string typed) =>
+        Assert.Equal(Application.Tenancy.CompanyKeyFormat.Hash("EAMS-7K3Q-M9XD-4TWB"), Application.Tenancy.CompanyKeyFormat.Hash(typed));
+
+    [Theory]
+    [InlineData("EAMS-7K3Q-M9XD-4TW")]      // too short
+    [InlineData("EAMS-7K3Q-M9XD-4TWBB")]    // too long
+    [InlineData("EAMS-0000-1111-OOOO")]     // characters the alphabet leaves out
+    [InlineData("")]
+    [InlineData(null)]
+    public void Malformed_keys_are_rejected_before_the_database_is_asked(string? typed) =>
+        Assert.False(Application.Tenancy.CompanyKeyFormat.IsWellFormed(typed));
+
+    [Fact]
+    public void Different_keys_have_different_hashes_and_the_hint_is_the_last_four()
+    {
+        Assert.NotEqual(Application.Tenancy.CompanyKeyFormat.Hash("EAMS-7K3Q-M9XD-4TWB"), Application.Tenancy.CompanyKeyFormat.Hash("EAMS-7K3Q-M9XD-4TWC"));
+        Assert.Equal("4TWB", Application.Tenancy.CompanyKeyFormat.Hint("EAMS-7K3Q-M9XD-4TWB"));
+        Assert.Equal(64, Application.Tenancy.CompanyKeyFormat.Hash("x").Length);
+    }
+
+    [Fact]
+    public void Key_status_follows_use_withdrawal_and_expiry()
+    {
+        var now = new DateTime(2026, 10, 20, 12, 0, 0, DateTimeKind.Utc);
+        Application.Tenancy.CompanyKeyInfo Key(DateTime expires, DateTime? used = null, DateTime? revoked = null) =>
+            new(1, "ABCD", null, null, null, now.AddDays(-1), "op", expires, used, used is null ? null : "acme", revoked);
+        Assert.Equal("Unused", Key(now.AddDays(3)).Status(now));
+        Assert.Equal("Expired", Key(now.AddMinutes(-1)).Status(now));
+        Assert.Equal("Used", Key(now.AddDays(3), used: now).Status(now));
+        Assert.Equal("Revoked", Key(now.AddDays(3), revoked: now).Status(now));
+    }
+}
