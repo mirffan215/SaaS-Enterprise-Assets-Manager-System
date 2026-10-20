@@ -43,6 +43,7 @@ try
     builder.Services.Configure<TagOptions>(builder.Configuration.GetSection(TagOptions.SectionName));
     builder.Services.AddScoped<INavigation, Navigation>();
     builder.Services.AddSingleton<TenantSignInService>();
+    builder.Services.AddSingleton<OperatorSession>();
     builder.Services.AddSingleton<ILogoFetcher, LogoFetcher>();
     builder.Services.AddSingleton<AMGH.ITInventory.Application.Abstractions.Mail.ISecretProtector, DataProtectionSecretProtector>();
     if (!builder.Configuration.GetValue("Notifications:DisableWorker", false)) builder.Services.AddHostedService<NotificationWorker>();

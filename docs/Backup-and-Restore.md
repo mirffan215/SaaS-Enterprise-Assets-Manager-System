@@ -39,6 +39,19 @@ ALTER MASTER KEY ADD ENCRYPTION BY SERVICE MASTER KEY;
 
 Restore the `Keys` folder before starting the site, add the customer to `ITInv_Catalog.dbo.Tenants` if the catalog was lost (or restore the catalog backup), and re-run `Install-SaaS.ps1` on the new server for the site itself.
 
+## Back up and restore from the operator page (buttons)
+
+Open `https://<host>[:port]/Tenant/Admin`, enter the operator key, then click **backups** next to a company:
+
+* **Back up this company now**: a full, compressed, verified backup into the backup folder (`C:\EAMSCloud\Backups` by default).
+* The list shows that company's backups (made here or by `Backup-SaaS.ps1`). **Restore** replaces the company's current data with the chosen backup.
+  You must type the company code to confirm. Before anything is replaced the backup is verified and a **safety backup of the current state** is taken
+  (so a wrong restore can itself be undone); the company is taken offline for the restore, so people using it are signed out of its database for a moment.
+* Only a company's own backups can be restored into it. The company's data comes back exactly as it was at backup time, including users and settings.
+
+Set-up for an installation made before this existed (the installer does it for new ones): `.\Set-OperatorAccess.ps1 -SetupBackups`.
+The company data export (a zip of CSV files) is for reading and moving data, not for restoring.
+
 ## Not covered
 
 Backups run on a schedule you control; there is no "Backup" button in the web application. A restore test (restore a copy under another name and sign in) is worth doing once.

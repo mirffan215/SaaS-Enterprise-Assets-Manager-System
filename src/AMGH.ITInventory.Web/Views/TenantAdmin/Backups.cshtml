@@ -1,0 +1,42 @@
+@model TenantBackupsViewModel
+@{
+    ViewData["Title"] = "Backups";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">Backups: @Model.Code</h1>
+    <p class="lp-tagline">@Model.Name</p>
+</header>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert @(Model.Succeeded ? "alert-success" : "alert-danger") py-2" role="status">@Model.Message</div>
+}
+
+<form asp-action="BackupNow" asp-route-code="@Model.Code" method="post" class="lp-form" data-confirm="Back up the company now? It can take a few minutes; keep this page open.">
+    <button type="submit" class="lp-submit"><i class="bi bi-hdd" aria-hidden="true"></i> Back up this company now</button>
+</form>
+
+@if (Model.Files.Count == 0)
+{
+    <p class="small text-body-secondary mt-3">@(Model.CanList ? "No backups of this company yet." : "The list is not available.")</p>
+}
+else
+{
+    <p class="small mt-3 mb-1">Restore replaces the company's current data with the chosen backup (the current state is backed up first). Type the company code <strong>@Model.Code</strong> to confirm.</p>
+    <ul class="list-unstyled small">
+        @foreach (var f in Model.Files)
+        {
+            <li class="mb-2 border-bottom pb-2">
+                <span class="font-monospace">@f.FileName</span> · @((f.SizeBytes / 1048576.0).ToString("N1", System.Globalization.CultureInfo.InvariantCulture)) MB · @f.CreatedUtc.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC
+                <form asp-action="Restore" asp-route-code="@Model.Code" method="post" class="d-flex gap-2 mt-1" data-confirm="Replace the current data of @Model.Code with this backup?">
+                    <input type="hidden" name="file" value="@f.FileName" />
+                    <input class="form-control form-control-sm" name="confirm" placeholder="Type @Model.Code" autocomplete="off" aria-label="Type the company code to confirm" />
+                    <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap">Restore</button>
+                </form>
+            </li>
+        }
+    </ul>
+}
+<p class="lp-notice"><a asp-action="Index">Back to the companies</a></p>

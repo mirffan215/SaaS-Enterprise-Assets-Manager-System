@@ -60,6 +60,12 @@ public sealed class TenancyOptions
     /// </summary>
     public bool GlobalSignIn { get; set; }
 
+    /// <summary>
+    /// Folder for company backups (made by the operator page or Backup-SaaS.ps1). The SQL Server service must be able to write to it and the
+    /// application pool to list it. Empty: the instance's default backup folder (then the page can back up and restore, but not list files).
+    /// </summary>
+    public string? BackupFolder { get; set; }
+
     /// <summary>Code of the sandbox tenant.</summary>
     public const string DemoCode = "demo";
 

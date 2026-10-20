@@ -14,7 +14,7 @@ public sealed class TenantSelectViewModel
 
 public sealed record TenantRow(string Code, string Name, bool IsDemo, bool IsActive, DateTime CreatedUtc, string Url);
 
-/// <summary>The operator page: create a customer company (its own database) and list the existing ones.</summary>
+/// <summary>The operator page: sign in with the operator key, then create companies, list them and reach their backups.</summary>
 public sealed class TenantAdminViewModel
 {
     [DataType(DataType.Password)] [StringLength(200)] public string? OperatorKey { get; set; }
@@ -23,9 +23,24 @@ public sealed class TenantAdminViewModel
     [StringLength(256)] public string? AdminEmail { get; set; }
     [DataType(DataType.Password)] [StringLength(128)] public string? AdminPassword { get; set; }
 
+    public bool LoggedIn { get; set; }
     public string? Message { get; set; }
     public bool Succeeded { get; set; }
     public IReadOnlyList<TenantRow> Tenants { get; set; } = Array.Empty<TenantRow>();
+}
+
+public sealed record BackupRow(string FileName, long SizeBytes, DateTime CreatedUtc);
+
+/// <summary>Backups of one company (operator page).</summary>
+public sealed class TenantBackupsViewModel
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public IReadOnlyList<BackupRow> Files { get; set; } = Array.Empty<BackupRow>();
+    public string? Message { get; set; }
+    public bool Succeeded { get; set; }
+    /// <summary>True when the backup folder can be listed (otherwise files made earlier are not shown).</summary>
+    public bool CanList { get; set; } = true;
 }
 
 /// <summary>Company self-registration (Tenancy:AllowSelfRegistration).</summary>

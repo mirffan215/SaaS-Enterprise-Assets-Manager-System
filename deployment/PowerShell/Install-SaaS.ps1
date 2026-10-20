@@ -145,6 +145,19 @@ function Get-CertificateDnsNames($Certificate) {
     return $names.ToArray()
 }
 
+# Backup folder for company backups: the SQL Server service writes the backup files, the application pool may only list them.
+function Initialize-BackupFolder([string] $Folder, [string] $SqlServer, [string] $PoolIdentity) {
+    if (-not (Test-Path $Folder)) { New-Item -ItemType Directory -Path $Folder | Out-Null }
+    $parts = @($SqlServer -split '\\')
+    $local = $parts[0] -in @("localhost", ".", "(local)", $env:COMPUTERNAME)
+    if (-not $local) { Write-Warning "SQL Server is on another machine: give its service account write access to $Folder (a share both can reach) yourself."; return }
+    $serviceName = if ($parts.Count -gt 1) { 'MSSQL$' + $parts[1] } else { "MSSQLSERVER" }
+    $service = Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
+    if ($service -and $service.StartName) { & icacls $Folder /grant "$($service.StartName):(OI)(CI)M" /Q | Out-Null }
+    else { Write-Warning "Could not find the SQL Server service '$serviceName': give its account Modify rights on $Folder yourself." }
+    & icacls $Folder /grant "${PoolIdentity}:(CI)(RD,RA,REA)" /Q | Out-Null   # list the file names and sizes; never read the backups
+}
+
 # ---------------------------------------------------------------- 1. prerequisites
 Write-Step "Checking prerequisites"
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -272,6 +285,8 @@ Set-ItemProperty $poolPath -Name processModel.idleTimeout -Value ([TimeSpan]::Ze
 Set-ItemProperty $poolPath -Name startMode -Value "AlwaysRunning"
 Set-ItemProperty $poolPath -Name processModel.loadUserProfile -Value $true
 $poolIdentity = "IIS AppPool\$AppPoolName"
+$backupsPath = Join-Path $DataRoot "Backups"
+Initialize-BackupFolder $backupsPath $SqlServer $poolIdentity
 Invoke-Native "icacls" @($logsPath, "/grant", "${poolIdentity}:(OI)(CI)M", "/T", "/Q")
 Invoke-Native "icacls" @($keysPath, "/grant", "${poolIdentity}:(OI)(CI)M", "/T", "/Q")
 Invoke-Native "icacls" @($docsPath, "/grant", "${poolIdentity}:(OI)(CI)M", "/T", "/Q")
@@ -301,6 +316,7 @@ if (-not $Update -or -not (Test-Path $settingsFile)) {
         ServerConnectionString = $serverCs
         TenantConnectionTemplate = $template
         ScriptsPath = "SQLScripts"
+        BackupFolder = $backupsPath
         AppLogin = "IIS APPPOOL\$AppPoolName"
         MasterKeyPassword = $masterKeyPassword
         OperatorKey = $operatorKey

@@ -59,6 +59,7 @@ if ($RegisterTask) {
 }
 
 # ---------------------------------------------------------------- where the backups go
+if (-not $BackupRoot -and (Test-Path (Join-Path $DataRoot "Backups"))) { $BackupRoot = Join-Path $DataRoot "Backups" }   # the folder the operator page uses
 if (-not $BackupRoot) {
     $default = (Invoke-Sql "SELECT CAST(SERVERPROPERTY('InstanceDefaultBackupPath') AS NVARCHAR(400));") | Select-Object -First 1
     if (-not $default -or $default -eq "NULL") { throw "Give -BackupRoot: a folder the SQL Server service can write to." }

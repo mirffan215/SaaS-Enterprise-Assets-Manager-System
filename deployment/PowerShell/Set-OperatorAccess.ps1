@@ -22,6 +22,10 @@ param(
     [switch] $NewOperatorKey,
     [switch] $NewDemoPassword,
     [string] $DemoPassword,
+    # prepare the folder the operator page uses for company backups, and tell the site about it
+    [switch] $SetupBackups,
+    [string] $BackupFolder = "C:\EAMSCloud\Backups",
+    [string] $SqlServer = "localhost",
     [switch] $NoRestart
 )
 
@@ -33,6 +37,19 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 $file = Join-Path $SitePath "appsettings.Production.json"
 if (-not (Test-Path $file)) { throw "Settings file not found: $file. Install the site first (Install-SaaS.ps1) or pass -SitePath." }
+
+# Backup folder: the SQL Server service writes the backup files, the application pool may only list them.
+function Initialize-BackupFolder([string] $Folder, [string] $SqlServer, [string] $PoolIdentity) {
+    if (-not (Test-Path $Folder)) { New-Item -ItemType Directory -Path $Folder | Out-Null }
+    $parts = @($SqlServer -split '\\')
+    $local = $parts[0] -in @("localhost", ".", "(local)", $env:COMPUTERNAME)
+    if (-not $local) { Write-Warning "SQL Server is on another machine: give its service account write access to $Folder (a share both can reach) yourself."; return }
+    $serviceName = if ($parts.Count -gt 1) { 'MSSQL$' + $parts[1] } else { "MSSQLSERVER" }
+    $service = Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
+    if ($service -and $service.StartName) { & icacls $Folder /grant "$($service.StartName):(OI)(CI)M" /Q | Out-Null }
+    else { Write-Warning "Could not find the SQL Server service '$serviceName': give its account Modify rights on $Folder yourself." }
+    & icacls $Folder /grant "${PoolIdentity}:(CI)(RD,RA,REA)" /Q | Out-Null
+}
 
 function New-RandomText([int] $Length, [string] $Alphabet) {
     $chars = $Alphabet.ToCharArray()
@@ -89,6 +106,11 @@ if ($DemoPassword) {
     $shown["Demo administrator password (user: admin)"] = $pw
 }
 Set-Setting "DemoEnabled" $true
+if ($SetupBackups) {
+    Initialize-BackupFolder $BackupFolder $SqlServer "IIS AppPool\$AppPoolName"
+    Set-Setting "BackupFolder" $BackupFolder
+    $shown["Backup folder (set up)"] = $BackupFolder
+}
 
 [IO.File]::WriteAllText($file, ($json | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding($false)))
 & icacls $file /inheritance:r /grant:r "Administrators:F" "SYSTEM:F" "IIS AppPool\${AppPoolName}:R" | Out-Null
