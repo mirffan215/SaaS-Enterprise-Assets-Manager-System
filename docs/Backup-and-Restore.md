@@ -39,6 +39,12 @@ ALTER MASTER KEY ADD ENCRYPTION BY SERVICE MASTER KEY;
 
 Restore the `Keys` folder before starting the site, add the customer to `ITInv_Catalog.dbo.Tenants` if the catalog was lost (or restore the catalog backup), and re-run `Install-SaaS.ps1` on the new server for the site itself.
 
+## Back up and restore inside the workspace (Administration, Backup and restore)
+
+The workspace's **Platform Super Administrator** (the `admin` created with the company) sees **Administration, Backup and restore**: *Back up this workspace now*,
+and a list of backups with a **Restore** button each (type the workspace code to confirm; a safety backup is taken first; everyone signs in again afterwards).
+It covers the whole workspace: all its companies, users, assets and settings. Restore is disabled in the demo.
+
 ## Back up and restore from the operator page (buttons)
 
 Open `https://<host>[:port]/Tenant/Admin`, enter the operator key, then click **backups** next to a company:

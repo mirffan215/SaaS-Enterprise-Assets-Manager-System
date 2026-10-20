@@ -1,0 +1,55 @@
+@model TenantBackupsViewModel
+@{ ViewData["Title"] = "Backup and restore"; }
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Backup and restore</h1>
+        <p class="text-body-secondary mb-0">A full backup of this workspace (all its companies, users, assets, settings). Restoring brings everything back exactly as it was at the time of the backup.</p>
+    </div>
+</div>
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert @(Model.Succeeded ? "alert-success" : "alert-warning")" role="status">@Model.Message</div>
+}
+@if (!string.IsNullOrEmpty(Model.Code))
+{
+    <section class="panel mb-3">
+        <h2 class="panel-title">Back up now</h2>
+        <form asp-action="Create" method="post" data-confirm="Back up the workspace now? It can take a few minutes; keep this page open.">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-hdd" aria-hidden="true"></i> Back up this workspace now</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2 class="panel-title">Restore</h2>
+        @if (Model.Files.Count == 0)
+        {
+            <p class="text-body-secondary mb-0">@(Model.CanList ? "There are no backups yet." : "The list of backups is not available.")</p>
+        }
+        else
+        {
+            <p class="small">Restore replaces <strong>all current data</strong> of this workspace with the chosen backup. A backup of the current state is taken first. Everyone, including you, signs in again afterwards. Type the workspace code <strong>@Model.Code</strong> to confirm.</p>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Backup</th><th>Size</th><th>Made</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var f in Model.Files)
+                        {
+                            <tr>
+                                <td class="font-monospace small">@f.FileName</td>
+                                <td>@((f.SizeBytes / 1048576.0).ToString("N1", System.Globalization.CultureInfo.InvariantCulture)) MB</td>
+                                <td>@f.CreatedUtc.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC</td>
+                                <td>
+                                    <form asp-action="Restore" method="post" class="d-flex gap-2" data-confirm="Replace ALL current data of this workspace with this backup?">
+                                        <input type="hidden" name="file" value="@f.FileName" />
+                                        <input class="form-control form-control-sm" name="confirm" placeholder="Type @Model.Code" autocomplete="off" aria-label="Type the workspace code to confirm" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Restore</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
