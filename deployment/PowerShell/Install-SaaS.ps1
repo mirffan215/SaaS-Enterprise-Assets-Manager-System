@@ -339,6 +339,13 @@ if (-not $Update -or -not (Test-Path $settingsFile)) {
     $secretsToShow = @{ MasterKey = $masterKeyPassword; ProvisionerLogin = $ProvisionerLogin; OperatorKey = $operatorKey }
 }
 
+# The catalog may have gained tables since the first installation (the application's own login cannot create tables): bring it up to date every time. Idempotent.
+$catalogScript = Join-Path $repoRoot "deployment\SQLScripts\Catalog\C01_TenantCatalog.sql"
+if (Test-Path $catalogScript) {
+    Write-Step "Updating the catalog database ($CatalogDatabase)"
+    Invoke-Native "sqlcmd" @("-S", $SqlServer, "-E", "-b", "-I", "-C", "-d", $CatalogDatabase, "-i", $catalogScript)
+}
+
 # ---------------------------------------------------------------- 6. files (site offline meanwhile)
 Write-Step "Deploying files to $SitePath"
 $offline = Join-Path $SitePath "app_offline.htm"

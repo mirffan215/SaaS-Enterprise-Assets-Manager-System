@@ -65,3 +65,35 @@ Scripts `01`–`19` build a new company. Every later change is a numbered, repea
 ## Automated tests against a real SQL Server
 
 `tests/AMGH.ITInventory.UnitTests/SqlServerIntegrationTests.cs` runs the real scripts: provisioning, the demo estate, failed-run clean-up, backup/restore (also through the encrypted zip), test restore and migrations. Set `EAMS_TEST_SQL` (a login that may create databases) and `EAMS_TEST_BACKUPS` (a folder both the test and the server can write) to run them; otherwise they are skipped. `.github/workflows/ci.yml` runs them on every push against SQL Server 2022 in a container.
+
+## Platform console (operator page)
+
+`https://<host>/Tenant/Admin` (operator key) is a console for the person running the installation:
+
+- **Companies at a glance:** status, users (active / all), assets, database size, uploaded-document size, last sign-in, last backup (with ✓ for "passed its test restore" and ☁ for "copied off-site"), and a list of **open warnings** per company (suspended, database unreadable, changes pending, no / old / failed backup, off-site copy failed, no schedule, schedule overdue).
+- **Disk space** of the document, backup and off-site volumes; a volume under 15% (or 5 GB) free is shown in red.
+- **Suspend / Resume:** a suspended company cannot be reached by anyone (signed-in users are cut off on their next click and everybody sees "temporarily unavailable"); nothing is deleted. Use it for non-payment, an incident or maintenance.
+- **Upgrade all companies**, **create company / demo**, per-company **Backups**.
+- **Recent operator activity:** who did what (sign-in, create, suspend, resume, backup, restore, upgrade) with the time and address, kept in the catalog database (`dbo.TenantEvents`).
+
+The catalog gained a table for that log. `Install-SaaS.ps1 -Update` now applies `Catalog\C01_TenantCatalog.sql` every time (the application's own database login cannot create tables), so run it once after pulling.
+
+### Monitoring
+
+| Address | Answers | Use |
+|---|---|---|
+| `/health` | 200 / 503 | the site and the catalog are up |
+| `/health/backups` | 200 / 503 | every scheduled backup is recent, checked and its last run succeeded |
+| `/platform/metrics` | Prometheus text | `Authorization: Bearer <operator key>`; per-company database size, documents, users, assets, pending changes, backup age and check result, warnings, disk space |
+
+Prometheus example:
+
+```yaml
+scrape_configs:
+  - job_name: eams
+    scheme: https
+    authorization: { credentials: "<operator key>" }
+    static_configs: [{ targets: ["eams.example.com:8443"] }]
+```
+
+Useful alerts: `eams_company_last_backup_age_seconds > 129600`, `eams_company_last_backup_checked == 0`, `eams_company_schema_pending > 0`, `eams_company_warnings > 0`, `eams_disk_free_bytes < 5e9`.

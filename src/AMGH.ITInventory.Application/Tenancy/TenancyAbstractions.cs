@@ -119,6 +119,32 @@ public interface ITenantCatalog
     Task<TenantRecord> AddAsync(string code, string name, string connectionString, bool isDemo, CancellationToken cancellationToken = default);
 }
 
+/// <summary>One entry of the operator's activity log (who did what to which company).</summary>
+public sealed record TenantEvent(long Id, DateTime AtUtc, string? Code, string Action, string? Detail, string Actor);
+
+/// <summary>Operator actions on the catalog: suspend / resume a company and the log of what the operator did.</summary>
+public interface ITenantAdminStore
+{
+    /// <summary>Suspends (false) or resumes (true) a company; false when the code is unknown. A suspended company cannot be reached by anyone until resumed; its data is untouched.</summary>
+    Task<bool> SetActiveAsync(string code, bool active, CancellationToken cancellationToken = default);
+
+    /// <summary>True when the company exists but is suspended.</summary>
+    Task<bool> IsSuspendedAsync(string code, CancellationToken cancellationToken = default);
+
+    Task RecordEventAsync(string? code, string action, string? detail, string actor, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<TenantEvent>> RecentEventsAsync(int take, CancellationToken cancellationToken = default);
+}
+
+/// <summary>What one company uses (read with the provisioning login; does not touch company data).</summary>
+public sealed record TenantUsage(string Code, long DatabaseBytes, int Users, int ActiveUsers, int Assets, DateTime? LastSignInUtc, DateTime? LastChangeUtc, string? Problem);
+
+public interface ITenantUsageService
+{
+    /// <summary>Usage of every company; one that cannot be read carries a <see cref="TenantUsage.Problem"/>.</summary>
+    Task<IReadOnlyList<TenantUsage>> GetAsync(CancellationToken cancellationToken = default);
+}
+
 /// <summary>Hashes the first administrator's password in the application's own format, after the password policy.</summary>
 public interface ITenantAdminPasswordHasher
 {

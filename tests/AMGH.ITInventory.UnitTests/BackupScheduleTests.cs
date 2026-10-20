@@ -106,3 +106,53 @@ public class BackupOverdueAndBlobTests
     public async Task Unsafe_or_incomplete_blob_urls_are_refused(string url) =>
         await Assert.ThrowsAsync<InvalidOperationException>(() => AzureBlobUploader.UploadAsync(url, "x.zip", new MemoryStream(new byte[1]), new FakeBlobService(), default));
 }
+
+public class PlatformOverviewTests
+{
+    private static TenantRecord Tenant(bool demo = false, bool active = true) => new(1, "acme", "Acme", "Server=x;Database=ITInv_Tenant_acme", demo, active, DateTime.UtcNow);
+
+    [Fact]
+    public void A_healthy_company_has_no_warnings()
+    {
+        var schedule = new BackupSchedule { Mode = BackupSchedule.Daily, Time = "02:00", LastSuccessLocal = DateTime.Now, LastResult = "OK" };
+        var warnings = PlatformOverview.Warnings(Tenant(), new TenantUsage("acme", 1, 1, 1, 0, null, null, null), new TenantSchemaStatus("acme", "Acme", 1, 0, null),
+            schedule, DateTime.UtcNow.AddHours(-3), true, true, true);
+        Assert.Empty(warnings);
+    }
+
+    [Fact]
+    public void Problems_are_named()
+    {
+        var warnings = PlatformOverview.Warnings(Tenant(active: false), new TenantUsage("acme", 0, 0, 0, 0, null, null, "boom"), new TenantSchemaStatus("acme", "Acme", 0, 2, null),
+            new BackupSchedule(), null, null, null, backupsReadable: true);
+        Assert.Contains("Suspended", warnings);
+        Assert.Contains(warnings, w => w.StartsWith("Database unreadable", StringComparison.Ordinal));
+        Assert.Contains(warnings, w => w.Contains("2 database change", StringComparison.Ordinal));
+        Assert.Contains("No backup yet", warnings);
+        Assert.Contains("No backup schedule", warnings);
+    }
+
+    [Fact]
+    public void A_failed_check_and_a_failed_offsite_copy_are_warnings_and_the_demo_needs_no_backups()
+    {
+        var schedule = new BackupSchedule { Mode = BackupSchedule.Daily, Time = "02:00", LastSuccessLocal = DateTime.Now };
+        var bad = PlatformOverview.Warnings(Tenant(), null, null, schedule, DateTime.UtcNow, false, false, true);
+        Assert.Contains(bad, w => w.Contains("FAILED its test restore", StringComparison.Ordinal));
+        Assert.Contains(bad, w => w.Contains("off-site", StringComparison.Ordinal));
+        Assert.Empty(PlatformOverview.Warnings(Tenant(demo: true), null, null, new BackupSchedule(), null, null, null, true));
+    }
+
+    [Fact]
+    public void Metrics_use_the_prometheus_text_format_and_escape_labels()
+    {
+        var company = new CompanyOverview(Tenant(), new TenantUsage("acme", 1000, 5, 4, 12, null, null, null), new TenantSchemaStatus("acme", "Acme", 1, 0, null), 500, "Daily", null,
+            DateTime.UtcNow.AddSeconds(-90), true, null, true, new[] { "x" });
+        var text = PlatformMetricsController.Render(new PlatformSnapshot(DateTime.UtcNow, new[] { company }, new[] { new DiskOverview("Backups", "/b", 10, 100) }));
+        Assert.Contains("eams_companies 1\n", text);
+        Assert.Contains("eams_company_database_bytes{company=\"acme\"} 1000\n", text);
+        Assert.Contains("eams_company_last_backup_checked{company=\"acme\"} 1\n", text);
+        Assert.Contains("eams_company_warnings{company=\"acme\"} 1\n", text);
+        Assert.Contains("eams_disk_free_bytes{volume=\"Backups\"} 10\n", text);
+        Assert.Equal("a\\\"b\\\\c", PlatformMetricsController.Escape("a\"b\\c"));
+    }
+}

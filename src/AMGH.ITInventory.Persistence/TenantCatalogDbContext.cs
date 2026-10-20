@@ -14,6 +14,17 @@ public sealed class Tenant
     public DateTime CreatedAtUtc { get; set; }
 }
 
+/// <summary>One line of the operator's activity log.</summary>
+public sealed class TenantEventRow
+{
+    public long Id { get; set; }
+    public DateTime AtUtc { get; set; }
+    public string? Code { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string? Detail { get; set; }
+    public string Actor { get; set; } = string.Empty;
+}
+
 /// <summary>
 /// The central tenant catalog: one small database that lists every customer and where its own database is.
 /// It never holds customer data. Schema: deployment/SQLScripts/Catalog/C01_TenantCatalog.sql.
@@ -23,6 +34,7 @@ public sealed class TenantCatalogDbContext : DbContext
     public TenantCatalogDbContext(DbContextOptions<TenantCatalogDbContext> options) : base(options) { }
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantEventRow> Events => Set<TenantEventRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,6 +49,16 @@ public sealed class TenantCatalogDbContext : DbContext
             e.Property(t => t.ConnectionString).HasMaxLength(2000).IsRequired();
             e.Property(t => t.CreatedAtUtc).HasColumnType("datetime2(3)");
             e.HasIndex(t => t.Code).IsUnique();
+        });
+        modelBuilder.Entity<TenantEventRow>(e =>
+        {
+            e.ToTable("TenantEvents");
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Code).HasMaxLength(10);
+            e.Property(t => t.Action).HasMaxLength(60).IsRequired();
+            e.Property(t => t.Detail).HasMaxLength(1000);
+            e.Property(t => t.Actor).HasMaxLength(100).IsRequired();
+            e.Property(t => t.AtUtc).HasColumnType("datetime2(3)");
         });
     }
 }

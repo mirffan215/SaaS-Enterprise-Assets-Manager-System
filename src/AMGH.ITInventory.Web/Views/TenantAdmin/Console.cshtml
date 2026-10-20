@@ -1,0 +1,152 @@
+@using System.Globalization
+@model TenantAdminViewModel
+@{
+    ViewData["Title"] = "Platform console";
+    Layout = "_PlatformLayout";
+    var snapshot = Model.Snapshot;
+    string Size(long bytes) => bytes >= 1073741824 ? (bytes / 1073741824.0).ToString("N1", CultureInfo.InvariantCulture) + " GB" : (bytes / 1048576.0).ToString("N0", CultureInfo.InvariantCulture) + " MB";
+    string Ago(DateTime? utc)
+    {
+        if (utc is null) return "never";
+        var span = DateTime.UtcNow - utc.Value;
+        return span.TotalMinutes < 2 ? "just now" : span.TotalHours < 1 ? (int)span.TotalMinutes + " min ago" : span.TotalDays < 1 ? (int)span.TotalHours + " h ago" : (int)span.TotalDays + " d ago";
+    }
+    var warned = snapshot?.Companies.Count(c => c.Warnings.Count > 0) ?? 0;
+}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h1 class="h3 mb-0"><i class="bi bi-hdd-network" aria-hidden="true"></i> Platform console</h1>
+        <div class="small text-body-secondary">@(snapshot?.Companies.Count ?? 0) companies · @(warned == 0 ? "no open warnings" : warned + " with warnings") · refreshed @snapshot?.AtUtc.ToString("HH:mm:ss", CultureInfo.InvariantCulture) UTC</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</a>
+        <form asp-action="Upgrade" method="post" data-confirm="Upgrade every company database now? A backup is made first for each company that changes."><button type="submit" class="btn btn-outline-secondary btn-sm">Upgrade all companies</button></form>
+        <form asp-action="Logout" method="post"><button type="submit" class="btn btn-outline-dark btn-sm">Close the console</button></form>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert @(Model.Succeeded ? "alert-success" : "alert-danger") py-2" role="status">@Model.Message</div>
+}
+
+@if (snapshot is not null && snapshot.Disks.Count > 0)
+{
+    <div class="row g-2 mb-3">
+        @foreach (var d in snapshot.Disks)
+        {
+            <div class="col-md-4">
+                <div class="card h-100 @(d.Low ? "border-danger" : "")">
+                    <div class="card-body py-2">
+                        <div class="small text-body-secondary">@d.Label disk</div>
+                        <div class="fw-semibold @(d.Low ? "text-danger" : "")">@Size(d.FreeBytes) free <span class="small fw-normal">(@d.FreePercent.ToString("N0", CultureInfo.InvariantCulture)%)</span></div>
+                        <div class="small text-body-secondary text-truncate" title="@d.Path">@d.Path</div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<div class="card mb-3">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr><th>Company</th><th>Status</th><th class="text-end">Users</th><th class="text-end">Assets</th><th class="text-end">Database</th><th class="text-end">Documents</th><th>Last sign-in</th><th>Last backup</th><th>Warnings</th><th></th></tr>
+            </thead>
+            <tbody>
+                @if (snapshot is null || snapshot.Companies.Count == 0)
+                {
+                    <tr><td colspan="10" class="text-body-secondary">No companies yet. Create the first one below.</td></tr>
+                }
+                else
+                {
+                    foreach (var c in snapshot.Companies)
+                    {
+                        var t = c.Tenant;
+                        <tr class="@(t.IsActive ? "" : "table-secondary")">
+                            <td><strong>@t.Code</strong>@(t.IsDemo ? " (demo)" : "")<div class="small text-body-secondary">@t.Name</div></td>
+                            <td>@if (t.IsActive) { <span class="badge text-bg-success">Active</span> } else { <span class="badge text-bg-secondary">Suspended</span> }</td>
+                            <td class="text-end">@(c.Usage?.ActiveUsers.ToString(CultureInfo.InvariantCulture) ?? "?")<span class="small text-body-secondary"> / @(c.Usage?.Users.ToString(CultureInfo.InvariantCulture) ?? "?")</span></td>
+                            <td class="text-end">@(c.Usage?.Assets.ToString("N0", CultureInfo.InvariantCulture) ?? "?")</td>
+                            <td class="text-end">@Size(c.Usage?.DatabaseBytes ?? 0)</td>
+                            <td class="text-end">@Size(c.DocumentBytes)</td>
+                            <td>@Ago(c.Usage?.LastSignInUtc)</td>
+                            <td>
+                                @if (t.IsDemo) { <span class="text-body-secondary">—</span> }
+                                else
+                                {
+                                    @Ago(c.LastBackupUtc)
+                                    @if (c.LastBackupChecked == true) { <i class="bi bi-check-circle text-success" title="passed its test restore" aria-label="checked"></i> }
+                                    @if (c.LastOffsiteOk == true) { <i class="bi bi-cloud-check text-success" title="copied off-site" aria-label="off-site"></i> }
+                                    <div class="small text-body-secondary">@(c.ScheduleMode == "Off" ? "no schedule" : c.ScheduleMode.ToLowerInvariant())</div>
+                                }
+                            </td>
+                            <td class="small">
+                                @if (c.Warnings.Count == 0) { <span class="text-success"><i class="bi bi-check-lg" aria-hidden="true"></i> none</span> }
+                                else { <ul class="list-unstyled mb-0 text-danger">@foreach (var w in c.Warnings) { <li>@w</li> }</ul> }
+                            </td>
+                            <td class="text-nowrap text-end">
+                                <a href="@Model.Tenants.First(r => r.Code == t.Code).Url" class="btn btn-sm btn-outline-primary">Open</a>
+                                <a asp-action="Backups" asp-route-code="@t.Code" class="btn btn-sm btn-outline-secondary">Backups</a>
+                                @if (t.IsActive)
+                                {
+                                    <form asp-action="Suspend" asp-route-code="@t.Code" method="post" class="d-inline" data-confirm="Suspend @t.Code? Nobody can use it until you resume it. Nothing is deleted."><button type="submit" class="btn btn-sm btn-outline-danger">Suspend</button></form>
+                                }
+                                else
+                                {
+                                    <form asp-action="Resume" asp-route-code="@t.Code" method="post" class="d-inline"><button type="submit" class="btn btn-sm btn-outline-success">Resume</button></form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Create a company</div>
+            <div class="card-body">
+                <form asp-action="Create" method="post" novalidate class="d-grid gap-2" data-confirm="Create this company now? It takes a minute or two; keep this page open.">
+                    <input asp-for="Code" class="form-control" placeholder="Company code (2-10 letters or digits)" maxlength="10" autocomplete="off" />
+                    <input asp-for="Name" class="form-control" placeholder="Company name" maxlength="100" autocomplete="off" />
+                    <input asp-for="AdminEmail" class="form-control" placeholder="Administrator e-mail" autocomplete="off" />
+                    <input asp-for="AdminPassword" type="password" class="form-control" placeholder="Administrator password (12+ characters)" autocomplete="new-password" />
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Create company</button>
+                        <button type="submit" asp-action="CreateDemo" formnovalidate class="btn btn-outline-secondary" onclick="this.form.removeAttribute('data-confirm')">Create demo company now</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Recent operator activity</div>
+            <div class="card-body small">
+                @if (Model.EventsUnavailable)
+                {
+                    <p class="text-danger mb-0">The activity log needs a catalog update: run <code>Install-SaaS.ps1 -Update</code>.</p>
+                }
+                else if (Model.Events.Count == 0)
+                {
+                    <p class="text-body-secondary mb-0">Nothing recorded yet.</p>
+                }
+                else
+                {
+                    <ul class="list-unstyled mb-0">
+                        @foreach (var e in Model.Events)
+                        {
+                            <li class="mb-1"><span class="text-body-secondary">@e.AtUtc.ToString("MM-dd HH:mm", CultureInfo.InvariantCulture)</span> · <strong>@e.Action</strong>@(e.Code is null ? "" : " · " + e.Code)@(string.IsNullOrEmpty(e.Detail) ? "" : " · " + e.Detail)</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+<p class="small text-body-secondary mt-3">Monitoring: <code>/platform/metrics</code> (Prometheus format, operator key as Bearer token) and <code>/health/backups</code>.</p>

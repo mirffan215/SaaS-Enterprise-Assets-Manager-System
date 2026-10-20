@@ -26,7 +26,17 @@ BEGIN
         CONSTRAINT CK_Tenants_Code CHECK (Code NOT LIKE N'%[^a-z0-9]%' AND LEN(Code) BETWEEN 2 AND 10)
     );
     CREATE UNIQUE NONCLUSTERED INDEX UX_Tenants_Code ON dbo.Tenants (Code);
-END", cancellationToken);
+END
+IF OBJECT_ID(N'dbo.TenantEvents', N'U') IS NULL
+    CREATE TABLE dbo.TenantEvents
+    (
+        Id     BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TenantEvents PRIMARY KEY CLUSTERED,
+        AtUtc  DATETIME2(3)   NOT NULL CONSTRAINT DF_TenantEvents_AtUtc DEFAULT (SYSUTCDATETIME()),
+        Code   NVARCHAR(10)   NULL,
+        Action NVARCHAR(60)   NOT NULL,
+        Detail NVARCHAR(1000) NULL,
+        Actor  NVARCHAR(100)  NOT NULL
+    );", cancellationToken);
 #pragma warning restore EF1002
     }
 }

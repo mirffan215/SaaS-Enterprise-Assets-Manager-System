@@ -27,7 +27,9 @@ public sealed class TenantAdminViewModel
     public string? Message { get; set; }
     public bool Succeeded { get; set; }
     public IReadOnlyList<TenantRow> Tenants { get; set; } = Array.Empty<TenantRow>();
-    public IReadOnlyList<AMGH.ITInventory.Application.Tenancy.TenantSchemaStatus> Schema { get; set; } = Array.Empty<AMGH.ITInventory.Application.Tenancy.TenantSchemaStatus>();
+    public AMGH.ITInventory.Web.Infrastructure.PlatformSnapshot? Snapshot { get; set; }
+    public IReadOnlyList<AMGH.ITInventory.Application.Tenancy.TenantEvent> Events { get; set; } = Array.Empty<AMGH.ITInventory.Application.Tenancy.TenantEvent>();
+    public bool EventsUnavailable { get; set; }
 }
 
 public sealed record BackupRow(string FileName, long SizeBytes, DateTime CreatedUtc, DateTime? VerifiedUtc = null, bool VerifyOk = false, string? VerifyNote = null,

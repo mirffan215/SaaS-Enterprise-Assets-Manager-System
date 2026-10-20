@@ -329,4 +329,22 @@ public class SqlServerIntegrationTests
         }
         finally { await DropAsync(o, code); }
     }
+
+    [SqlServerFact]
+    public async Task Usage_reports_size_users_and_assets_of_each_company()
+    {
+        var o = Options();
+        var code = NewCode();
+        var catalog = new MemoryCatalog();
+        try
+        {
+            Assert.True((await Provisioner(o, catalog).ProvisionTenantAsync(code, "Usage Test", "a@b.test", "Correct-Horse-9", includeErrorDetail: true)).IsSuccess);
+            var usage = (await new TenantUsageService(catalog, Microsoft.Extensions.Options.Options.Create(o)).GetAsync()).Single();
+            Assert.Null(usage.Problem);
+            Assert.True(usage.DatabaseBytes > 1_000_000);
+            Assert.Equal(1, usage.Users);
+            Assert.Equal(0, usage.Assets);
+        }
+        finally { await DropAsync(o, code); }
+    }
 }

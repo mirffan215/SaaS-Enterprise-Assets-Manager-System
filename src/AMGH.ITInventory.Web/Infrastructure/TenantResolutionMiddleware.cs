@@ -18,7 +18,7 @@ internal sealed class TenantResolutionMiddleware
     public const string QueryName = "tenant";
     internal const string TenantCookie = "EAMS.Tenant";
 
-    private static readonly string[] PublicPaths = { "/health", "/tenant", "/account/login", "/account/exploredemo", "/register", "/branding/default-logo.svg", "/favicon" };
+    private static readonly string[] PublicPaths = { "/health", "/platform", "/tenant", "/account/login", "/account/exploredemo", "/register", "/branding/default-logo.svg", "/favicon" };
 
     private readonly RequestDelegate _next;
     private readonly TenancyOptions _options;
@@ -43,6 +43,17 @@ internal sealed class TenantResolutionMiddleware
         var tenant = await catalog.FindActiveAsync(code, context.RequestAborted);
         if (tenant is null || accessor is not TenantAccessor settable)
         {
+            if (tenant is null && context.RequestServices?.GetService<ITenantAdminStore>() is { } admin && await admin.IsSuspendedAsync(code, context.RequestAborted))
+            {
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                context.Response.Headers.CacheControl = "no-store";
+                context.Response.Headers.RetryAfter = "3600";
+                context.Response.ContentType = "text/html; charset=utf-8";
+                await context.Response.WriteAsync("<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><title>Unavailable</title>" +
+                    "<body style=\"font-family:system-ui,sans-serif;max-width:34rem;margin:15vh auto;padding:0 1rem\"><h1>This company is temporarily unavailable</h1>" +
+                    "<p>Access has been suspended. Nothing has been deleted. Please contact the administrator of your service.</p></body>", context.RequestAborted);
+                return;
+            }
             if (HttpMethods.IsGet(context.Request.Method) && context.Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase))
             {
                 // forget a stale remembered company, then let the person choose again

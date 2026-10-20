@@ -73,7 +73,9 @@ public static class DependencyInjection
         var catalogConnection = configuration.GetConnectionString("TenantCatalog")
             ?? throw new InvalidOperationException("Tenancy is enabled but connection string 'TenantCatalog' is not configured.");
         services.AddDbContext<TenantCatalogDbContext>(o => o.UseSqlServer(catalogConnection, sql => sql.CommandTimeout(30)));
-        services.AddScoped<Application.Tenancy.ITenantCatalog, Tenancy.TenantCatalog>();
+        services.AddScoped<Tenancy.TenantCatalog>();
+        services.AddScoped<Application.Tenancy.ITenantCatalog>(sp => sp.GetRequiredService<Tenancy.TenantCatalog>());
+        services.AddScoped<Application.Tenancy.ITenantAdminStore>(sp => sp.GetRequiredService<Tenancy.TenantCatalog>());
         return services;
     }
 }

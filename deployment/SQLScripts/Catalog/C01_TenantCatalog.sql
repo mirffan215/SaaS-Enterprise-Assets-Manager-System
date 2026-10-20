@@ -23,3 +23,16 @@ BEGIN
     PRINT 'Created dbo.Tenants';
 END
 GO
+
+GO
+IF OBJECT_ID(N'dbo.TenantEvents', N'U') IS NULL
+    CREATE TABLE dbo.TenantEvents
+    (
+        Id     BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_TenantEvents PRIMARY KEY CLUSTERED,
+        AtUtc  DATETIME2(3)   NOT NULL CONSTRAINT DF_TenantEvents_AtUtc DEFAULT (SYSUTCDATETIME()),
+        Code   NVARCHAR(10)   NULL,
+        Action NVARCHAR(60)   NOT NULL,
+        Detail NVARCHAR(1000) NULL,
+        Actor  NVARCHAR(100)  NOT NULL
+    );
+GO
