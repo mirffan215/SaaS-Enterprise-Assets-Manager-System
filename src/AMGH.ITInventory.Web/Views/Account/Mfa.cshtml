@@ -1,0 +1,21 @@
+@model MfaViewModel
+@{
+    ViewData["Title"] = "Two-step verification";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">Two-step verification</h1>
+    <p class="lp-tagline">Enter the 6-digit code from your authenticator app</p>
+</header>
+
+<form asp-action="Mfa" method="post" novalidate class="lp-form">
+    <div class="lp-field">
+        <label asp-for="Code" class="visually-hidden"></label>
+        <i class="bi bi-shield-lock" aria-hidden="true"></i>
+        <input asp-for="Code" class="form-control" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" autofocus maxlength="20" />
+    </div>
+    <span asp-validation-for="Code" class="invalid-feedback d-block"></span>
+    <button type="submit" class="lp-submit">Verify <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+</form>
+<p class="lp-notice">Lost your phone? Enter one of your recovery codes instead (like <span class="font-monospace">ABCDE-23456</span>), or ask your administrator to reset two-step verification.<br /><a asp-action="Login">Back to sign-in</a></p>

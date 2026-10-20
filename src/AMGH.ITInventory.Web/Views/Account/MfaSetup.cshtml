@@ -1,0 +1,35 @@
+@model MfaSetupViewModel
+@{
+    ViewData["Title"] = "Set up two-step verification";
+}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7">
+        <h1 class="page-title">Set up two-step verification</h1>
+        @if (Model.Forced)
+        {
+            <div class="alert alert-warning" role="alert">Your company requires two-step verification. Set it up to continue.</div>
+        }
+        <ol class="mb-4">
+            <li>Install an authenticator app on your phone (Microsoft Authenticator, Google Authenticator, Authy, 1Password…).</li>
+            <li>In the app choose <em>Add account</em> and scan this code.</li>
+            <li>Enter the 6 digits the app shows, below.</li>
+        </ol>
+        <div class="row g-4 align-items-center">
+            <div class="col-md-5">
+                <div class="border rounded p-2 bg-white text-center" role="img" aria-label="QR code for your authenticator app" style="max-width:16rem">@Html.Raw(Model.QrSvg)</div>
+            </div>
+            <div class="col-md-7">
+                <p class="small mb-1">Cannot scan? Enter this key in the app (type: time-based):</p>
+                <p class="font-monospace fs-5 mb-3">@Model.Secret</p>
+                <form asp-action="MfaSetup" method="post" novalidate>
+                    <label for="Code" class="form-label">6-digit code from the app</label>
+                    <input id="Code" name="Code" class="form-control mb-2" inputmode="numeric" autocomplete="one-time-code" maxlength="20" autofocus />
+                    <span asp-validation-for="Code" class="invalid-feedback d-block"></span>
+                    @Html.ValidationMessage("Code", new { @class = "text-danger d-block mb-2" })
+                    <button type="submit" class="btn btn-primary">Turn on two-step verification</button>
+                    @if (!Model.Forced) { <a asp-action="Security" class="btn btn-link">Cancel</a> }
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

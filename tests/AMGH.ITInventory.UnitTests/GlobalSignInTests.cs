@@ -26,6 +26,8 @@ public class GlobalSignInTests
                 return Task.FromResult(SignInOutcome.Success(new AuthenticatedUser(1, "bob", "Bob", Guid.NewGuid(), false, Array.Empty<string>(), Array.Empty<string>(), 1, code.ToUpperInvariant(), code, false)));
             return Task.FromResult(SignInOutcome.Fail("nope"));
         }
+        public Task<SignInOutcome> SignInExternalAsync(string email, string companyCode, string? ipAddress, string? userAgent, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<AuthenticatedUser?> CreateSessionAsync(int userId, int companyId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Result<AuthenticatedUser>> ChangePasswordAsync(int userId, int companyId, string currentPassword, string newPassword, string? ipAddress, string? userAgent, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> ValidateSecurityStampAsync(int userId, int companyId, Guid securityStamp, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task LogEventAsync(int? userId, int? companyId, string username, LoginEventType eventType, string? ipAddress, string? userAgent, string? details = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();

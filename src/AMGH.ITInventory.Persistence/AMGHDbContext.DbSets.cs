@@ -54,6 +54,7 @@ public sealed partial class AMGHDbContext
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     /// <summary>dbo.tblUserPasswordHistory</summary>
     public DbSet<UserPasswordHistory> UserPasswordHistories => Set<UserPasswordHistory>();
+    public DbSet<UserRecoveryCode> UserRecoveryCodes => Set<UserRecoveryCode>();
     /// <summary>dbo.tblLoginAudit</summary>
     public DbSet<LoginAudit> LoginAudits => Set<LoginAudit>();
     /// <summary>dbo.tblAuditLog</summary>

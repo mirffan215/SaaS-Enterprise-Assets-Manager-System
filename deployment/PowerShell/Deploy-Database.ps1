@@ -145,6 +145,11 @@ try {
         if (-not (Test-Path $path)) { throw "Missing script: $path" }
         Invoke-SqlScript -File $path -Variables $vars
     }
+    # later changes (numbered, safe to run twice): see SQLScripts\Migrations\README.md
+    $migrationDir = Join-Path $scriptDir "Migrations"
+    if (Test-Path $migrationDir) {
+        foreach ($m in (Get-ChildItem $migrationDir -Filter "????_*.sql" | Sort-Object Name)) { Invoke-SqlScript -File $m.FullName -Variables $vars }
+    }
     Write-Log "Deployment completed successfully."
     Write-Log "NEXT: back up the encryption certificate - see docs\Deployment.md 'Encryption key backup'." "WARN"
 }

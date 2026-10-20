@@ -35,6 +35,10 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(e => e.PasswordChangedDate).HasColumnType("datetime2(3)");
         builder.Property(e => e.LastLoginDate).HasColumnType("datetime2(3)");
         builder.Property(e => e.LastLoginIp).HasColumnType("nvarchar(45)").HasMaxLength(45);
+        builder.Property(e => e.TotpSecret).HasColumnType("nvarchar(400)").HasMaxLength(400);
+        builder.Property(e => e.TotpEnabledDate).HasColumnType("datetime2(3)");
+        builder.Property(e => e.TotpLastStep).HasColumnType("bigint");
+        builder.Ignore(e => e.HasTwoStep);
 
         builder.HasOne(e => e.Employee).WithMany()
             .HasForeignKey(e => e.EmployeeId)

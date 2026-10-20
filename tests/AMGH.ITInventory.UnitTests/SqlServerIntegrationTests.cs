@@ -52,11 +52,16 @@ public class SqlServerIntegrationTests
         return Path.Combine(dir?.FullName ?? throw new DirectoryNotFoundException("repository root"), relative);
     }
 
-    private static TenancyOptions Options()
+    private static TenancyOptions Options(bool realMigrations = false)
     {
         var scripts = Path.Combine(Path.GetTempPath(), "eams-scripts-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(scripts, "Demo"));
         foreach (var f in Directory.GetFiles(RepoFile("deployment/SQLScripts"), "*.sql")) File.Copy(f, Path.Combine(scripts, Path.GetFileName(f)));
+        if (realMigrations)
+        {
+            Directory.CreateDirectory(Path.Combine(scripts, "Migrations"));
+            foreach (var f in Directory.GetFiles(RepoFile("deployment/SQLScripts/Migrations"), "*.sql")) File.Copy(f, Path.Combine(scripts, "Migrations", Path.GetFileName(f)));
+        }
         File.Copy(RepoFile("deployment/LoadTest/Generate-DemoData.sql"), Path.Combine(scripts, "Demo", "Generate-DemoData.sql"));
         return new TenancyOptions
         {
@@ -344,6 +349,33 @@ public class SqlServerIntegrationTests
             Assert.True(usage.DatabaseBytes > 1_000_000);
             Assert.Equal(1, usage.Users);
             Assert.Equal(0, usage.Assets);
+        }
+        finally { await DropAsync(o, code); }
+    }
+
+    [SqlServerFact]
+    public async Task The_shipped_migrations_run_on_a_new_company_and_twice_without_harm()
+    {
+        var o = Options(realMigrations: true);
+        var code = NewCode();
+        var catalog = new MemoryCatalog();
+        try
+        {
+            Assert.True((await Provisioner(o, catalog).ProvisionTenantAsync(code, "Migrated", "a@b.test", "Correct-Horse-9", includeErrorDetail: true)).IsSuccess);
+            var db = TenantProvisioningService.DatabasePrefix + code;
+            Assert.Equal(1, await ScalarAsync<int>(db, "SELECT COUNT(*) FROM sys.tables WHERE name = 'tblUserRecoveryCode'", o));
+            Assert.Equal(3, await ScalarAsync<int>(db, "SELECT COUNT(*) FROM sys.columns WHERE name IN ('TotpSecret','MfaPolicy','SsoClientSecret')", o));
+            // the sign-in history accepts the new event types
+            await ScalarAsync<int>(db, "INSERT dbo.tblLoginAudit (UsernameAttempted, EventType, CompanyId) VALUES (N'x', N'SsoSignIn', 1); SELECT 1", o);
+
+            // running the script a second time changes nothing and does not fail
+            var backups = new TenantBackupService(Microsoft.Extensions.Options.Options.Create(o), NullLogger<TenantBackupService>.Instance, new AesZipFile());
+            var service = new TenantMigrationService(catalog, backups, Microsoft.Extensions.Options.Options.Create(o), NullLogger<TenantMigrationService>.Instance);
+            Assert.True((await service.StatusAsync()).Single().UpToDate);
+            var sql = await File.ReadAllTextAsync(Path.Combine(o.ScriptsPath, "Migrations", "0001_Security.sql"));
+            await using var c = new SqlConnection(new SqlConnectionStringBuilder(o.ServerConnectionString) { InitialCatalog = db }.ConnectionString);
+            await c.OpenAsync();
+            await SqlScriptRunner.RunAsync(c, sql, new Dictionary<string, string> { ["DatabaseName"] = db }, default);
         }
         finally { await DropAsync(o, code); }
     }

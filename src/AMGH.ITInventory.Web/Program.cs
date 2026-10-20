@@ -43,6 +43,8 @@ try
     builder.Services.Configure<TagOptions>(builder.Configuration.GetSection(TagOptions.SectionName));
     builder.Services.AddScoped<INavigation, Navigation>();
     builder.Services.AddSingleton<TenantSignInService>();
+    builder.Services.AddSingleton<SignInGate>();
+    builder.Services.AddSingleton<MfaPending>();
     builder.Services.AddSingleton<OperatorSession>();
     builder.Services.AddSingleton<BackupScheduleStore>();
     builder.Services.AddSingleton<ILogoFetcher, LogoFetcher>();
@@ -123,7 +125,6 @@ try
     if (tenancySettings.Enabled && tenancySettings.DemoEnabled) builder.Services.AddHostedService<DemoTenantSeeder>();
     if (tenancySettings.Enabled) builder.Services.AddScoped<PlatformOverview>();
     if (tenancySettings.Enabled) builder.Services.AddHostedService<BackupScheduler>();
-    if (tenancySettings.Enabled && tenancySettings.AutoUpgrade) builder.Services.AddHostedService<TenantUpgradeService>();
     var app = builder.Build();
 
     if (!app.Environment.IsDevelopment())
@@ -153,10 +154,22 @@ try
         using var scope = app.Services.CreateScope();
         try { await TenantCatalogInitializer.EnsureAsync(scope.ServiceProvider.GetRequiredService<TenantCatalogDbContext>()); }
         catch (Exception ex) { Log.Error(ex, "The tenant catalog could not be initialised"); }
+        // company databases are brought up to this version BEFORE the site takes requests: the program reads columns that newer versions add
+        if (tenancy.AutoUpgrade)
+        {
+            try
+            {
+                foreach (var s in (await scope.ServiceProvider.GetRequiredService<ITenantMigrationService>().UpgradeAllAsync()).Where(s => !s.UpToDate))
+                    Log.Error("Company {Code} is not up to date: {Reason}", s.Code, s.Problem ?? s.Pending + " change(s) pending");
+            }
+            catch (Exception ex) { Log.Error(ex, "The start-up upgrade of the company databases failed"); }
+        }
         app.UseMiddleware<TenantResolutionMiddleware>();
     }
     app.UseAuthentication();
     app.UseMiddleware<ForcePasswordChangeMiddleware>();
+    app.UseMiddleware<IpAllowListMiddleware>();
+    app.UseMiddleware<ForceMfaSetupMiddleware>();
     app.UseAuthorization();
 
     app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = r => !r.Tags.Contains("backups") }).AllowAnonymous();

@@ -22,10 +22,17 @@ public class User : AuditableEntity
     public DateTime? PasswordChangedDate { get; set; }
     public DateTime? LastLoginDate { get; set; }
     public string? LastLoginIp { get; set; }
+    /// <summary>Authenticator-app secret, protected by the application; null when two-step verification is off.</summary>
+    public string? TotpSecret { get; set; }
+    public DateTime? TotpEnabledDate { get; set; }
+    /// <summary>Last accepted 30-second time step (a code can be used once).</summary>
+    public long? TotpLastStep { get; set; }
+    public bool HasTwoStep => TotpSecret is not null && TotpEnabledDate is not null;
 
     public virtual Employee? Employee { get; set; }
 
     public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     public virtual ICollection<UserPasswordHistory> PasswordHistory { get; set; } = new List<UserPasswordHistory>();
+    public virtual ICollection<UserRecoveryCode> RecoveryCodes { get; set; } = new List<UserRecoveryCode>();
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }

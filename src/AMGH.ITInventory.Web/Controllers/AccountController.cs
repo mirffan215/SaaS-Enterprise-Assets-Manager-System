@@ -1,7 +1,9 @@
 using AMGH.ITInventory.Application.Tenancy;
 using AMGH.ITInventory.Domain.Enums;
 using AMGH.ITInventory.Security.Accounts;
+using AMGH.ITInventory.Application.Abstractions.QrCodes;
 using AMGH.ITInventory.Security.Claims;
+using AMGH.ITInventory.Security.Mfa;
 using AMGH.ITInventory.Security.Platform;
 using AMGH.ITInventory.Shared.Abstractions;
 using AMGH.ITInventory.Web.Infrastructure;
@@ -36,10 +38,21 @@ public sealed class AccountController : Controller
     private readonly ITenantAccessor _tenants;
     private readonly TenancyOptions _tenancy;
     private readonly TenantSignInService _globalSignIn;
+    private readonly IMfaService _mfa;
+    private readonly SignInGate _gate;
+    private readonly MfaPending _pending;
+    private readonly IQrCodeGenerator _qr;
+    private readonly ICompanySecurityService _security;
 
     public AccountController(IAccountService accounts, IDateTimeProvider clock, ILogger<AccountController> logger, ICompanyDirectory directory,
-        ITenantAccessor tenants, IOptions<TenancyOptions> tenancy, TenantSignInService globalSignIn)
+        ITenantAccessor tenants, IOptions<TenancyOptions> tenancy, TenantSignInService globalSignIn, IMfaService mfa, SignInGate gate, MfaPending pending,
+        IQrCodeGenerator qr, ICompanySecurityService security)
     {
+        _mfa = mfa;
+        _gate = gate;
+        _pending = pending;
+        _qr = qr;
+        _security = security;
         _globalSignIn = globalSignIn;
         _tenants = tenants;
         _tenancy = tenancy.Value;
@@ -198,28 +211,76 @@ public sealed class AccountController : Controller
             return View(model);
         }
 
-        await IssueCookieAsync(outcome.User!);
+        return await ContinueSignInAsync(outcome.User!, _tenants.CurrentTenant, null, model.Username, model.RememberMe, model.ReturnUrl, model, cancellationToken);
+    }
+
+    /// <summary>
+    /// After a correct password: the company's address list, then the second step (code) or its setup when the company requires it, then the session.
+    /// <paramref name="tenantCookieFor"/> is set for the "no company chosen" sign-in, which remembers the company it found.
+    /// </summary>
+    private async Task<IActionResult> ContinueSignInAsync(AuthenticatedUser user, TenantInfo? tenant, TenantInfo? tenantCookieFor, string typedUsername, bool remember,
+        string? returnUrl, LoginViewModel model, CancellationToken ct)
+    {
+        var gate = await _gate.EvaluateAsync(tenant ?? tenantCookieFor, user, ClientIp, viaSso: false, ct);
+        if (gate == GateResult.IpDenied)
+        {
+            await LogInTenantAsync(tenant ?? tenantCookieFor, user, "Blocked: address not in the company's allow-list", ct);
+            ModelState.AddModelError(string.Empty, "Sign-in from this network is not allowed for this company. Connect from an approved network or contact your administrator.");
+            return View(model);
+        }
+        if (tenantCookieFor is not null)
+            Response.Cookies.Append(TenantResolutionMiddleware.TenantCookie, tenantCookieFor.Code, new CookieOptions
+            {
+                HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, IsEssential = true, Expires = DateTimeOffset.UtcNow.AddDays(90)
+            });
+        if (gate == GateResult.Challenge)
+        {
+            _pending.Start(HttpContext, new MfaPendingState(user.UserId, user.CompanyId, user.CompanyCode, (tenant ?? tenantCookieFor)?.Code, typedUsername, remember,
+                Url.IsLocalUrl(returnUrl) ? returnUrl : null));
+            return RedirectToAction(nameof(Mfa));
+        }
+        return await FinishSignInAsync(user, tenantCookieFor?.Code, typedUsername, remember, returnUrl, gate == GateResult.SetupRequired, ct);
+    }
+
+    private async Task LogInTenantAsync(TenantInfo? tenant, AuthenticatedUser user, string reason, CancellationToken ct)
+    {
+        // the audit row belongs in the company's own database (the request may not be inside it yet in the "no company chosen" sign-in)
+        var scopes = HttpContext.RequestServices.GetRequiredService<IServiceScopeFactory>();
+        using var scope = scopes.CreateScope();
+        using var entered = tenant is null ? null : scope.ServiceProvider.GetRequiredService<ITenantAccessor>().Enter(tenant);
+        await scope.ServiceProvider.GetRequiredService<IAccountService>()
+            .LogEventAsync(user.UserId, user.CompanyId, user.Username, LoginEventType.LoginFailed, ClientIp, UserAgent, reason, ct);
+    }
+
+    /// <summary>Issues the session and the convenience cookies, then goes to the right first page.</summary>
+    private async Task<IActionResult> FinishSignInAsync(AuthenticatedUser user, string? tenantCode, string typedUsername, bool remember, string? returnUrl,
+        bool mfaSetupRequired, CancellationToken ct)
+    {
+        await IssueCookieAsync(user, tenantCode, mfaSetupRequired);
         // "Remember me": keep only the user name as typed (name or e-mail) for next time; unticked removes it
-        if (model.RememberMe)
-            Response.Cookies.Append(RememberUserCookie, model.Username.Trim(), new CookieOptions
+        if (remember)
+            Response.Cookies.Append(RememberUserCookie, typedUsername.Trim(), new CookieOptions
             {
                 HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, IsEssential = true, Expires = DateTimeOffset.UtcNow.AddDays(90)
             });
         else Response.Cookies.Delete(RememberUserCookie);
-        _logger.LogInformation("User {User} signed in to company {Company}", outcome.User!.Username, outcome.User.CompanyCode);
-        Response.Cookies.Append(WorkspaceCookie, outcome.User.CompanyCode, new CookieOptions
+        _logger.LogInformation("User {User} signed in to company {Company}", user.Username, user.CompanyCode);
+        Response.Cookies.Append(WorkspaceCookie, user.CompanyCode, new CookieOptions
         {
             HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, IsEssential = true, Expires = DateTimeOffset.UtcNow.AddYears(1)
         });
 
-        // People with access to several companies: say where they are and how to go elsewhere.
-        var others = (await _accounts.GetMembershipsAsync(outcome.User.UserId, cancellationToken))
-            .Where(m => m.CompanyId != outcome.User.CompanyId).Select(m => m.CompanyName).ToList();
-        if (others.Count > 0)
-            TempData["StatusMessage"] = $"Signed in to {outcome.User.CompanyName}. You also have access to {string.Join(", ", others)}: use Switch company in your profile menu.";
+        // People with access to several companies: say where they are and how to go elsewhere (not in the "no company chosen" sign-in: that request is outside the company).
+        if (tenantCode is null)
+        {
+            var others = (await _accounts.GetMembershipsAsync(user.UserId, ct)).Where(m => m.CompanyId != user.CompanyId).Select(m => m.CompanyName).ToList();
+            if (others.Count > 0)
+                TempData["StatusMessage"] = $"Signed in to {user.CompanyName}. You also have access to {string.Join(", ", others)}: use Switch company in your profile menu.";
+        }
 
-        if (outcome.User.MustChangePassword) return RedirectToAction(nameof(ChangePassword));
-        return Url.IsLocalUrl(model.ReturnUrl) ? LocalRedirect(model.ReturnUrl!) : RedirectToAction(nameof(HomeController.Index), "Home");
+        if (user.MustChangePassword) return RedirectToAction(nameof(ChangePassword));
+        if (mfaSetupRequired) return RedirectToAction(nameof(MfaSetup));
+        return Url.IsLocalUrl(returnUrl) ? LocalRedirect(returnUrl!) : RedirectToAction(nameof(HomeController.Index), "Home");
     }
 
     /// <summary>Multi-tenant mode with no company chosen yet (no sub-domain, no remembered company).</summary>
@@ -269,25 +330,7 @@ public sealed class AccountController : Controller
         }
 
         var win = result.Successes[0];
-        // the company is remembered, so the next request (and the next visit) goes straight to it
-        Response.Cookies.Append(TenantResolutionMiddleware.TenantCookie, win.Tenant.Code, new CookieOptions
-        {
-            HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, IsEssential = true, Expires = DateTimeOffset.UtcNow.AddDays(90)
-        });
-        await IssueCookieAsync(win.User, win.Tenant.Code);
-        if (model.RememberMe)
-            Response.Cookies.Append(RememberUserCookie, model.Username.Trim(), new CookieOptions
-            {
-                HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, IsEssential = true, Expires = DateTimeOffset.UtcNow.AddDays(90)
-            });
-        else Response.Cookies.Delete(RememberUserCookie);
-        Response.Cookies.Append(WorkspaceCookie, win.User.CompanyCode, new CookieOptions
-        {
-            HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, IsEssential = true, Expires = DateTimeOffset.UtcNow.AddYears(1)
-        });
-        _logger.LogInformation("User {User} signed in to {Tenant}/{Company}", win.User.Username, win.Tenant.Code, win.User.CompanyCode);
-        if (win.User.MustChangePassword) return RedirectToAction(nameof(ChangePassword));
-        return Url.IsLocalUrl(model.ReturnUrl) ? LocalRedirect(model.ReturnUrl!) : RedirectToAction(nameof(HomeController.Index), "Home");
+        return await ContinueSignInAsync(win.User, null, win.Tenant, model.Username, model.RememberMe, model.ReturnUrl, model, cancellationToken);
     }
 
     [HttpPost]
@@ -343,9 +386,149 @@ public sealed class AccountController : Controller
         }
 
         // The security stamp changed: issue a fresh cookie (this also ends other sessions of this user).
-        await IssueCookieAsync(result.Value);
+        await IssueCookieAsync(result.Value, null, User.MfaSetupRequired());
         TempData["StatusMessage"] = "Your password has been changed.";
         return RedirectToAction(nameof(HomeController.Index), "Home");
+    }
+
+    // ---------------------------------------------------------------- two-step verification
+    /// <summary>The second step of sign-in: the code from the authenticator app (or a recovery code).</summary>
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult Mfa() =>
+        _pending.Read(HttpContext) is null ? RedirectToAction(nameof(Login)) : View(new MfaViewModel());
+
+    [HttpPost]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<IActionResult> Mfa(MfaViewModel model, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        var pending = _pending.Read(HttpContext);
+        if (pending is null) return RedirectToAction(nameof(Login));
+        // the code belongs to the company the password was entered for
+        if (!string.Equals(pending.TenantCode, _tenants.CurrentTenant?.Code, StringComparison.OrdinalIgnoreCase)) return RedirectToAction(nameof(Login));
+        if (!ModelState.IsValid) return View(new MfaViewModel());
+
+        var check = await _mfa.VerifyAsync(pending.UserId, pending.CompanyId, model.Code ?? string.Empty, ClientIp, UserAgent, cancellationToken);
+        if (check.Result == MfaResult.Locked)
+        {
+            MfaPending.Clear(HttpContext);
+            TempData["ErrorMessage"] = "Too many wrong codes. This account is locked for a while; try again later or ask your administrator to unlock it.";
+            return RedirectToAction(nameof(Login));
+        }
+        if (check.Result == MfaResult.Wrong)
+        {
+            ModelState.AddModelError(nameof(MfaViewModel.Code), "That code is not correct. Enter the 6 digits shown in your authenticator app, or a recovery code.");
+            return View(new MfaViewModel());
+        }
+        var user = await _accounts.CreateSessionAsync(pending.UserId, pending.CompanyId, cancellationToken);
+        MfaPending.Clear(HttpContext);
+        if (user is null) return RedirectToAction(nameof(Login));
+        if (check.UsedRecoveryCode) TempData["StatusMessage"] = "You signed in with a recovery code. Make a new set under Two-step verification when you can.";
+        return await FinishSignInAsync(user, null, pending.Username, pending.Remember, pending.ReturnUrl, mfaSetupRequired: false, cancellationToken);
+    }
+
+    /// <summary>The person's own two-step verification page.</summary>
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> Security(CancellationToken cancellationToken)
+    {
+        var model = await SecurityModelAsync(cancellationToken);
+        return model is null ? Challenge() : View(model);
+    }
+
+    [HttpGet]
+    [Authorize]
+    public async Task<IActionResult> MfaSetup(CancellationToken cancellationToken)
+    {
+        if (User.GetUserId() is not { } userId) return Challenge();
+        if ((await _mfa.GetStateAsync(userId, cancellationToken)).Enabled) return RedirectToAction(nameof(Security));
+        return await SetupViewAsync(userId, null, cancellationToken);
+    }
+
+    [BlockInDemo]
+    [HttpPost]
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<IActionResult> MfaSetup(MfaViewModel model, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        if (User.GetUserId() is not { } userId || User.GetCompanyId() is not { } companyId) return Challenge();
+        var codes = ModelState.IsValid ? await _mfa.ConfirmEnrollmentAsync(userId, companyId, model.Code ?? string.Empty, ClientIp, UserAgent, cancellationToken) : null;
+        if (codes is null) return await SetupViewAsync(userId, "That code is not correct. Check that the phone's clock is automatic, then enter the current 6 digits.", cancellationToken);
+
+        // the security stamp changed: a fresh session for this browser, without the "set it up first" restriction
+        var user = await _accounts.CreateSessionAsync(userId, companyId, cancellationToken);
+        if (user is null) return Challenge();
+        await IssueCookieAsync(user);
+        return View("MfaCodes", new MfaCodesViewModel { Codes = codes, Heading = "Two-step verification is on" });
+    }
+
+    [BlockInDemo]
+    [HttpPost]
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<IActionResult> MfaCodes(MfaViewModel model, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        if (User.GetUserId() is not { } userId || User.GetCompanyId() is not { } companyId) return Challenge();
+        var check = await _mfa.VerifyAsync(userId, companyId, model.Code ?? string.Empty, ClientIp, UserAgent, cancellationToken);
+        if (check.Result != MfaResult.Ok)
+        {
+            TempData["ErrorMessage"] = check.Result == MfaResult.Locked ? "Too many wrong codes; try again later." : "That code is not correct, so no new recovery codes were made.";
+            return RedirectToAction(nameof(Security));
+        }
+        return View("MfaCodes", new MfaCodesViewModel { Codes = await _mfa.RegenerateRecoveryCodesAsync(userId, cancellationToken), Heading = "New recovery codes" });
+    }
+
+    [BlockInDemo]
+    [HttpPost]
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<IActionResult> MfaDisable(MfaViewModel model, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        if (User.GetUserId() is not { } userId || User.GetCompanyId() is not { } companyId) return Challenge();
+        var security = await _security.GetAsync(companyId, cancellationToken);
+        if (security is not null && SignInGate.Required(security, SignInGate.IsAdministrator(User.IsPlatformAdmin(), User.FindAll(AppClaimTypes.Permission).Select(c => c.Value))))
+        {
+            TempData["ErrorMessage"] = "Your company requires two-step verification, so it cannot be turned off.";
+            return RedirectToAction(nameof(Security));
+        }
+        var check = await _mfa.VerifyAsync(userId, companyId, model.Code ?? string.Empty, ClientIp, UserAgent, cancellationToken);
+        if (check.Result != MfaResult.Ok)
+        {
+            TempData["ErrorMessage"] = "That code is not correct, so two-step verification was left on.";
+            return RedirectToAction(nameof(Security));
+        }
+        await _mfa.ResetAsync(userId, companyId, "the user", ClientIp, UserAgent, cancellationToken);
+        var user = await _accounts.CreateSessionAsync(userId, companyId, cancellationToken);
+        if (user is null) return Challenge();
+        await IssueCookieAsync(user);
+        TempData["StatusMessage"] = "Two-step verification is off.";
+        return RedirectToAction(nameof(Security));
+    }
+
+    private async Task<IActionResult> SetupViewAsync(int userId, string? error, CancellationToken ct)
+    {
+        var enrollment = await _mfa.BeginEnrollmentAsync(userId, $"{User.Identity?.Name}@{User.GetCompanyCode()}", AMGH.ITInventory.Shared.AppInfo.Name, ct);
+        if (enrollment is null) return RedirectToAction(nameof(Security));
+        if (error is not null) ModelState.AddModelError(nameof(MfaViewModel.Code), error);
+        return View("MfaSetup", new MfaSetupViewModel
+        {
+            Secret = string.Join(' ', Enumerable.Range(0, (enrollment.Secret.Length + 3) / 4).Select(i => enrollment.Secret.Substring(i * 4, Math.Min(4, enrollment.Secret.Length - i * 4)))),
+            QrSvg = _qr.Generate(enrollment.Uri, 4).Svg,
+            Forced = User.MfaSetupRequired()
+        });
+    }
+
+    private async Task<SecurityViewModel?> SecurityModelAsync(CancellationToken ct)
+    {
+        if (User.GetUserId() is not { } userId || User.GetCompanyId() is not { } companyId) return null;
+        var security = await _security.GetAsync(companyId, ct);
+        var required = security is not null && SignInGate.Required(security, SignInGate.IsAdministrator(User.IsPlatformAdmin(), User.FindAll(AppClaimTypes.Permission).Select(c => c.Value)));
+        return new SecurityViewModel { State = await _mfa.GetStateAsync(userId, ct), RequiredByCompany = required };
     }
 
     [HttpGet]
@@ -358,10 +541,10 @@ public sealed class AccountController : Controller
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult KeepAlive() => NoContent();
 
-    private Task IssueCookieAsync(AuthenticatedUser user, string? tenantCode = null)
+    private Task IssueCookieAsync(AuthenticatedUser user, string? tenantCode = null, bool mfaSetupRequired = false)
     {
         var now = _clock.UtcNow;
-        var principal = PrincipalFactory.Create(user, CookieAuthenticationDefaults.AuthenticationScheme, now, tenantCode ?? _tenants.CurrentTenant?.Code);
+        var principal = PrincipalFactory.Create(user, CookieAuthenticationDefaults.AuthenticationScheme, now, tenantCode ?? _tenants.CurrentTenant?.Code, mfaSetupRequired);
         return HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
             new AuthenticationProperties { IsPersistent = false, AllowRefresh = true, IssuedUtc = now });
     }

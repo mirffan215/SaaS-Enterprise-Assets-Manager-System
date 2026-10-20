@@ -30,6 +30,9 @@ public static class ClaimsPrincipalExtensions
         return permissions.Any(principal.HasPermission);
     }
 
+    public static bool MfaSetupRequired(this ClaimsPrincipal principal) =>
+        string.Equals(principal?.FindFirst(AppClaimTypes.MfaSetupRequired)?.Value, "true", StringComparison.Ordinal);
+
     public static bool MustChangePassword(this ClaimsPrincipal principal)
     {
         ArgumentNullException.ThrowIfNull(principal);

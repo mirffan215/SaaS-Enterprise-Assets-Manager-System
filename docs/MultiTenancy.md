@@ -58,7 +58,7 @@ needs an integration environment and has not been done here.
 Scripts `01`–`19` build a new company. Every later change is a numbered, repeatable script in `deployment/SQLScripts/Migrations` (`0001_Name.sql`, …; see the README there). Each company records what it has applied in `dbo.tblSchemaMigration` (with a checksum).
 
 - New companies get the baseline and then all migrations.
-- Existing companies are upgraded when the site starts (`Tenancy:AutoUpgrade`, default on) and with **Upgrade all companies** on the operator page (it also shows each company's status). A backup is made before a company is changed; one failing company does not stop the others, and the reason is in the log.
+- Existing companies are upgraded when the site starts, before it takes requests (`Tenancy:AutoUpgrade`, default on) and with **Upgrade all companies** on the operator page (it also shows each company's status). A backup is made before a company is changed; one failing company does not stop the others, and the reason is in the log.
 - A migration that was edited after it was applied, or a database newer than the program, is reported instead of being ignored.
 - After restoring an older backup, restart the site or use **Upgrade all companies** to bring it to the current version.
 

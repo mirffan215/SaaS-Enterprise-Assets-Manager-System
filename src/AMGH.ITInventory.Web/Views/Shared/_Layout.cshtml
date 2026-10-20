@@ -127,6 +127,7 @@
                         </div>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item" asp-controller="Account" asp-action="ChangePassword"><i class="bi bi-key" aria-hidden="true"></i> Change password</a>
+                        <a class="dropdown-item" asp-controller="Account" asp-action="Security"><i class="bi bi-shield-lock" aria-hidden="true"></i> Two-step verification</a>
                         <form asp-controller="Account" asp-action="SwitchCompany" method="post"><button type="submit" class="dropdown-item"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Switch company</button></form>
                         <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm"><button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Sign out</button></form>
                     </div>
