@@ -324,6 +324,7 @@ internal sealed class AssetImportExportService : IAssetImportExportService
             return Result<IReadOnlyList<CreatedAsset>>.Failure(Error.Validation("The import has expired. Upload the file again."));
         await using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer, cancellationToken);
+        await stream.DisposeAsync(); // release the file now: it is deleted after the commit, and Windows refuses to delete an open file
 
         // Validate again: data may have changed since the preview.
         var (rows, errors, _) = await ParseAndValidateAsync(buffer, access, cancellationToken);

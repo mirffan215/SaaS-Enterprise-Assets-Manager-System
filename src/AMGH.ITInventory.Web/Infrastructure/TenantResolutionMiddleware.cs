@@ -43,6 +43,13 @@ internal sealed class TenantResolutionMiddleware
         var tenant = await catalog.FindActiveAsync(code, context.RequestAborted);
         if (tenant is null || accessor is not TenantAccessor settable)
         {
+            if (HttpMethods.IsGet(context.Request.Method) && context.Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase))
+            {
+                // forget a stale remembered company, then let the person choose again
+                context.Response.Cookies.Delete(TenantCookie);
+                context.Response.Redirect("/Tenant/Select?notfound=" + Uri.EscapeDataString(code.Length > 10 ? code[..10] : code));
+                return;
+            }
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             await context.Response.WriteAsync("Unknown company.", context.RequestAborted);
             return;

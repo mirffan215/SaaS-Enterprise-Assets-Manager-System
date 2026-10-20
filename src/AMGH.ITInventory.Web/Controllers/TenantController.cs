@@ -25,7 +25,16 @@ public sealed partial class TenantController : Controller
     }
 
     [HttpGet("Select")]
-    public IActionResult Select() => _catalog is null ? NotFound() : View(new TenantSelectViewModel { ShowExploreDemo = _options.DemoEnabled });
+    public IActionResult Select(string? notfound)
+    {
+        if (_catalog is null) return NotFound();
+        var model = new TenantSelectViewModel { ShowExploreDemo = _options.DemoEnabled };
+        if (!string.IsNullOrWhiteSpace(notfound) && CodePattern().IsMatch(notfound))
+            ModelState.AddModelError(nameof(model.Code), notfound.Equals(TenancyOptions.DemoCode, StringComparison.OrdinalIgnoreCase)
+                ? "The demo company is not ready yet. It is created in the background after the site starts; try again in a few minutes."
+                : $"We could not find the company \"{notfound}\". Check the company code.");
+        return View(model);
+    }
 
     [HttpPost("Select")]
     public async Task<IActionResult> Select(TenantSelectViewModel model, CancellationToken cancellationToken)

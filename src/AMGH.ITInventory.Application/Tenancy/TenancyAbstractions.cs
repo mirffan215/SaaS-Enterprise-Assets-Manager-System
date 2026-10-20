@@ -41,6 +41,12 @@ public sealed class TenancyOptions
     /// </summary>
     public string? OperatorKey { get; set; }
 
+    /// <summary>
+    /// False (default): a company administrator creates a full data export and downloads it straight away (password-protected archive,
+    /// one-time download, every step audited). True: a second administrator must approve each export first (dual control).
+    /// </summary>
+    public bool ExportRequiresApproval { get; set; }
+
     /// <summary>Code of the sandbox tenant.</summary>
     public const string DemoCode = "demo";
 

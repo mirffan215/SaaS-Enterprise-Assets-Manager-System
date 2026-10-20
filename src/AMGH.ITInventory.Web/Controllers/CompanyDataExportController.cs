@@ -16,11 +16,14 @@ public sealed class CompanyDataExportController : Controller
 {
     private readonly IApprovalService _approvals;
     private readonly ICompanyDataExportService _exports;
+    private readonly bool _requiresApproval;
 
-    public CompanyDataExportController(IApprovalService approvals, ICompanyDataExportService exports)
+    public CompanyDataExportController(IApprovalService approvals, ICompanyDataExportService exports,
+        Microsoft.Extensions.Options.IOptions<AMGH.ITInventory.Application.Tenancy.TenancyOptions> tenancy)
     {
         _approvals = approvals;
         _exports = exports;
+        _requiresApproval = tenancy.Value.ExportRequiresApproval;
     }
 
     public override void OnActionExecuting(Microsoft.AspNetCore.Mvc.Filters.ActionExecutingContext context)
@@ -41,7 +44,7 @@ public sealed class CompanyDataExportController : Controller
         if (User.HasPermission(Permissions.CompanyAdmin.ExportDataDownload))
             foreach (var item in items.Where(i => i.Status == "Approved" && string.Equals(i.RequestedBy, me, StringComparison.OrdinalIgnoreCase)))
                 if (await _exports.CredentialsAsync(item.Id, me, cancellationToken) is { } c) credentials[item.Id] = c;
-        return View(new DataExportPageModel(items, credentials));
+        return View(new DataExportPageModel(items, credentials, _requiresApproval));
     }
 
     [HttpPost("request")]
@@ -50,7 +53,8 @@ public sealed class CompanyDataExportController : Controller
     {
         var result = await _approvals.RequestDataExportAsync(reason ?? string.Empty, cancellationToken);
         TempData[result.IsSuccess ? "StatusMessage" : "ErrorMessage"] = result.IsSuccess
-            ? "Export requested. A second administrator must approve it in the Approval Center before you can download it."
+            ? (_requiresApproval ? "Export requested. A second administrator must approve it in the Approval Center before you can download it."
+                                 : "Export ready. Copy the archive password below, then download the file.")
             : string.Join(" ", result.Errors.Select(e => e.Message));
         return RedirectToAction(nameof(Index));
     }
@@ -72,4 +76,4 @@ public sealed class CompanyDataExportController : Controller
     }
 }
 
-public sealed record DataExportPageModel(IReadOnlyList<DataExportItem> Items, IReadOnlyDictionary<int, DataExportCredentials> Credentials);
+public sealed record DataExportPageModel(IReadOnlyList<DataExportItem> Items, IReadOnlyDictionary<int, DataExportCredentials> Credentials, bool RequiresApproval);

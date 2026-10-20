@@ -8,7 +8,7 @@
 <div class="page-head">
     <div>
         <h1 class="page-title">Company data export</h1>
-        <p class="text-body-secondary mb-0">A full copy of this company's data (one CSV file per table) in a password-protected .zip. Another administrator must approve every request; the download then works once, for you only, for 24 hours.</p>
+        <p class="text-body-secondary mb-0">A full copy of this company's data (one CSV file per table) in a password-protected .zip.@(Model.RequiresApproval ? " Another administrator must approve every request;" : " As company administrator you can create it yourself;") the download then works once, for you only, for 24 hours.</p>
     </div>
     @if (canApprove) { <a class="btn btn-outline-secondary" asp-controller="Approvals" asp-action="Index"><i class="bi bi-inbox" aria-hidden="true"></i> Approval Center</a> }
 </div>
@@ -16,13 +16,13 @@
 @if (canRequest)
 {
     <section class="panel mb-4">
-        <h2 class="h5">Request an export</h2>
+        <h2 class="h5">@(Model.RequiresApproval ? "Request an export" : "Create an export")</h2>
         <form asp-action="RequestExport" method="post" class="row g-2 align-items-end">
             <div class="col-md-9">
                 <label class="form-label" for="reason">Why is the export needed?</label>
                 <input class="form-control" id="reason" name="reason" minlength="10" maxlength="500" required placeholder="e.g. Yearly offline backup for the audit committee" />
             </div>
-            <div class="col-md-3"><button type="submit" class="btn btn-primary w-100"><i class="bi bi-box-arrow-down" aria-hidden="true"></i> Request export</button></div>
+            <div class="col-md-3"><button type="submit" class="btn btn-primary w-100"><i class="bi bi-box-arrow-down" aria-hidden="true"></i> @(Model.RequiresApproval ? "Request export" : "Create export")</button></div>
         </form>
     </section>
 }
@@ -61,4 +61,4 @@
         </tbody>
     </table>
 </div>
-<p class="small text-body-secondary mt-3">Open the archive with 7-Zip, WinZip or Keka (AES-256). Windows Explorer cannot open AES-protected archives. Password hashes and software license keys are never included. Every request, approval and download is recorded in the audit log.</p>
+<p class="small text-body-secondary mt-3">Open the archive with 7-Zip, WinZip or Keka (AES-256). Windows Explorer cannot open AES-protected archives. Password hashes and software license keys are never included. Every export and download is recorded in the audit log.</p>

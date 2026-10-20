@@ -305,6 +305,7 @@ internal sealed class MasterDataImportService : IMasterDataImportService
         if (stream is null) return Expired();
         await using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer, cancellationToken);
+        await stream.DisposeAsync(); // release the file now: it is deleted after the commit, and Windows refuses to delete an open file
         // validated again: data may have changed since the preview
         var result = await RunAsync(buffer, commit: true, cancellationToken);
         if (result.Committed) await _storage.DeleteAsync(StorageAreas.PendingImports, name, CancellationToken.None);

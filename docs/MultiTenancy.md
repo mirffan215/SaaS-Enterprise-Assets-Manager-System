@@ -16,6 +16,7 @@ A small **catalog** database lists the tenants. Single-database mode still works
 | `Tenancy:AppLogin` | Application login granted rights by script 08. Script 08 is skipped when empty. |
 | `Tenancy:MasterKeyPassword` | Column-encryption master key password for new tenant databases (random when empty). |
 | `Tenancy:DemoEnabled` / `DemoAdminPassword` | Creates the sandbox tenant `demo` (sample data) at first start and shows *Explore Demo Environment* on the sign-in page. Supply the password from a secret store, not from a committed file. |
+| `Tenancy:ExportRequiresApproval` | `false` (default): administrators export their own data directly. `true`: a second administrator must approve each export. |
 | `Tenancy:ShowDemoCredentials` | Off by default. `true` prints the demo user name and password on the demo sign-in page (public sandbox only). |
 
 Tenant resolution order: sub-domain, `?tenant=` (if allowed), `X-Tenant-Code` header, tenant cookie. A signed-in session carries its tenant
@@ -40,7 +41,7 @@ Run `deployment/SQLScripts/19_CompanyDataExport.sql` once on every existing (sin
 
 * Neutral branding (no customer names in the product): generated SVG badge when a company has no logo.
 * Demo tenant with destructive actions blocked (`[BlockInDemo]`).
-* Company data export: request, second administrator approves in the Approval Center, one-time token, AES-256 encrypted `.zip`.
+* Company data export: the company administrator creates the export and downloads it straight away (one-time download, AES-256 encrypted `.zip`, audited). Set `Tenancy:ExportRequiresApproval` to `true` to require a second administrator.
 * Configuration transfer: XML export/import (schema `CompanyConfiguration.xsd`), diff preview, copy between companies.
 * Recycle bin with one-click restore.
 

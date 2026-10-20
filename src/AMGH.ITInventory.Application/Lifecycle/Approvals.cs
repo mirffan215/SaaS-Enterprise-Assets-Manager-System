@@ -68,11 +68,13 @@ internal sealed class ApprovalService : IApprovalService
 
     private readonly Notifications.INotificationService _notify;
     private readonly Abstractions.Mail.ISecretProtector _protector;
+    private readonly Microsoft.Extensions.Options.IOptions<Tenancy.TenancyOptions> _tenancy;
 
     public ApprovalService(IUnitOfWork uow, IAssetLifecycleProcedures procedures, IDateTimeProvider clock, ICurrentUserService user,
-        Notifications.INotificationService notify, Abstractions.Mail.ISecretProtector protector)
+        Notifications.INotificationService notify, Abstractions.Mail.ISecretProtector protector, Microsoft.Extensions.Options.IOptions<Tenancy.TenancyOptions> tenancy)
     {
         _protector = protector;
+        _tenancy = tenancy;
         _uow = uow;
         _procedures = procedures;
         _clock = clock;
@@ -266,6 +268,14 @@ internal sealed class ApprovalService : IApprovalService
                 && (x.Status == DataExportStatuses.Requested || x.Status == DataExportStatuses.Approved), cancellationToken))
             return Result<int>.Failure(Error.Conflict("You already have an export that is waiting for approval or ready to download."));
         var request = new DataExportRequest { Reason = reason, RequestedBy = _user.UserName, RequestedDate = _clock.UtcNow, Status = DataExportStatuses.Requested };
+        if (!_tenancy.Value.ExportRequiresApproval)
+        {
+            // self-service: the company administrator may take the export right away; it is still recorded (who, why, when) and downloads once
+            request.Status = DataExportStatuses.Approved;
+            request.ApprovedBy = "(self-service)";
+            request.ApprovedDate = _clock.UtcNow;
+            ExportCredentialFactory.Issue(request, _clock.UtcNow, _protector);
+        }
         await _uow.Repository<DataExportRequest>().AddAsync(request, cancellationToken);
         await _uow.SaveChangesAsync(cancellationToken);
         return Result<int>.Success(request.DataExportRequestId);

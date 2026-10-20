@@ -26,9 +26,11 @@ internal sealed partial class LocalFileStorage : IFileStorage
 
     private readonly string _root;
     private readonly ICompanyContext _company;
+    private readonly ITenantAccessor _tenants;
 
-    public LocalFileStorage(IOptions<StorageOptions> options, ICompanyContext company)
+    public LocalFileStorage(IOptions<StorageOptions> options, ICompanyContext company, ITenantAccessor? tenants = null)
     {
+        _tenants = tenants ?? new TenantAccessor();
         // Trailing separator, so "C:\AMGH\Documents2" can never pass as inside "C:\AMGH\Documents".
         _root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(options.Value.RootPath)) + Path.DirectorySeparatorChar;
         _company = company;
@@ -39,7 +41,10 @@ internal sealed partial class LocalFileStorage : IFileStorage
         if (!SafeName().IsMatch(area) || !SafeName().IsMatch(name) || name.Contains("..", StringComparison.Ordinal))
             throw new ArgumentException("Invalid storage name.");
         var companyId = _company.CompanyId ?? throw new InvalidOperationException("File storage needs an active company.");
-        var companyRoot = Path.Combine(_root, companyId.ToString(CultureInfo.InvariantCulture)) + Path.DirectorySeparatorChar;
+        // Every tenant database has its own company 1, so in multi-tenant mode the tenant gets a folder level of its own.
+        var tenantFolder = _tenants.CurrentTenant is { } tenant ? "t-" + tenant.Code : null;
+        if (tenantFolder is not null && !SafeName().IsMatch(tenantFolder)) throw new ArgumentException("Invalid tenant name.");
+        var companyRoot = Path.Combine(tenantFolder is null ? _root : Path.Combine(_root, tenantFolder), companyId.ToString(CultureInfo.InvariantCulture)) + Path.DirectorySeparatorChar;
         var full = Path.GetFullPath(Path.Combine(companyRoot, area, name));
         if (!full.StartsWith(companyRoot, StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Invalid storage path.");
         return full;

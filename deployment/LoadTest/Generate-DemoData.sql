@@ -127,8 +127,9 @@ SELECT CONCAT(@Prefix, N'-', s.Cat, N'-', FORMAT(s.j, '00000')),
        CONCAT(mn.Maker, N' ', mn.Model),
        c.AssetCategoryId,
        st.StatusId, m.ManufacturerId, mn.Model,
-       CONCAT(s.Cat, N'-', FORMAT(ABS(CHECKSUM(s.i * 7919)) % 9000000 + 1000000, '0000000')),
-       CASE WHEN s.Cat IN (N'LAP', N'PC') THEN CONCAT(N'WS-', FORMAT(s.j, '000'))
+       CONCAT(s.Cat, N'-', FORMAT(1000000 + (s.i * 7919) % 9000000, '0000000')),
+       CASE WHEN s.Cat = N'LAP' THEN CONCAT(N'LT-', FORMAT(s.j, '000'))
+            WHEN s.Cat = N'PC' THEN CONCAT(N'WS-', FORMAT(s.j, '000'))
             WHEN s.Cat = N'SRV' THEN CONCAT(N'SRV-', FORMAT(s.j, '000'))
             WHEN s.Cat = N'NET' THEN CONCAT(N'NET-', FORMAT(s.j, '000'))
             WHEN s.Cat = N'PRN' THEN CONCAT(N'PRN-', FORMAT(s.j, '000')) END,
