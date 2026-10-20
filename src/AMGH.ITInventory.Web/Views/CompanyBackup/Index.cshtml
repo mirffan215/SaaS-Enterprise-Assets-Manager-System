@@ -1,9 +1,13 @@
 @model TenantBackupsViewModel
-@{ ViewData["Title"] = "Backup and restore"; }
+@{
+    ViewData["Title"] = "Backup and restore";
+    var s = Model.Schedule;
+    string Day(int d) => System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetDayName((DayOfWeek)d);
+}
 <div class="page-head">
     <div>
         <h1 class="page-title">Backup and restore</h1>
-        <p class="text-body-secondary mb-0">A full backup of this workspace (all its companies, users, assets, settings). Restoring brings everything back exactly as it was at the time of the backup.</p>
+        <p class="text-body-secondary mb-0">A full backup of this workspace (all its companies, users, assets, settings). Download it as a password-protected zip, and restore from it whenever you need to. Restoring brings everything back exactly as it was when the backup was made.</p>
     </div>
 </div>
 @if (!string.IsNullOrEmpty(Model.Message))
@@ -12,25 +16,63 @@
 }
 @if (!string.IsNullOrEmpty(Model.Code))
 {
-    <section class="panel mb-3">
-        <h2 class="panel-title">Back up now</h2>
-        <form asp-action="Create" method="post" data-confirm="Back up the workspace now? It can take a few minutes; keep this page open.">
-            <button type="submit" class="btn btn-primary"><i class="bi bi-hdd" aria-hidden="true"></i> Back up this workspace now</button>
-        </form>
-    </section>
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <section class="panel h-100">
+                <h2 class="panel-title">Back up now</h2>
+                <form asp-action="Create" method="post" data-confirm="Back up the workspace now? It can take a few minutes; keep this page open.">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-hdd" aria-hidden="true"></i> Back up this workspace now</button>
+                </form>
+                <p class="small text-body-secondary mt-2 mb-0">The backup appears in the list below. Download it as a zip to keep a copy on your own computer or storage.</p>
+            </section>
+        </div>
+        <div class="col-lg-7">
+            <section class="panel h-100">
+                <h2 class="panel-title">Backup schedule</h2>
+                <form asp-action="Schedule" method="post" class="row g-2 align-items-end">
+                    <div class="col-sm-4">
+                        <label class="form-label small" for="mode">Repeat</label>
+                        <select class="form-select form-select-sm" id="mode" name="mode">
+                            <option value="Off" selected="@(s.Mode == "Off")">Off</option>
+                            <option value="Daily" selected="@(s.Mode == "Daily")">Every day</option>
+                            <option value="Weekly" selected="@(s.Mode == "Weekly")">Every week</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small" for="time">At (server time)</label>
+                        <input class="form-control form-control-sm" id="time" name="time" value="@s.Time" maxlength="5" placeholder="02:00" />
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small" for="day">Weekly on</label>
+                        <select class="form-select form-select-sm" id="day" name="day">
+                            @for (var d = 0; d < 7; d++) { <option value="@d" selected="@(s.Day == d)">@Day(d)</option> }
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label small" for="keep">Keep</label>
+                        <input class="form-control form-control-sm" type="number" id="keep" name="keep" min="1" max="365" value="@s.Keep" />
+                    </div>
+                    <div class="col-12"><button type="submit" class="btn btn-sm btn-outline-primary">Save schedule</button></div>
+                </form>
+                <p class="small text-body-secondary mt-2 mb-0">
+                    The newest scheduled backups are kept; older scheduled ones are deleted (backups you make by hand are never deleted).
+                    @if (s.LastRunLocal is { } last) { <span>Last run: @last.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) — @s.LastResult</span> }
+                </p>
+            </section>
+        </div>
+    </div>
 
-    <section class="panel">
-        <h2 class="panel-title">Restore</h2>
+    <section class="panel mt-3">
+        <h2 class="panel-title">Backups</h2>
         @if (Model.Files.Count == 0)
         {
             <p class="text-body-secondary mb-0">@(Model.CanList ? "There are no backups yet." : "The list of backups is not available.")</p>
         }
         else
         {
-            <p class="small">Restore replaces <strong>all current data</strong> of this workspace with the chosen backup. A backup of the current state is taken first. Everyone, including you, signs in again afterwards. Type the workspace code <strong>@Model.Code</strong> to confirm.</p>
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
-                    <thead><tr><th>Backup</th><th>Size</th><th>Made</th><th></th></tr></thead>
+                    <thead><tr><th>Backup</th><th>Size</th><th>Made</th><th>Download as zip</th><th>Restore</th></tr></thead>
                     <tbody>
                         @foreach (var f in Model.Files)
                         {
@@ -38,6 +80,13 @@
                                 <td class="font-monospace small">@f.FileName</td>
                                 <td>@((f.SizeBytes / 1048576.0).ToString("N1", System.Globalization.CultureInfo.InvariantCulture)) MB</td>
                                 <td>@f.CreatedUtc.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC</td>
+                                <td>
+                                    <form asp-action="Download" method="post" class="d-flex gap-2">
+                                        <input type="hidden" name="file" value="@f.FileName" />
+                                        <input class="form-control form-control-sm" type="password" name="password" placeholder="Choose a zip password" autocomplete="new-password" aria-label="Choose a password for the zip file" />
+                                        <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-download" aria-hidden="true"></i> Download</button>
+                                    </form>
+                                </td>
                                 <td>
                                     <form asp-action="Restore" method="post" class="d-flex gap-2" data-confirm="Replace ALL current data of this workspace with this backup?">
                                         <input type="hidden" name="file" value="@f.FileName" />
@@ -50,6 +99,18 @@
                     </tbody>
                 </table>
             </div>
+            <p class="small text-body-secondary mt-2 mb-0">Restore replaces <strong>all current data</strong> with the chosen backup. A backup of the current state is taken first. Everyone, including you, signs in again afterwards.</p>
         }
+    </section>
+
+    <section class="panel mt-3">
+        <h2 class="panel-title">Restore from a downloaded zip</h2>
+        <p class="small">Use the zip you downloaded earlier (even on another day or after a rebuild). It must be a backup of this same workspace; a backup of another company is refused.</p>
+        <form asp-action="Upload" method="post" enctype="multipart/form-data" class="row g-2 align-items-end" data-confirm="Replace ALL current data of this workspace with the uploaded backup?">
+            <div class="col-md-4"><label class="form-label small" for="zip">Backup zip file</label><input class="form-control form-control-sm" type="file" id="zip" name="zip" accept=".zip" required /></div>
+            <div class="col-md-3"><label class="form-label small" for="zipPassword">Zip password</label><input class="form-control form-control-sm" type="password" id="zipPassword" name="password" autocomplete="off" required /></div>
+            <div class="col-md-3"><label class="form-label small" for="zipConfirm">Type @Model.Code to confirm</label><input class="form-control form-control-sm" id="zipConfirm" name="confirm" autocomplete="off" required /></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-upload" aria-hidden="true"></i> Restore</button></div>
+        </form>
     </section>
 }

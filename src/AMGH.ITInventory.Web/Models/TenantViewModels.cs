@@ -41,6 +41,8 @@ public sealed class TenantBackupsViewModel
     public bool Succeeded { get; set; }
     /// <summary>True when the backup folder can be listed (otherwise files made earlier are not shown).</summary>
     public bool CanList { get; set; } = true;
+    /// <summary>The workspace's backup schedule (workspace page only).</summary>
+    public AMGH.ITInventory.Web.Infrastructure.BackupSchedule Schedule { get; set; } = new();
 }
 
 /// <summary>Company self-registration (Tenancy:AllowSelfRegistration).</summary>

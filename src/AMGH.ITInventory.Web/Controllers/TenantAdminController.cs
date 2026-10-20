@@ -135,7 +135,7 @@ public sealed class TenantAdminController : Controller
         if (!Enabled) return NotFound();
         if (!SignedIn) return RedirectToAction(nameof(Index));
         if (await CompanyAsync(code) is null) return NotFound();
-        var result = await _backups.BackupAsync(code, CancellationToken.None);
+        var result = await _backups.BackupAsync(code, cancellationToken: CancellationToken.None);
         return await BackupsViewAsync(code, result.IsSuccess ? $"Backup created: {result.Value.FileName}" : result.FirstError!.Message, result.IsSuccess);
     }
 

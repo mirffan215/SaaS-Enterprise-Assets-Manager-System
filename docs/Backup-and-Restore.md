@@ -61,3 +61,14 @@ The company data export (a zip of CSV files) is for reading and moving data, not
 ## Not covered
 
 Backups run on a schedule you control; there is no "Backup" button in the web application. A restore test (restore a copy under another name and sign in) is worth doing once.
+
+## Zip download, upload-restore and schedules (Administration → Backup and restore)
+
+The Platform Super Administrator of a company can:
+
+- **Back up now** – creates a backup of that company's database in the server backup folder.
+- **Download as zip** – choose a password (12+ characters, at least three of upper/lower/digits/symbols); the backup is delivered as an AES-256 encrypted zip (opens in 7-Zip/WinZip). Keep the password: it cannot be recovered.
+- **Restore from an uploaded zip** – upload the zip and enter its password. The file must be a backup of *this* company's database; a safety backup of the current data is taken first, then the data is replaced.
+- **Schedule** – Off, Daily (time of day) or Weekly (day + time), server local time, with "keep the last N scheduled backups" (only files ending `_auto` are pruned; manual backups are never deleted). A run missed while the server was down is made once it is back up. The schedule is stored beside the company's documents, so a restore never rewinds it.
+
+Permissions: the application pool identity needs Modify rights on the backup folder (the installer and `Set-OperatorAccess.ps1 -SetupBackups` set this). Uploads up to 2 GB are allowed on `admin/backup/upload` (`web.config`).

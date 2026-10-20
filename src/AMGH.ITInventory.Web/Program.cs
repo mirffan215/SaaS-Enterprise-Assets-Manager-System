@@ -44,6 +44,7 @@ try
     builder.Services.AddScoped<INavigation, Navigation>();
     builder.Services.AddSingleton<TenantSignInService>();
     builder.Services.AddSingleton<OperatorSession>();
+    builder.Services.AddSingleton<BackupScheduleStore>();
     builder.Services.AddSingleton<ILogoFetcher, LogoFetcher>();
     builder.Services.AddSingleton<AMGH.ITInventory.Application.Abstractions.Mail.ISecretProtector, DataProtectionSecretProtector>();
     if (!builder.Configuration.GetValue("Notifications:DisableWorker", false)) builder.Services.AddHostedService<NotificationWorker>();
@@ -119,6 +120,7 @@ try
     // ---------------------------------------------------------------- pipeline
     var tenancySettings = builder.Configuration.GetSection(TenancyOptions.SectionName).Get<TenancyOptions>() ?? new TenancyOptions();
     if (tenancySettings.Enabled && tenancySettings.DemoEnabled) builder.Services.AddHostedService<DemoTenantSeeder>();
+    if (tenancySettings.Enabled) builder.Services.AddHostedService<BackupScheduler>();
     var app = builder.Build();
 
     if (!app.Environment.IsDevelopment())

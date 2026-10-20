@@ -155,7 +155,7 @@ function Initialize-BackupFolder([string] $Folder, [string] $SqlServer, [string]
     $service = Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
     if ($service -and $service.StartName) { & icacls $Folder /grant "$($service.StartName):(OI)(CI)M" /Q | Out-Null }
     else { Write-Warning "Could not find the SQL Server service '$serviceName': give its account Modify rights on $Folder yourself." }
-    & icacls $Folder /grant "${PoolIdentity}:(CI)(RD,RA,REA)" /Q | Out-Null   # list the file names and sizes; never read the backups
+    & icacls $Folder /grant "${PoolIdentity}:(OI)(CI)M" /Q | Out-Null   # the site reads backups to offer them as a zip download, writes uploads to Restore\, and prunes old scheduled backups
 }
 
 # ---------------------------------------------------------------- 1. prerequisites
