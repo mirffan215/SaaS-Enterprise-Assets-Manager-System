@@ -50,10 +50,12 @@ see `Get-Help .\Install-SaaS.ps1 -Full`. Run it on a test server first.
 
 ## Signing in
 
-People sign in with their **user name or e-mail and password only**: the site looks for them in the company databases and takes them to their company
-(the company is then remembered in that browser). If the same details work in more than one company, they are asked for the company code.
-Behind a sub-domain per company, or after the first sign-in, nobody types a company code. With more than 100 companies the search is switched off
-and people use their company's address or code.
+By default people **choose their company first**: they type the company code once (the browser remembers it, so later visits and sign-outs go straight to
+that company's sign-in), or use their company's own address (a sub-domain, or the sign-in link the operator page lists).
+
+Optional, off by default: set `Tenancy:GlobalSignIn` to `true` and the first page asks only for **user name or e-mail and password**; the site looks for the person
+in the company databases and takes them to their company (if the same details work in two companies they are asked for the code). It searches every company,
+so it is switched off automatically beyond 100 companies.
 
 ## Registering companies
 

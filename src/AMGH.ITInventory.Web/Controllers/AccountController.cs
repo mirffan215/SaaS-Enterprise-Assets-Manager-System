@@ -64,6 +64,7 @@ public sealed class AccountController : Controller
         if (User.Identity?.IsAuthenticated == true) return RedirectToAction(nameof(HomeController.Index), "Home");
         // Multi-tenant and no company known yet: plain user name and password; the company is found from them.
         if (IsGlobalSignIn) return GlobalLoginView(returnUrl, expired);
+        if (NoCompanyYet) return RedirectToAction("Select", "Tenant");   // company first: the company-code page
         var companies = await _directory.ListActiveAsync(cancellationToken);
         // "Choose a company" (change) shows the picker; otherwise the remembered workspace, else direct sign-in
         if (change) return View("Workspace", new WorkspacePickerViewModel { Companies = companies, ReturnUrl = returnUrl });
@@ -171,6 +172,7 @@ public sealed class AccountController : Controller
     {
         ArgumentNullException.ThrowIfNull(model);
         if (IsGlobalSignIn) return await GlobalLoginAsync(model, cancellationToken);
+        if (NoCompanyYet) return RedirectToAction("Select", "Tenant");
         var companies = await _directory.ListActiveAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(model.CompanyCode))
         {
@@ -221,7 +223,9 @@ public sealed class AccountController : Controller
     }
 
     /// <summary>Multi-tenant mode with no company chosen yet (no sub-domain, no remembered company).</summary>
-    private bool IsGlobalSignIn => _tenants.IsMultiTenant && _tenants.CurrentTenant is null;
+    private bool NoCompanyYet => _tenants.IsMultiTenant && _tenants.CurrentTenant is null;
+
+    private bool IsGlobalSignIn => NoCompanyYet && _tenancy.GlobalSignIn;
 
     private IActionResult GlobalLoginView(string? returnUrl, bool expired)
     {

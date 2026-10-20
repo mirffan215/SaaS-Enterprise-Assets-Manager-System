@@ -16,6 +16,8 @@ A small **catalog** database lists the tenants. Single-database mode still works
 | `Tenancy:AppLogin` | Application login granted rights by script 08. Script 08 is skipped when empty. |
 | `Tenancy:MasterKeyPassword` | Column-encryption master key password for new tenant databases (random when empty). |
 | `Tenancy:DemoEnabled` / `DemoAdminPassword` | Creates the sandbox tenant `demo` (sample data) at first start and shows *Explore Demo Environment* on the sign-in page. Supply the password from a secret store, not from a committed file. |
+| `Tenancy:GlobalSignIn` | `false` (default): choose the company first (code page). `true`: sign in with user name or e-mail and password only; the company is found automatically. |
+| `Tenancy:AllowSelfRegistration` | `false` (default). `true` adds *Register your company* (page /Register). |
 | `Tenancy:ExportRequiresApproval` | `false` (default): administrators export their own data directly. `true`: a second administrator must approve each export. |
 | `Tenancy:ShowDemoCredentials` | Off by default. `true` prints the demo user name and password on the demo sign-in page (public sandbox only). |
 

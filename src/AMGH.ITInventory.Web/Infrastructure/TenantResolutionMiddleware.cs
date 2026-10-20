@@ -86,11 +86,12 @@ internal sealed class TenantResolutionMiddleware
 
     private static bool IsPublic(PathString path) => PublicPaths.Any(p => path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase));
 
-    private static Task NoTenantAsync(HttpContext context)
+    private Task NoTenantAsync(HttpContext context)
     {
         if (HttpMethods.IsGet(context.Request.Method) && context.Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase))
         {
-            context.Response.Redirect("/Account/Login"); // sign in with user name and password: the company is found from them
+            // company first (code page), or, when "Tenancy:GlobalSignIn" is on, the plain sign-in that finds the company
+            context.Response.Redirect(_options.GlobalSignIn ? "/Account/Login" : "/Tenant/Select");
             return Task.CompletedTask;
         }
         context.Response.StatusCode = StatusCodes.Status400BadRequest;

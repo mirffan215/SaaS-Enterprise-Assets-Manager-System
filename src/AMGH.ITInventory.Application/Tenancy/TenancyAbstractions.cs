@@ -54,6 +54,12 @@ public sealed class TenancyOptions
     /// </summary>
     public bool AllowSelfRegistration { get; set; }
 
+    /// <summary>
+    /// False (default): people choose their company first (company code, remembered afterwards, or the company's own address).
+    /// True: the sign-in page asks only for user name or e-mail and password and finds the company itself (searches every company, up to 100).
+    /// </summary>
+    public bool GlobalSignIn { get; set; }
+
     /// <summary>Code of the sandbox tenant.</summary>
     public const string DemoCode = "demo";
 

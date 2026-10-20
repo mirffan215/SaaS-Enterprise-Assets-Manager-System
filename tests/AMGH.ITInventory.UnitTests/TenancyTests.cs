@@ -109,11 +109,11 @@ public class TenantMiddlewarePublicPathTests
         public Task<TenantRecord> AddAsync(string code, string name, string connectionString, bool isDemo, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
-    private static async Task<(bool Reached, int Status, string? Location)> Run(string path)
+    private static async Task<(bool Reached, int Status, string? Location)> Run(string path, bool globalSignIn = false)
     {
         var reached = false;
         var middleware = new TenantResolutionMiddleware(_ => { reached = true; return Task.CompletedTask; },
-            Options.Create(new TenancyOptions { Enabled = true, AllowQueryParameter = true }));
+            Options.Create(new TenancyOptions { Enabled = true, AllowQueryParameter = true, GlobalSignIn = globalSignIn }));
         var ctx = new DefaultHttpContext();
         ctx.Request.Method = "GET";
         ctx.Request.Path = path;
@@ -136,9 +136,18 @@ public class TenantMiddlewarePublicPathTests
     [InlineData("/")]
     [InlineData("/Assets")]
     [InlineData("/dashboard")]
-    public async Task Everything_else_sends_a_visitor_without_a_company_to_the_plain_sign_in(string path)
+    public async Task Everything_else_sends_a_visitor_without_a_company_to_the_company_page(string path)
     {
         var (reached, status, location) = await Run(path);
+        Assert.False(reached);
+        Assert.Equal(302, status);
+        Assert.Equal("/Tenant/Select", location);
+    }
+
+    [Fact]
+    public async Task With_global_sign_in_on_the_visitor_goes_to_the_plain_sign_in_instead()
+    {
+        var (reached, status, location) = await Run("/dashboard", globalSignIn: true);
         Assert.False(reached);
         Assert.Equal(302, status);
         Assert.Equal("/Account/Login", location);
