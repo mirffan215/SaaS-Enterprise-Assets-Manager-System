@@ -47,6 +47,13 @@ public sealed class TenancyOptions
     /// </summary>
     public bool ExportRequiresApproval { get; set; }
 
+    /// <summary>
+    /// False (default): only the operator creates companies (page /Tenant/Admin, protected by the operator key).
+    /// True: anyone who can reach the site may register a company (page /Register; limited to a few per address and hour).
+    /// Turn it on only for a service that is meant to take sign-ups.
+    /// </summary>
+    public bool AllowSelfRegistration { get; set; }
+
     /// <summary>Code of the sandbox tenant.</summary>
     public const string DemoCode = "demo";
 

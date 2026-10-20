@@ -35,10 +35,12 @@ public sealed class AccountController : Controller
     private readonly ICompanyDirectory _directory;
     private readonly ITenantAccessor _tenants;
     private readonly TenancyOptions _tenancy;
+    private readonly TenantSignInService _globalSignIn;
 
     public AccountController(IAccountService accounts, IDateTimeProvider clock, ILogger<AccountController> logger, ICompanyDirectory directory,
-        ITenantAccessor tenants, IOptions<TenancyOptions> tenancy)
+        ITenantAccessor tenants, IOptions<TenancyOptions> tenancy, TenantSignInService globalSignIn)
     {
+        _globalSignIn = globalSignIn;
         _tenants = tenants;
         _tenancy = tenancy.Value;
         _directory = directory;
@@ -60,6 +62,8 @@ public sealed class AccountController : Controller
         bool general = false, CancellationToken cancellationToken = default)
     {
         if (User.Identity?.IsAuthenticated == true) return RedirectToAction(nameof(HomeController.Index), "Home");
+        // Multi-tenant and no company known yet: plain user name and password; the company is found from them.
+        if (IsGlobalSignIn) return GlobalLoginView(returnUrl, expired);
         var companies = await _directory.ListActiveAsync(cancellationToken);
         // "Choose a company" (change) shows the picker; otherwise the remembered workspace, else direct sign-in
         if (change) return View("Workspace", new WorkspacePickerViewModel { Companies = companies, ReturnUrl = returnUrl });
@@ -92,6 +96,7 @@ public sealed class AccountController : Controller
     {
         var current = _tenants.CurrentTenant;
         model.ShowExploreDemo = _tenancy.Enabled && _tenancy.DemoEnabled && current is not { IsDemo: true };
+        model.ShowOtherOrganisation = _tenancy.Enabled && current is not null;
         if (current is { IsDemo: true } && _tenancy.ShowDemoCredentials && !string.IsNullOrEmpty(_tenancy.DemoAdminPassword))
         {
             model.DemoUser = TenantProvisioningService.AdminUsername;
@@ -165,6 +170,7 @@ public sealed class AccountController : Controller
     public async Task<IActionResult> Login(LoginViewModel model, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(model);
+        if (IsGlobalSignIn) return await GlobalLoginAsync(model, cancellationToken);
         var companies = await _directory.ListActiveAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(model.CompanyCode))
         {
@@ -211,6 +217,72 @@ public sealed class AccountController : Controller
             TempData["StatusMessage"] = $"Signed in to {outcome.User.CompanyName}. You also have access to {string.Join(", ", others)}: use Switch company in your profile menu.";
 
         if (outcome.User.MustChangePassword) return RedirectToAction(nameof(ChangePassword));
+        return Url.IsLocalUrl(model.ReturnUrl) ? LocalRedirect(model.ReturnUrl!) : RedirectToAction(nameof(HomeController.Index), "Home");
+    }
+
+    /// <summary>Multi-tenant mode with no company chosen yet (no sub-domain, no remembered company).</summary>
+    private bool IsGlobalSignIn => _tenants.IsMultiTenant && _tenants.CurrentTenant is null;
+
+    private IActionResult GlobalLoginView(string? returnUrl, bool expired)
+    {
+        var model = new LoginViewModel { ReturnUrl = returnUrl, SessionExpired = expired };
+        PrepareGlobal(model);
+        Remembered(model);
+        return View(model);
+    }
+
+    private void PrepareGlobal(LoginViewModel model)
+    {
+        DescribeProduct(model);
+        model.CompanyCode = null;
+        model.GlobalSignIn = true;
+        model.ShowRegister = _tenancy.AllowSelfRegistration;
+        ApplyDemoOptions(model);
+    }
+
+    /// <summary>Checks the user name and password in every company and signs the person in to the one where they are correct.</summary>
+    private async Task<IActionResult> GlobalLoginAsync(LoginViewModel model, CancellationToken cancellationToken)
+    {
+        PrepareGlobal(model);
+        if (!ModelState.IsValid) return View(model);
+
+        var result = await _globalSignIn.SignInAsync(model.Username, model.Password, ClientIp, UserAgent, cancellationToken);
+        model.Password = string.Empty;
+        if (result.TooManyCompanies)
+        {
+            TempData["ErrorMessage"] = "Please sign in through your company's own address, or enter your company code.";
+            return RedirectToAction("Select", "Tenant");
+        }
+        if (result.Successes.Count == 0)
+        {
+            ModelState.AddModelError(string.Empty, result.Message);
+            return View(model);
+        }
+        if (result.Successes.Count > 1)
+        {
+            TempData["ErrorMessage"] = "Those sign-in details work in more than one company. Enter the code of the company you want.";
+            return RedirectToAction("Select", "Tenant");
+        }
+
+        var win = result.Successes[0];
+        // the company is remembered, so the next request (and the next visit) goes straight to it
+        Response.Cookies.Append(TenantResolutionMiddleware.TenantCookie, win.Tenant.Code, new CookieOptions
+        {
+            HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, IsEssential = true, Expires = DateTimeOffset.UtcNow.AddDays(90)
+        });
+        await IssueCookieAsync(win.User, win.Tenant.Code);
+        if (model.RememberMe)
+            Response.Cookies.Append(RememberUserCookie, model.Username.Trim(), new CookieOptions
+            {
+                HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, IsEssential = true, Expires = DateTimeOffset.UtcNow.AddDays(90)
+            });
+        else Response.Cookies.Delete(RememberUserCookie);
+        Response.Cookies.Append(WorkspaceCookie, win.User.CompanyCode, new CookieOptions
+        {
+            HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax, IsEssential = true, Expires = DateTimeOffset.UtcNow.AddYears(1)
+        });
+        _logger.LogInformation("User {User} signed in to {Tenant}/{Company}", win.User.Username, win.Tenant.Code, win.User.CompanyCode);
+        if (win.User.MustChangePassword) return RedirectToAction(nameof(ChangePassword));
         return Url.IsLocalUrl(model.ReturnUrl) ? LocalRedirect(model.ReturnUrl!) : RedirectToAction(nameof(HomeController.Index), "Home");
     }
 
@@ -282,10 +354,10 @@ public sealed class AccountController : Controller
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult KeepAlive() => NoContent();
 
-    private Task IssueCookieAsync(AuthenticatedUser user)
+    private Task IssueCookieAsync(AuthenticatedUser user, string? tenantCode = null)
     {
         var now = _clock.UtcNow;
-        var principal = PrincipalFactory.Create(user, CookieAuthenticationDefaults.AuthenticationScheme, now, _tenants.CurrentTenant?.Code);
+        var principal = PrincipalFactory.Create(user, CookieAuthenticationDefaults.AuthenticationScheme, now, tenantCode ?? _tenants.CurrentTenant?.Code);
         return HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
             new AuthenticationProperties { IsPersistent = false, AllowRefresh = true, IssuedUtc = now });
     }

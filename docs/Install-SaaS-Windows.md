@@ -48,7 +48,21 @@ see `Get-Help .\Install-SaaS.ps1 -Full`. Run it on a test server first.
 * `appsettings.Production.json` with generated secrets, readable only by Administrators and the pool. The master-key password is printed once:
   **write it down** (it is needed to restore a customer database backup), and back up the `Keys` folder.
 
-## Creating companies (customers)
+## Signing in
+
+People sign in with their **user name or e-mail and password only**: the site looks for them in the company databases and takes them to their company
+(the company is then remembered in that browser). If the same details work in more than one company, they are asked for the company code.
+Behind a sub-domain per company, or after the first sign-in, nobody types a company code. With more than 100 companies the search is switched off
+and people use their company's address or code.
+
+## Registering companies
+
+* **Operator:** `/Tenant/Admin`, protected by the operator key (below). Always available while a key is set.
+* **Self-registration (optional, off by default):** set `Tenancy:AllowSelfRegistration` to `true` and a *Register your company* button appears on the
+  sign-in page (`/Register`: company code, name, administrator e-mail and password; three registrations per address and hour).
+  Turn it on only for a service that should take sign-ups.
+
+## Creating companies as the operator (customers)
 
 Open `https://<host>[:port]/Tenant/Admin` and enter the **operator key** (printed at the end of the install, also in `appsettings.Production.json` as
 `Tenancy:OperatorKey`), then a company code (2-10 letters or digits), the company name and the first administrator's e-mail and password.

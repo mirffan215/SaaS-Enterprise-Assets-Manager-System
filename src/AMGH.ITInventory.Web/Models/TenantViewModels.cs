@@ -27,3 +27,13 @@ public sealed class TenantAdminViewModel
     public bool Succeeded { get; set; }
     public IReadOnlyList<TenantRow> Tenants { get; set; } = Array.Empty<TenantRow>();
 }
+
+/// <summary>Company self-registration (Tenancy:AllowSelfRegistration).</summary>
+public sealed class RegisterViewModel
+{
+    [StringLength(10)] public string? Code { get; set; }
+    [StringLength(100)] public string? Name { get; set; }
+    [StringLength(256)] public string? AdminEmail { get; set; }
+    [DataType(DataType.Password)] [StringLength(128)] public string? AdminPassword { get; set; }
+    public string? Message { get; set; }
+}

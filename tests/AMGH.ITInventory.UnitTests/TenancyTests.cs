@@ -124,6 +124,8 @@ public class TenantMiddlewarePublicPathTests
 
     [Theory]
     [InlineData("/Tenant/Select")]
+    [InlineData("/Account/Login")]
+    [InlineData("/Register")]
     [InlineData("/Account/ExploreDemo")]
     [InlineData("/health")]
     [InlineData("/branding/default-logo.svg")]
@@ -132,13 +134,13 @@ public class TenantMiddlewarePublicPathTests
 
     [Theory]
     [InlineData("/")]
-    [InlineData("/Account/Login")]
     [InlineData("/Assets")]
-    public async Task Everything_else_sends_the_visitor_to_the_company_page(string path)
+    [InlineData("/dashboard")]
+    public async Task Everything_else_sends_a_visitor_without_a_company_to_the_plain_sign_in(string path)
     {
         var (reached, status, location) = await Run(path);
         Assert.False(reached);
         Assert.Equal(302, status);
-        Assert.Equal("/Tenant/Select", location);
+        Assert.Equal("/Account/Login", location);
     }
 }

@@ -47,6 +47,8 @@ param(
     [string] $CertificateThumbprint,
     [switch] $CreateDemo,
     [switch] $NoDemo,
+    # let anyone who can reach the site register a company (page /Register); otherwise only the operator creates companies
+    [switch] $AllowSelfRegistration,
     [switch] $OpenFirewall,
     [switch] $SkipPublish,
     # deploy a new version of THIS installation (keeps appsettings.Production.json, the databases and the certificate)
@@ -236,6 +238,7 @@ if (-not $NoDemo -and -not $Update) {
     }
 }
 $showDemoCredentials = $false
+if (-not $Update -and -not $AllowSelfRegistration) { $AllowSelfRegistration = [bool](Read-YesNo "Let people register their own company on the sign-in page (otherwise only you create companies, with the operator key)?" $false) }
 if ($CreateDemo -and -not $Update) { $showDemoCredentials = [bool](Read-YesNo "Show the demo user name and password on the demo sign-in page (public sandbox)?" $false) }
 
 Write-Host ""
@@ -301,6 +304,7 @@ if (-not $Update -or -not (Test-Path $settingsFile)) {
         AppLogin = "IIS APPPOOL\$AppPoolName"
         MasterKeyPassword = $masterKeyPassword
         OperatorKey = $operatorKey
+        AllowSelfRegistration = [bool]$AllowSelfRegistration
         DemoEnabled = [bool]$CreateDemo
         DemoAdminPassword = $(if ($CreateDemo) { $demoPassword } else { "" })
         ShowDemoCredentials = [bool]$showDemoCredentials

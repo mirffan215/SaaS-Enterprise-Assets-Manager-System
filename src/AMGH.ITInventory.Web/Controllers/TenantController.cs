@@ -24,6 +24,14 @@ public sealed partial class TenantController : Controller
         _catalog = services.GetService<ITenantCatalog>();
     }
 
+    /// <summary>"Not your organisation?": forget the remembered company and go to the plain sign-in page.</summary>
+    [HttpGet("Forget")]
+    public IActionResult Forget()
+    {
+        Response.Cookies.Delete(Infrastructure.TenantResolutionMiddleware.TenantCookie);
+        return Redirect("/Account/Login");
+    }
+
     [HttpGet("Select")]
     public IActionResult Select(string? notfound)
     {

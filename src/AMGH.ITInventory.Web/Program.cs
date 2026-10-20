@@ -42,6 +42,7 @@ try
     builder.Services.AddSingleton<IDisplayTime, DisplayTime>();
     builder.Services.Configure<TagOptions>(builder.Configuration.GetSection(TagOptions.SectionName));
     builder.Services.AddScoped<INavigation, Navigation>();
+    builder.Services.AddSingleton<TenantSignInService>();
     builder.Services.AddSingleton<ILogoFetcher, LogoFetcher>();
     builder.Services.AddSingleton<AMGH.ITInventory.Application.Abstractions.Mail.ISecretProtector, DataProtectionSecretProtector>();
     if (!builder.Configuration.GetValue("Notifications:DisableWorker", false)) builder.Services.AddHostedService<NotificationWorker>();
@@ -102,6 +103,10 @@ try
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        // company self-registration builds a database: at most 3 per hour per address
+        options.AddPolicy(RateLimitPolicies.Register, context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 3, Window = TimeSpan.FromHours(1), QueueLimit = 0 }));
         options.AddPolicy(RateLimitPolicies.Login, context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
