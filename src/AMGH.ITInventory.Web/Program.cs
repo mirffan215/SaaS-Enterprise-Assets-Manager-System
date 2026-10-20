@@ -121,6 +121,7 @@ try
     var tenancySettings = builder.Configuration.GetSection(TenancyOptions.SectionName).Get<TenancyOptions>() ?? new TenancyOptions();
     if (tenancySettings.Enabled && tenancySettings.DemoEnabled) builder.Services.AddHostedService<DemoTenantSeeder>();
     if (tenancySettings.Enabled) builder.Services.AddHostedService<BackupScheduler>();
+    if (tenancySettings.Enabled && tenancySettings.AutoUpgrade) builder.Services.AddHostedService<TenantUpgradeService>();
     var app = builder.Build();
 
     if (!app.Environment.IsDevelopment())

@@ -27,9 +27,10 @@ public sealed class TenantAdminViewModel
     public string? Message { get; set; }
     public bool Succeeded { get; set; }
     public IReadOnlyList<TenantRow> Tenants { get; set; } = Array.Empty<TenantRow>();
+    public IReadOnlyList<AMGH.ITInventory.Application.Tenancy.TenantSchemaStatus> Schema { get; set; } = Array.Empty<AMGH.ITInventory.Application.Tenancy.TenantSchemaStatus>();
 }
 
-public sealed record BackupRow(string FileName, long SizeBytes, DateTime CreatedUtc);
+public sealed record BackupRow(string FileName, long SizeBytes, DateTime CreatedUtc, DateTime? VerifiedUtc = null, bool VerifyOk = false, string? VerifyNote = null);
 
 /// <summary>Backups of one company (operator page).</summary>
 public sealed class TenantBackupsViewModel

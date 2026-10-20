@@ -72,7 +72,7 @@
         {
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
-                    <thead><tr><th>Backup</th><th>Size</th><th>Made</th><th>Download as zip</th><th>Restore</th></tr></thead>
+                    <thead><tr><th>Backup</th><th>Size</th><th>Made</th><th>Checked</th><th>Download as zip</th><th>Restore</th></tr></thead>
                     <tbody>
                         @foreach (var f in Model.Files)
                         {
@@ -80,6 +80,12 @@
                                 <td class="font-monospace small">@f.FileName</td>
                                 <td>@((f.SizeBytes / 1048576.0).ToString("N1", System.Globalization.CultureInfo.InvariantCulture)) MB</td>
                                 <td>@f.CreatedUtc.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC</td>
+                                <td class="small">
+                                    @if (f.VerifiedUtc is null) { <span class="text-body-secondary">not checked</span> }
+                                    else if (f.VerifyOk) { <span class="text-success"><i class="bi bi-check-circle" aria-hidden="true"></i> @f.VerifiedUtc.Value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC</span> }
+                                    else { <span class="text-danger"><i class="bi bi-x-circle" aria-hidden="true"></i> failed: @f.VerifyNote</span> }
+                                    <form asp-action="Verify" method="post" class="mt-1" data-confirm="Test-restore this backup into a temporary database and check it? It does not change your data, but it needs disk space and can take a few minutes."><input type="hidden" name="file" value="@f.FileName" /><button type="submit" class="btn btn-sm btn-link p-0">Check now</button></form>
+                                </td>
                                 <td>
                                     <form asp-action="Download" method="post" class="d-flex gap-2">
                                         <input type="hidden" name="file" value="@f.FileName" />

@@ -56,8 +56,11 @@ internal sealed class BackupScheduler : BackgroundService
             var result = await backups.BackupAsync(tenant.Code, scheduled: true, cancellationToken: ct);
             if (result.IsSuccess)
             {
+                var check = await backups.VerifyAsync(tenant.Code, result.Value.FileName, ct);
+                var checkNote = check.IsFailure ? "check could not run" : check.Value.VerifyOk ? "checked" : "FAILED ITS CHECK";
+                if (check.IsFailure || !check.Value.VerifyOk) _logger.LogError("Scheduled backup {File} of {Code} did not pass its test restore", result.Value.FileName, tenant.Code);
                 var removed = await backups.DeleteOldScheduledAsync(tenant.Code, schedule.Keep, ct);
-                schedule.LastResult = $"OK: {result.Value.FileName}" + (removed > 0 ? $" ({removed} old backup(s) removed)" : string.Empty);
+                schedule.LastResult = $"OK ({checkNote}): {result.Value.FileName}" + (removed > 0 ? $" ({removed} old backup(s) removed)" : string.Empty);
                 _logger.LogInformation("Scheduled backup of {Code} made: {File}", tenant.Code, result.Value.FileName);
             }
             else

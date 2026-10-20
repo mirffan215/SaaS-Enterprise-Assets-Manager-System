@@ -70,6 +70,16 @@ public sealed class CompanyBackupController : Controller
         return RedirectToAction("Login", "Account");
     }
 
+    /// <summary>Test-restores a backup into a temporary database and checks it, so "we have backups" is proven rather than assumed.</summary>
+    [HttpPost("verify")]
+    public async Task<IActionResult> Verify(string? file)
+    {
+        if (_tenants.CurrentTenant is not { } tenant) return await ViewAsync(null, false);
+        var result = await _backups.VerifyAsync(tenant.Code, file ?? string.Empty, CancellationToken.None);
+        if (result.IsFailure) return await ViewAsync(result.FirstError!.Message, false);
+        return await ViewAsync(result.Value.VerifyOk ? $"{file}: test restore and consistency check passed." : $"{file} FAILED its check: {result.Value.VerifyNote}", result.Value.VerifyOk);
+    }
+
     /// <summary>Downloads one of this workspace's backups as a password-protected zip (AES-256) the person chooses the password for.</summary>
     [HttpPost("download")]
     public async Task<IActionResult> Download(string? file, string? password)
@@ -146,7 +156,7 @@ public sealed class CompanyBackupController : Controller
             return View("Index", model);
         }
         model.Schedule = await _schedules.LoadAsync(tenant.Code, HttpContext.RequestAborted);
-        try { model.Files = (await _backups.ListAsync(tenant.Code, HttpContext.RequestAborted)).Select(f => new BackupRow(f.FileName, f.SizeBytes, f.CreatedUtc)).ToList(); }
+        try { model.Files = (await _backups.ListAsync(tenant.Code, HttpContext.RequestAborted)).Select(f => new BackupRow(f.FileName, f.SizeBytes, f.CreatedUtc, f.VerifiedUtc, f.VerifyOk, f.VerifyNote)).ToList(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             model.CanList = false;

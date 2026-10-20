@@ -7,7 +7,13 @@ using Microsoft.Extensions.Options;
 
 namespace AMGH.ITInventory.Application.Tenancy;
 
-public sealed record TenantBackupFile(string FileName, long SizeBytes, DateTime CreatedUtc);
+/// <param name="FileName">Backup file name.</param>
+/// <param name="SizeBytes">Size on disk.</param>
+/// <param name="CreatedUtc">When the file was written.</param>
+/// <param name="VerifiedUtc">When a test restore last checked it; null when it never was.</param>
+/// <param name="VerifyOk">Result of that check.</param>
+/// <param name="VerifyNote">Short result text (first line of the error when it failed).</param>
+public sealed record TenantBackupFile(string FileName, long SizeBytes, DateTime CreatedUtc, DateTime? VerifiedUtc = null, bool VerifyOk = false, string? VerifyNote = null);
 
 /// <summary>Back up a company's database and restore it from one of its own backups (operator page).</summary>
 public interface ITenantBackupService
@@ -26,6 +32,12 @@ public interface ITenantBackupService
 
     /// <summary>Deletes scheduled ("_auto") backups beyond the newest <paramref name="keep"/>; manual backups are never deleted.</summary>
     Task<int> DeleteOldScheduledAsync(string tenantCode, int keep, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Proves a backup is usable: restores it under a temporary name, runs DBCC CHECKDB and a sanity query on it, drops the copy and remembers the
+    /// result next to the file. Needs disk space for a second copy of the database for a short time. Never touches the live company database.
+    /// </summary>
+    Task<Result<TenantBackupFile>> VerifyAsync(string tenantCode, string fileName, CancellationToken cancellationToken = default);
 
     /// <summary>The company's backups in the backup folder, newest first.</summary>
     Task<IReadOnlyList<TenantBackupFile>> ListAsync(string tenantCode, CancellationToken cancellationToken = default);
@@ -109,8 +121,16 @@ internal sealed partial class TenantBackupService : ITenantBackupService
         var database = await DatabaseOfAsync(master, tenantCode, ct);
         if (database is null) return Result<TenantBackupFile>.Failure(Error.NotFound("That company has no database here."));
         var folder = await FolderAsync(master, ct);
-        var fileName = string.Create(CultureInfo.InvariantCulture, $"{database}_{DateTime.Now:yyyyMMdd_HHmmss}{(scheduled ? "_auto" : string.Empty)}.bak");
-        var path = Path.Combine(folder, fileName);
+        // File names have second resolution: never reuse one (BACKUP ... FORMAT would overwrite the earlier backup, which may be the file being restored)
+        var moment = DateTime.Now;
+        string fileName, path;
+        while (true)
+        {
+            fileName = string.Create(CultureInfo.InvariantCulture, $"{database}_{moment:yyyyMMdd_HHmmss}{(scheduled ? "_auto" : string.Empty)}.bak");
+            path = Path.Combine(folder, fileName);
+            if (!File.Exists(path) && !File.Exists(Path.Combine(folder, fileName.Replace("_auto.bak", ".bak", StringComparison.Ordinal)))) break;
+            moment = moment.AddSeconds(1);
+        }
 
         // the database name comes from sys.databases and matches ITInv_Tenant_<letters and digits>: safe to bracket-quote
         await using (var backup = master.CreateCommand())
@@ -143,8 +163,118 @@ internal sealed partial class TenantBackupService : ITenantBackupService
         return new DirectoryInfo(folder).EnumerateFiles(database + "_*.bak")
             .Where(f => IsBackupOf(database, f.Name))
             .OrderByDescending(f => f.Name, StringComparer.Ordinal)
-            .Select(f => new TenantBackupFile(f.Name, f.Length, f.LastWriteTimeUtc))
+            .Select(f => WithVerification(new TenantBackupFile(f.Name, f.Length, f.LastWriteTimeUtc), f.FullName))
             .ToList();
+    }
+
+    private static string VerifyFile(string backupPath) => backupPath + ".verify";
+
+    private static TenantBackupFile WithVerification(TenantBackupFile file, string backupPath)
+    {
+        try
+        {
+            var path = VerifyFile(backupPath);
+            if (!File.Exists(path)) return file;
+            var parts = File.ReadAllText(path).Split('|', 3);
+            return parts.Length == 3 && DateTime.TryParse(parts[1], CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var when)
+                ? file with { VerifiedUtc = when, VerifyOk = parts[0] == "OK", VerifyNote = parts[2].Trim() }
+                : file;
+        }
+        catch (IOException) { return file; }
+        catch (UnauthorizedAccessException) { return file; }
+    }
+
+    public async Task<Result<TenantBackupFile>> VerifyAsync(string tenantCode, string fileName, CancellationToken cancellationToken = default)
+    {
+        await OneAtATime.WaitAsync(cancellationToken);
+        try { return await VerifyCoreAsync(tenantCode, fileName, cancellationToken); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Verification of {File} failed", fileName);
+            return Result<TenantBackupFile>.Failure(Error.BusinessRule("The check could not run. Reason: " + FirstLine(ex), "backup.verify_failed"));
+        }
+        finally { OneAtATime.Release(); }
+    }
+
+    private async Task<Result<TenantBackupFile>> VerifyCoreAsync(string tenantCode, string fileName, CancellationToken ct)
+    {
+        await using var master = new SqlConnection(Server().ConnectionString);
+        await master.OpenAsync(ct);
+        var database = await DatabaseOfAsync(master, tenantCode, ct);
+        if (database is null) return Result<TenantBackupFile>.Failure(Error.NotFound("That company has no database here."));
+        if (!IsBackupOf(database, fileName)) return Result<TenantBackupFile>.Failure(Error.Validation("That is not a backup of this company."));
+        var path = Path.Combine(await FolderAsync(master, ct), fileName);
+        var scratch = "ITInv_Verify_" + Guid.NewGuid().ToString("N")[..12];
+        string outcome;
+        try
+        {
+            var moves = new List<string>();
+            await using (var list = master.CreateCommand())
+            {
+                list.CommandText = "RESTORE FILELISTONLY FROM DISK = @path";
+                list.Parameters.AddWithValue("@path", path);
+                await using var reader = await list.ExecuteReaderAsync(ct);
+                var i = 0;
+                while (await reader.ReadAsync(ct))
+                {
+                    var logical = reader.GetString(reader.GetOrdinal("LogicalName"));
+                    var isLog = string.Equals(reader.GetString(reader.GetOrdinal("Type")), "L", StringComparison.OrdinalIgnoreCase);
+                    moves.Add($"MOVE N'{logical.Replace("'", "''", StringComparison.Ordinal)}' TO N'@@{(isLog ? "LOG" : "DATA")}@@{scratch}_{i++}{(isLog ? ".ldf" : ".mdf")}'");
+                }
+            }
+            string dataDir, logDir;
+            await using (var dirs = master.CreateCommand())
+            {
+                dirs.CommandText = @"SELECT COALESCE(CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS NVARCHAR(400)), LEFT(physical_name, LEN(physical_name) - CHARINDEX(N'\', REVERSE(physical_name)) + 1)),
+                                            COALESCE(CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS NVARCHAR(400)), CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS NVARCHAR(400)))
+                                     FROM master.sys.database_files WHERE file_id = 1";
+                await using var r = await dirs.ExecuteReaderAsync(ct);
+                await r.ReadAsync(ct);
+                dataDir = r.GetString(0);
+                logDir = r.IsDBNull(1) ? dataDir : r.GetString(1);
+            }
+            string Dir(string d) => d.EndsWith('/') || d.EndsWith('\\') ? d : d + (d.Contains('\\', StringComparison.Ordinal) ? "\\" : "/");
+            var withMoves = string.Join(", ", moves).Replace("@@DATA@@", Dir(dataDir), StringComparison.Ordinal).Replace("@@LOG@@", Dir(logDir), StringComparison.Ordinal);
+
+            await using (var restore = master.CreateCommand())
+            {
+                restore.CommandText = $"RESTORE DATABASE [{scratch}] FROM DISK = @path WITH CHECKSUM, RECOVERY, {withMoves}";
+                restore.Parameters.AddWithValue("@path", path);
+                restore.CommandTimeout = 7200;
+                await restore.ExecuteNonQueryAsync(ct);
+            }
+            await using (var check = master.CreateCommand())
+            {
+                check.CommandText = $"DBCC CHECKDB ([{scratch}]) WITH NO_INFOMSGS, ALL_ERRORMSGS";
+                check.CommandTimeout = 7200;
+                await check.ExecuteNonQueryAsync(ct);
+            }
+            await using (var sanity = master.CreateCommand())
+            {
+                sanity.CommandText = $"SELECT COUNT(*) FROM [{scratch}].dbo.tblCompany";
+                if (Convert.ToInt32(await sanity.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) < 1) throw new InvalidOperationException("the restored database holds no company");
+            }
+            outcome = "OK|" + DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture) + "|Test restore and consistency check passed";
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Backup {File} failed its test restore", fileName);
+            outcome = "FAILED|" + DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture) + "|" + FirstLine(ex);
+        }
+        finally
+        {
+            try
+            {
+                await using var drop = master.CreateCommand();
+                drop.CommandText = $"IF DB_ID(N'{scratch}') IS NOT NULL BEGIN ALTER DATABASE [{scratch}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{scratch}]; END";
+                await drop.ExecuteNonQueryAsync(CancellationToken.None);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "Could not drop the temporary database {Database}; remove it manually", scratch); }
+        }
+        try { await File.WriteAllTextAsync(VerifyFile(path), outcome, CancellationToken.None); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { _logger.LogWarning(ex, "Could not save the check result next to {File}", fileName); }
+        var info = new FileInfo(path);
+        return Result<TenantBackupFile>.Success(WithVerification(new TenantBackupFile(fileName, info.Exists ? info.Length : 0, info.CreationTimeUtc), path));
     }
 
     public async Task<Result> RestoreAsync(string tenantCode, string fileName, CancellationToken cancellationToken = default)
@@ -297,7 +427,7 @@ internal sealed partial class TenantBackupService : ITenantBackupService
             .Where(f => IsBackupOf(database, f.Name))
             .OrderByDescending(f => f.Name, StringComparer.Ordinal).Skip(Math.Max(1, keep)).ToList();
         var deleted = 0;
-        foreach (var f in old) { try { f.Delete(); deleted++; } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+        foreach (var f in old) { try { f.Delete(); File.Delete(VerifyFile(f.FullName)); deleted++; } catch (IOException) { } catch (UnauthorizedAccessException) { } }
         return deleted;
     }
 

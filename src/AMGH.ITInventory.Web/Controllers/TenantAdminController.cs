@@ -23,15 +23,17 @@ public sealed class TenantAdminController : Controller
     private readonly ITenantCatalog? _catalog;
     private readonly ITenantProvisioningService _provisioning;
     private readonly ITenantBackupService _backups;
+    private readonly ITenantMigrationService _migrations;
     private readonly OperatorSession _session;
 
     public TenantAdminController(IOptions<TenancyOptions> options, IServiceProvider services, ITenantProvisioningService provisioning,
-        ITenantBackupService backups, OperatorSession session)
+        ITenantBackupService backups, ITenantMigrationService migrations, OperatorSession session)
     {
         _options = options.Value;
         _catalog = services.GetService<ITenantCatalog>();
         _provisioning = provisioning;
         _backups = backups;
+        _migrations = migrations;
         _session = session;
     }
 
@@ -48,7 +50,7 @@ public sealed class TenantAdminController : Controller
     {
         if (!Enabled) return NotFound();
         var model = new TenantAdminViewModel { LoggedIn = SignedIn };
-        if (model.LoggedIn) model.Tenants = await TenantsAsync(HttpContext.RequestAborted);
+        if (model.LoggedIn) { model.Tenants = await TenantsAsync(HttpContext.RequestAborted); model.Schema = await _migrations.StatusAsync(HttpContext.RequestAborted); }
         return View(model);
     }
 
@@ -120,6 +122,21 @@ public sealed class TenantAdminController : Controller
         return await ConsoleAsync(model);
     }
 
+    /// <summary>Brings every company database up to the schema of the installed version.</summary>
+    [HttpPost("upgrade")]
+    public async Task<IActionResult> Upgrade(TenantAdminViewModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        if (!Enabled) return NotFound();
+        if (!SignedIn) return RedirectToAction(nameof(Index));
+        var status = await _migrations.UpgradeAllAsync(CancellationToken.None);
+        var open = status.Where(s => !s.UpToDate).ToList();
+        model.Succeeded = open.Count == 0;
+        model.Message = open.Count == 0 ? "Every company is up to date."
+            : "Not every company could be upgraded: " + string.Join(" ", open.Select(s => $"{s.Code}: {s.Problem ?? s.Pending + " pending"}.")) + " Details are in the log.";
+        return await ConsoleAsync(model);
+    }
+
     // ---------------------------------------------------------------- backups
     [HttpGet("backups/{code}")]
     public async Task<IActionResult> Backups(string code)
@@ -162,7 +179,7 @@ public sealed class TenantAdminController : Controller
         var company = await CompanyAsync(code);
         if (company is null) return NotFound();
         var model = new TenantBackupsViewModel { Code = company.Code, Name = company.Name, Message = message, Succeeded = succeeded };
-        try { model.Files = (await _backups.ListAsync(company.Code, HttpContext.RequestAborted)).Select(f => new BackupRow(f.FileName, f.SizeBytes, f.CreatedUtc)).ToList(); }
+        try { model.Files = (await _backups.ListAsync(company.Code, HttpContext.RequestAborted)).Select(f => new BackupRow(f.FileName, f.SizeBytes, f.CreatedUtc, f.VerifiedUtc, f.VerifyOk, f.VerifyNote)).ToList(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             model.CanList = false;
@@ -177,6 +194,7 @@ public sealed class TenantAdminController : Controller
         model.LoggedIn = true;
         model.OperatorKey = null;
         model.Tenants = await TenantsAsync(CancellationToken.None);
+        model.Schema = await _migrations.StatusAsync(CancellationToken.None);
         return View("Index", model);
     }
 

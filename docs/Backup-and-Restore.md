@@ -72,3 +72,7 @@ The Platform Super Administrator of a company can:
 - **Schedule** – Off, Daily (time of day) or Weekly (day + time), server local time, with "keep the last N scheduled backups" (only files ending `_auto` are pruned; manual backups are never deleted). A run missed while the server was down is made once it is back up. The schedule is stored beside the company's documents, so a restore never rewinds it.
 
 Permissions: the application pool identity needs Modify rights on the backup folder (the installer and `Set-OperatorAccess.ps1 -SetupBackups` set this). Uploads up to 2 GB are allowed on `admin/backup/upload` (`web.config`).
+
+## Proving a backup works ("Checked")
+
+A backup nobody has ever restored is a hope, not a backup. **Check now** (Administration → Backup and restore) restores the file under a temporary name, runs `DBCC CHECKDB` and a sanity query, drops the copy and shows the result and time next to the file (the result is kept in `<backup>.bak.verify`). Your live data is never touched. It needs free disk space for a second copy of the database for a few minutes. Scheduled backups are checked automatically right after they are made, and a failed check is written to the log as an error.

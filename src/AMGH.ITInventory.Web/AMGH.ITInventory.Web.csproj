@@ -25,6 +25,7 @@
     <!-- Baseline database scripts: tenant provisioning runs them on a new customer database (Tenancy:ScriptsPath). -->
     <Content Include="..\..\deployment\SQLScripts\*.sql" Exclude="..\..\deployment\SQLScripts\00_*.sql;..\..\deployment\SQLScripts\*_Rollback.sql;..\..\deployment\SQLScripts\*_Verify.sql"
              Link="SQLScripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\deployment\SQLScripts\Migrations\*.sql" Link="SQLScripts\Migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\deployment\LoadTest\Generate-DemoData.sql" Link="SQLScripts\Demo\Generate-DemoData.sql" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Remove="App_Data\**" />
     <None Remove="App_Data\**" />

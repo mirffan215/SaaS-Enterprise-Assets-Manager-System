@@ -111,6 +111,11 @@ public sealed partial class TenantProvisioningService : ITenantProvisioningServi
                 }
             }
 
+            await using (var upgrade = new SqlConnection(new SqlConnectionStringBuilder(server.ConnectionString) { InitialCatalog = database }.ConnectionString))
+            {
+                await upgrade.OpenAsync(cancellationToken);
+                await TenantMigrationService.ApplyAsync(upgrade, TenantMigrationService.Load(TenantMigrationService.MigrationsFolder(_options)), _logger, cancellationToken);
+            }
             await FinishCompanyAsync(server, database, companyCode, companyName, cancellationToken);
             if (isDemo) await LoadDemoDataAsync(server, database, companyCode, cancellationToken);
 

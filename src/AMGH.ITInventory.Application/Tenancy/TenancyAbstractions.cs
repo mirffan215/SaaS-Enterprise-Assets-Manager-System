@@ -66,6 +66,9 @@ public sealed class TenancyOptions
     /// </summary>
     public string? BackupFolder { get; set; }
 
+    /// <summary>True (default): when the application starts, every company database is brought up to the installed version's schema (a backup is made first when something has to change).</summary>
+    public bool AutoUpgrade { get; set; } = true;
+
     /// <summary>Code of the sandbox tenant.</summary>
     public const string DemoCode = "demo";
 

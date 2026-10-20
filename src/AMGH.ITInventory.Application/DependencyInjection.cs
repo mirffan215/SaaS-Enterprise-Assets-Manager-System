@@ -73,6 +73,7 @@ public static class DependencyInjection
         // multi-tenancy: provisioning of customer databases
         services.AddScoped<Tenancy.ITenantProvisioningService, Tenancy.TenantProvisioningService>();
         services.AddScoped<Tenancy.ITenantBackupService, Tenancy.TenantBackupService>();
+        services.AddScoped<Tenancy.ITenantMigrationService, Tenancy.TenantMigrationService>();
         return services;
     }
 }
