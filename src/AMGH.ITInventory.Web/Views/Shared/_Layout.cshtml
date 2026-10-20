@@ -148,7 +148,7 @@
             @RenderBody()
         </main>
         <footer class="app-footer">
-            @User.GetCompanyName() · @AMGH.ITInventory.Shared.AppInfo.Name @AMGH.ITInventory.Shared.AppInfo.Version. Authorised use only; activity is logged.
+            @User.GetCompanyName() · @AMGH.ITInventory.Shared.AppInfo.Name @AMGH.ITInventory.Shared.AppInfo.Version@(string.IsNullOrEmpty(AMGH.ITInventory.Shared.AppInfo.Build) ? "" : " (build " + AMGH.ITInventory.Shared.AppInfo.Build + ")"). Authorised use only; activity is logged.
         </footer>
     </div>
 

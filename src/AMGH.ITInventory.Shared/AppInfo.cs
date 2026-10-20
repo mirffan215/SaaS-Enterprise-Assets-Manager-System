@@ -12,5 +12,18 @@ public static class AppInfo
     /// <summary>Product vendor shown in footers and e-mails when no company name is available.</summary>
     public const string Owner = "IT Inventory Cloud";
     public const string Tagline = "Track • Manage • Maintain • Optimize";
-    public const string Version = "2.14";
+    public const string Version = "3.0";
+
+    /// <summary>When this build was made (the program file's time), so the footer shows which build is really running.</summary>
+    public static string Build { get; } = ReadBuild();
+
+    private static string ReadBuild()
+    {
+        try
+        {
+            var path = System.Reflection.Assembly.GetEntryAssembly()?.Location;
+            return string.IsNullOrEmpty(path) ? string.Empty : File.GetLastWriteTimeUtc(path).ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) + " UTC";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException) { return string.Empty; }
+    }
 }
