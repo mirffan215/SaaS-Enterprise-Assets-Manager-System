@@ -15,9 +15,11 @@ internal sealed class NotificationWorker : BackgroundService
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
     private readonly IServiceScopeFactory _scopes;
     private readonly ILogger<NotificationWorker> _logger;
+    private readonly BackgroundJobs _jobs;
 
-    public NotificationWorker(IServiceScopeFactory scopes, ILogger<NotificationWorker> logger)
+    public NotificationWorker(IServiceScopeFactory scopes, ILogger<NotificationWorker> logger, BackgroundJobs jobs)
     {
+        _jobs = jobs;
         _scopes = scopes;
         _logger = logger;
     }
@@ -28,8 +30,10 @@ internal sealed class NotificationWorker : BackgroundService
         using var timer = new PeriodicTimer(Interval);
         do
         {
-            try { await RunOnceAsync(stoppingToken); }
-            catch (Exception ex) when (ex is not OperationCanceledException) { _logger.LogError(ex, "Notification run failed"); }
+            const string Job = "E-mail and reminders";
+            _jobs.Started(Job, "Every minute sends the e-mails that are due for each company; from 06:00 it also creates the daily reminders (warranty, return dates, approvals).", Interval);
+            try { await RunOnceAsync(stoppingToken); _jobs.Finished(Job, true, "Last check completed."); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { _logger.LogError(ex, "Notification run failed"); _jobs.Finished(Job, false, ex.Message.Split('\n')[0]); }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }

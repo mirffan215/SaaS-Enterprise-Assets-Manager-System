@@ -5,6 +5,17 @@ using Microsoft.Extensions.Options;
 
 namespace AMGH.ITInventory.Web.Infrastructure;
 
+/// <summary>One run of the backup job (scheduled or by hand), kept for the history on the Backup and restore page.</summary>
+public sealed class BackupRun
+{
+    public DateTime StartedLocal { get; set; }
+    public DateTime? FinishedLocal { get; set; }
+    /// <summary>"Scheduled" or "Manual".</summary>
+    public string Kind { get; set; } = "Scheduled";
+    public bool Ok { get; set; }
+    public string Summary { get; set; } = string.Empty;
+}
+
 /// <summary>A workspace's backup schedule: off, every day at a time, or every week on a day at a time (server time).</summary>
 public sealed class BackupSchedule
 {
@@ -21,6 +32,30 @@ public sealed class BackupSchedule
     /// <summary>When a scheduled backup last finished and passed its test restore.</summary>
     public DateTime? LastSuccessLocal { get; set; }
     public string? LastResult { get; set; }
+    /// <summary>Set while a scheduled backup is being made (cleared when it ends, or at start-up if the site restarted in the middle of it).</summary>
+    public DateTime? RunningSinceLocal { get; set; }
+    /// <summary>The newest runs first, at most <see cref="MaxHistory"/>.</summary>
+    public List<BackupRun> History { get; set; } = new();
+
+    public const int MaxHistory = 20;
+
+    public void AddRun(BackupRun run)
+    {
+        History.Insert(0, run);
+        if (History.Count > MaxHistory) History.RemoveRange(MaxHistory, History.Count - MaxHistory);
+    }
+
+    /// <summary>The next moment a backup is due: now when one is waiting to run, null when the schedule is off.</summary>
+    public DateTime? NextRun(DateTime now)
+    {
+        if (Mode == Off || !TryParseTime(Time, out var time)) return null;
+        if (IsDue(now)) return now;
+        if (Mode == Daily) return now.Date + time > now ? now.Date + time : now.Date.AddDays(1) + time;
+        if (Mode != Weekly || Day is < 0 or > 6) return null;
+        var ahead = (Day - (int)now.DayOfWeek + 7) % 7;
+        var slot = now.Date.AddDays(ahead) + time;
+        return slot > now ? slot : slot.AddDays(7);
+    }
 
     public static bool TryParseTime(string? text, out TimeSpan time) =>
         TimeSpan.TryParseExact(text, @"hh\:mm", CultureInfo.InvariantCulture, out time) && time < TimeSpan.FromHours(24);

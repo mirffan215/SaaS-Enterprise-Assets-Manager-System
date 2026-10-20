@@ -49,6 +49,7 @@ public sealed class TenantBackupsViewModel
     public bool OffsiteConfigured { get; set; }
     /// <summary>The workspace's backup schedule (workspace page only).</summary>
     public AMGH.ITInventory.Web.Infrastructure.BackupSchedule Schedule { get; set; } = new();
+    public IReadOnlyList<AMGH.ITInventory.Web.Infrastructure.BackgroundJobInfo> Jobs { get; set; } = Array.Empty<AMGH.ITInventory.Web.Infrastructure.BackgroundJobInfo>();
 }
 
 /// <summary>Company self-registration (Tenancy:AllowSelfRegistration).</summary>

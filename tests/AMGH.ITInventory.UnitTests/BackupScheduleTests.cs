@@ -156,3 +156,35 @@ public class PlatformOverviewTests
         Assert.Equal("a\\\"b\\\\c", PlatformMetricsController.Escape("a\"b\\c"));
     }
 }
+
+public class ScheduleStatusTests
+{
+    [Fact]
+    public void The_next_daily_run_is_today_or_tomorrow()
+    {
+        var s = new BackupSchedule { Mode = BackupSchedule.Daily, Time = "02:00", LastRunLocal = new DateTime(2026, 10, 20, 2, 0, 30) };
+        Assert.Equal(new DateTime(2026, 10, 21, 2, 0, 0), s.NextRun(new DateTime(2026, 10, 20, 9, 0, 0)));
+    }
+
+    [Fact]
+    public void A_due_backup_is_reported_as_now_and_the_weekly_run_waits_for_its_day()
+    {
+        var due = new BackupSchedule { Mode = BackupSchedule.Daily, Time = "02:00", LastRunLocal = new DateTime(2026, 10, 19, 2, 0, 30) };
+        var now = new DateTime(2026, 10, 20, 2, 30, 0);
+        Assert.Equal(now, due.NextRun(now));
+
+        var weekly = new BackupSchedule { Mode = BackupSchedule.Weekly, Day = 5, Time = "03:00", LastRunLocal = new DateTime(2026, 10, 16, 3, 0, 30) }; // Friday
+        Assert.Equal(new DateTime(2026, 10, 23, 3, 0, 0), weekly.NextRun(new DateTime(2026, 10, 20, 12, 0, 0)));
+        Assert.Null(new BackupSchedule().NextRun(DateTime.Now));
+    }
+
+    [Fact]
+    public void The_history_keeps_the_newest_twenty_runs_first()
+    {
+        var s = new BackupSchedule();
+        for (var i = 0; i < 25; i++) s.AddRun(new BackupRun { StartedLocal = new DateTime(2026, 10, 1).AddDays(i), Summary = "run " + i });
+        Assert.Equal(BackupSchedule.MaxHistory, s.History.Count);
+        Assert.Equal("run 24", s.History[0].Summary);
+        Assert.Equal("run 5", s.History[^1].Summary);
+    }
+}

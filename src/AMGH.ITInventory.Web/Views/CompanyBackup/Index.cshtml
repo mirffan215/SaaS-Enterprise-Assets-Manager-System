@@ -62,6 +62,81 @@
         </div>
     </div>
 
+    <section class="panel mt-3" @(s.RunningSinceLocal is not null ? "data-refresh-seconds=15" : "")>
+        <h2 class="panel-title">Scheduled jobs</h2>
+        @{
+            var now = DateTime.Now;
+            var next = s.NextRun(now);
+            string F(DateTime? d) => d is null ? "never" : d.Value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+            var failing = s.LastResult?.Contains("FAILED", StringComparison.OrdinalIgnoreCase) == true;
+        }
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-3">
+                <thead><tr><th>Job</th><th>Status</th><th>Next run</th><th>Last run</th><th>Last result</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Scheduled backup</strong><div class="small text-body-secondary">@(s.Mode == "Off" ? "Not scheduled" : s.Mode == "Daily" ? $"Every day at {s.Time}" : $"Every {Day(s.Day)} at {s.Time}"), keeps the last @s.Keep</div></td>
+                        <td>
+                            @if (s.RunningSinceLocal is { } since) { <span class="badge text-bg-primary"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Running since @since.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)</span> }
+                            else if (s.Mode == "Off") { <span class="badge text-bg-secondary">Off</span> }
+                            else if (failing) { <span class="badge text-bg-danger">Last run failed</span> }
+                            else { <span class="badge text-bg-success">Waiting</span> }
+                        </td>
+                        <td>@(s.RunningSinceLocal is not null ? "—" : next is null ? "—" : next <= now ? "due now (starts within a minute)" : F(next))</td>
+                        <td>@F(s.LastRunLocal)</td>
+                        <td class="small">@(s.LastResult ?? "—")</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        @if (s.History.Count > 0)
+        {
+            <h3 class="h6">Recent runs</h3>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-3">
+                    <thead><tr><th>Started</th><th>Took</th><th>Type</th><th>Result</th></tr></thead>
+                    <tbody>
+                        @foreach (var run in s.History)
+                        {
+                            <tr>
+                                <td>@F(run.StartedLocal)</td>
+                                <td>@(run.FinishedLocal is { } fin ? Math.Max(1, (int)Math.Round((fin - run.StartedLocal).TotalSeconds)) + " s" : "—")</td>
+                                <td>@run.Kind</td>
+                                <td class="small">@if (run.Ok) { <span class="text-success"><i class="bi bi-check-circle" aria-hidden="true"></i></span> } else { <span class="text-danger"><i class="bi bi-x-circle" aria-hidden="true"></i></span> } @run.Summary</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (Model.Jobs.Count > 0)
+        {
+            <h3 class="h6">Background jobs of the site</h3>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Job</th><th>Status</th><th>Last started</th><th>Last finished</th><th>Result</th></tr></thead>
+                    <tbody>
+                        @foreach (var j in Model.Jobs)
+                        {
+                            <tr>
+                                <td><strong>@j.Name</strong><div class="small text-body-secondary">@j.Description</div></td>
+                                <td>@if (j.Running) { <span class="badge text-bg-primary">Running</span> } else if (j.LastOk == false) { <span class="badge text-bg-danger">Last run failed</span> } else { <span class="badge text-bg-success">Idle</span> }</td>
+                                <td>@F(j.LastStartLocal)</td>
+                                <td>@F(j.LastFinishLocal)</td>
+                                <td class="small">@(j.LastDetail ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-body-secondary mt-2 mb-0">Times are server time. These jobs run inside the website; if a job shows "never" the site was restarted a moment ago.</p>
+        }
+        else
+        {
+            <p class="small text-body-secondary mb-0">The site's background jobs have not run yet since it started (about a minute after start-up).</p>
+        }
+    </section>
+
     <section class="panel mt-3">
         <h2 class="panel-title">Backups</h2>
         @if (Model.Files.Count == 0)

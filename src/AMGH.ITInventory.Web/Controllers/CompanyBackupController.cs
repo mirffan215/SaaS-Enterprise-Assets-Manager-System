@@ -25,9 +25,11 @@ public sealed class CompanyBackupController : Controller
     private readonly ITenantAccessor _tenants;
     private readonly IBackupArchive _archive;
     private readonly BackupScheduleStore _schedules;
+    private readonly BackgroundJobs _jobs;
 
-    public CompanyBackupController(ITenantBackupService backups, ITenantAccessor tenants, IBackupArchive archive, BackupScheduleStore schedules)
+    public CompanyBackupController(ITenantBackupService backups, ITenantAccessor tenants, IBackupArchive archive, BackupScheduleStore schedules, BackgroundJobs jobs)
     {
+        _jobs = jobs;
         _backups = backups;
         _tenants = tenants;
         _archive = archive;
@@ -49,7 +51,11 @@ public sealed class CompanyBackupController : Controller
     public async Task<IActionResult> Create()
     {
         if (_tenants.CurrentTenant is not { } tenant) return await ViewAsync(null, false);
+        var started = DateTime.Now;
         var result = await _backups.BackupAsync(tenant.Code, cancellationToken: CancellationToken.None);
+        var schedule = await _schedules.LoadAsync(tenant.Code);
+        schedule.AddRun(new BackupRun { StartedLocal = started, FinishedLocal = DateTime.Now, Kind = "Manual", Ok = result.IsSuccess, Summary = result.IsSuccess ? result.Value.FileName : result.FirstError!.Message });
+        await _schedules.SaveAsync(tenant.Code, schedule);
         return await ViewAsync(result.IsSuccess ? $"Backup created: {result.Value.FileName}" : result.FirstError!.Message, result.IsSuccess);
     }
 
@@ -167,6 +173,7 @@ public sealed class CompanyBackupController : Controller
         }
         model.OffsiteConfigured = _backups.OffsiteConfigured;
         model.Schedule = await _schedules.LoadAsync(tenant.Code, HttpContext.RequestAborted);
+        model.Jobs = _jobs.Snapshot();
         try { model.Files = (await _backups.ListAsync(tenant.Code, HttpContext.RequestAborted)).Select(f => new BackupRow(f.FileName, f.SizeBytes, f.CreatedUtc, f.VerifiedUtc, f.VerifyOk, f.VerifyNote, f.OffsiteUtc, f.OffsiteOk, f.OffsiteNote)).ToList(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {

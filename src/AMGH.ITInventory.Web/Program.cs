@@ -121,6 +121,7 @@ try
     builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
     builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database").AddCheck<BackupHealthCheck>("backups", tags: new[] { "backups" });
     builder.Services.AddSingleton<BackupAlerts>();
+    builder.Services.AddSingleton<BackgroundJobs>();
 
     // ---------------------------------------------------------------- pipeline
     var tenancySettings = builder.Configuration.GetSection(TenancyOptions.SectionName).Get<TenancyOptions>() ?? new TenancyOptions();
