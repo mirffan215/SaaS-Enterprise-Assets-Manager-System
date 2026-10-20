@@ -71,7 +71,14 @@ Open `https://<host>[:port]/Tenant/Admin` and enter the **operator key** (printe
 The company gets its own database (this takes a minute or two). The administrator signs in as `admin` at the company-code page. *Show companies*
 lists what exists. The page is hidden while no operator key is set, is rate-limited, and customers never see it.
 
-For an installation made before this existed, add a key once (PowerShell as administrator):
+To create or replace the operator key and the demo administrator's password on an installed site (random values, shown once, saved for the site):
+
+```powershell
+cd <repo>\deployment\PowerShell
+.\Set-OperatorAccess.ps1                 # sets what is missing; -NewOperatorKey / -NewDemoPassword to replace
+```
+
+Manual alternative for an installation made before this existed (PowerShell as administrator):
 
 ```powershell
 $f = "C:\inetpub\EAMSCloud\appsettings.Production.json"
