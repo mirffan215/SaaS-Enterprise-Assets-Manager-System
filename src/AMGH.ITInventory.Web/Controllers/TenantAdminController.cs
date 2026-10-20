@@ -167,6 +167,21 @@ public sealed class TenantAdminController : Controller
         return await ConsoleAsync(model);
     }
 
+    /// <summary>Break-glass: clears the address list, the two-step requirement and single sign-on of a company, and resets the first administrator's two-step verification.</summary>
+    [HttpPost("emergency/{code}")]
+    public async Task<IActionResult> Emergency(string code)
+    {
+        if (!Enabled) return NotFound();
+        if (!SignedIn) return RedirectToAction(nameof(Index));
+        var model = new TenantAdminViewModel();
+        var done = _services.GetService<ITenantEmergencyService>() is { } emergency && await emergency.RestoreAccessAsync(code, CancellationToken.None);
+        model.Succeeded = done;
+        model.Message = done ? $"{code}: address list, two-step requirement and single sign-on cleared; the administrator \"admin\" is unlocked and has two-step verification reset (password unchanged). Tell them to set these up again."
+                             : "Unknown company.";
+        if (done) await LogAsync(code, "Emergency access restored", null);
+        return await ConsoleAsync(model);
+    }
+
     // ---------------------------------------------------------------- backups
     [HttpGet("backups/{code}")]
     public async Task<IActionResult> Backups(string code)

@@ -379,4 +379,26 @@ public class SqlServerIntegrationTests
         }
         finally { await DropAsync(o, code); }
     }
+
+    [SqlServerFact]
+    public async Task Emergency_access_clears_the_lock_and_the_admins_two_step()
+    {
+        var o = Options(realMigrations: true);
+        var code = NewCode();
+        var catalog = new MemoryCatalog();
+        try
+        {
+            Assert.True((await Provisioner(o, catalog).ProvisionTenantAsync(code, "Locked Out", "a@b.test", "Correct-Horse-9", includeErrorDetail: true)).IsSuccess);
+            var db = TenantProvisioningService.DatabasePrefix + code;
+            await ScalarAsync<int>(db, "UPDATE dbo.tblCompany SET AllowedIpRanges = N'203.0.113.9', MfaPolicy = 2, SsoEnabled = 1; UPDATE dbo.tblUser SET TotpSecret = N'x', TotpEnabledDate = SYSUTCDATETIME(), LockoutEndUtc = DATEADD(HOUR, 1, SYSUTCDATETIME()); INSERT dbo.tblUserRecoveryCode (UserId, CodeHash) SELECT UserId, REPLICATE('A', 64) FROM dbo.tblUser; SELECT 1", o);
+
+            Assert.True(await new TenantEmergencyService(catalog, Microsoft.Extensions.Options.Options.Create(o)).RestoreAccessAsync(code));
+
+            Assert.Equal(0, await ScalarAsync<int>(db, "SELECT COUNT(*) FROM dbo.tblCompany WHERE AllowedIpRanges IS NOT NULL OR MfaPolicy <> 0 OR SsoEnabled <> 0", o));
+            Assert.Equal(0, await ScalarAsync<int>(db, "SELECT COUNT(*) FROM dbo.tblUser WHERE TotpSecret IS NOT NULL OR LockoutEndUtc IS NOT NULL", o));
+            Assert.Equal(0, await ScalarAsync<int>(db, "SELECT COUNT(*) FROM dbo.tblUserRecoveryCode", o));
+            Assert.False(await new TenantEmergencyService(catalog, Microsoft.Extensions.Options.Options.Create(o)).RestoreAccessAsync("nosuch"));
+        }
+        finally { await DropAsync(o, code); }
+    }
 }

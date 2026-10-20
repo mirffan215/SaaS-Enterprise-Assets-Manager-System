@@ -89,6 +89,7 @@
                             <td class="text-nowrap text-end">
                                 <a href="@Model.Tenants.First(r => r.Code == t.Code).Url" class="btn btn-sm btn-outline-primary">Open</a>
                                 <a asp-action="Backups" asp-route-code="@t.Code" class="btn btn-sm btn-outline-secondary">Backups</a>
+                                <form asp-action="Emergency" asp-route-code="@t.Code" method="post" class="d-inline" data-confirm="Emergency access for @t.Code: clears its allowed networks, two-step requirement and single sign-on, and resets the two-step verification of its administrator 'admin'. Passwords are not changed. Continue?"><button type="submit" class="btn btn-sm btn-outline-warning" title="For a company that locked itself out">Emergency</button></form>
                                 @if (t.IsActive)
                                 {
                                     <form asp-action="Suspend" asp-route-code="@t.Code" method="post" class="d-inline" data-confirm="Suspend @t.Code? Nobody can use it until you resume it. Nothing is deleted."><button type="submit" class="btn btn-sm btn-outline-danger">Suspend</button></form>

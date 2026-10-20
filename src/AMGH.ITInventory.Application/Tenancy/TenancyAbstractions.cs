@@ -145,6 +145,16 @@ public interface ITenantUsageService
     Task<IReadOnlyList<TenantUsage>> GetAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>Operator break-glass for a company that locked itself out (wrong address list, lost phone of the only administrator).</summary>
+public interface ITenantEmergencyService
+{
+    /// <summary>
+    /// Clears the company's address list, two-step requirement and single sign-on, and unlocks the first administrator ("admin"), turns off their
+    /// two-step verification and ends their sessions. Passwords are not touched. Returns false when the company is unknown.
+    /// </summary>
+    Task<bool> RestoreAccessAsync(string tenantCode, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Hashes the first administrator's password in the application's own format, after the password policy.</summary>
 public interface ITenantAdminPasswordHasher
 {

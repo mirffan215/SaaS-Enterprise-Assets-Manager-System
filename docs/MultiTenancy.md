@@ -97,3 +97,5 @@ scrape_configs:
 ```
 
 Useful alerts: `eams_company_last_backup_age_seconds > 129600`, `eams_company_last_backup_checked == 0`, `eams_company_schema_pending > 0`, `eams_company_warnings > 0`, `eams_disk_free_bytes < 5e9`.
+
+See also [Sign-in security](Sign-in-Security.md) (two-step verification, allowed networks, single sign-on, emergency access).

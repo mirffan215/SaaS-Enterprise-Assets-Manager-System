@@ -32,6 +32,8 @@ public sealed class LoginViewModel
     public string? NameArabic { get; set; }
     /// <summary>Show the one-click "Explore Demo Environment" button (multi-tenant mode with a demo tenant; display only).</summary>
     public bool ShowExploreDemo { get; set; }
+    /// <summary>The company has single sign-on set up: show the button (display only).</summary>
+    public bool ShowSso { get; set; }
     /// <summary>Multi-tenant sign-in without a chosen company: the company is found from the user name and password (display only).</summary>
     public bool GlobalSignIn { get; set; }
     /// <summary>Offer "Register your company" (self-registration is on; display only).</summary>

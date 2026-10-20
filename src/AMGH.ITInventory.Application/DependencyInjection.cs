@@ -75,6 +75,7 @@ public static class DependencyInjection
         services.AddScoped<Tenancy.ITenantBackupService, Tenancy.TenantBackupService>();
         services.AddScoped<Tenancy.ITenantMigrationService, Tenancy.TenantMigrationService>();
         services.AddScoped<Tenancy.ITenantUsageService, Tenancy.TenantUsageService>();
+        services.AddScoped<Tenancy.ITenantEmergencyService, Tenancy.TenantEmergencyService>();
         return services;
     }
 }

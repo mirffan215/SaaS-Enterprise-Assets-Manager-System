@@ -7,6 +7,7 @@ using AMGH.ITInventory.Security.Mfa;
 using AMGH.ITInventory.Security.Platform;
 using AMGH.ITInventory.Shared.Abstractions;
 using AMGH.ITInventory.Web.Infrastructure;
+using AMGH.ITInventory.Web.Infrastructure.Sso;
 using AMGH.ITInventory.Web.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -43,11 +44,15 @@ public sealed class AccountController : Controller
     private readonly MfaPending _pending;
     private readonly IQrCodeGenerator _qr;
     private readonly ICompanySecurityService _security;
+    private readonly OidcClient _oidc;
+    private readonly SsoState _sso;
 
     public AccountController(IAccountService accounts, IDateTimeProvider clock, ILogger<AccountController> logger, ICompanyDirectory directory,
         ITenantAccessor tenants, IOptions<TenancyOptions> tenancy, TenantSignInService globalSignIn, IMfaService mfa, SignInGate gate, MfaPending pending,
-        IQrCodeGenerator qr, ICompanySecurityService security)
+        IQrCodeGenerator qr, ICompanySecurityService security, OidcClient oidc, SsoState sso)
     {
+        _oidc = oidc;
+        _sso = sso;
         _mfa = mfa;
         _gate = gate;
         _pending = pending;
@@ -174,6 +179,7 @@ public sealed class AccountController : Controller
         model.CanChangeCompany = companyCount > 1;
         model.NameArabic = b.NameArabic;
         model.LogoUrl = Url.Action("Logo", "Branding", new { code = b.CompanyCode }); // an uploaded logo, else the generated badge
+        model.ShowSso = await SsoReadyAsync(b.CompanyCode, ct);
         ViewData["BrandingCode"] = b.CompanyCode;
         return true;
     }
@@ -389,6 +395,89 @@ public sealed class AccountController : Controller
         await IssueCookieAsync(result.Value, null, User.MfaSetupRequired());
         TempData["StatusMessage"] = "Your password has been changed.";
         return RedirectToAction(nameof(HomeController.Index), "Home");
+    }
+
+    // ---------------------------------------------------------------- single sign-on (OpenID Connect)
+    private async Task<bool> SsoReadyAsync(string companyCode, CancellationToken ct) =>
+        await _security.GetByCodeAsync(companyCode, ct) is { SsoEnabled: true, SsoAuthority: not null, SsoClientId: not null, SsoSecretSet: true };
+
+    private string SsoRedirectUri => $"{Request.Scheme}://{Request.Host}/Account/SsoCallback";
+
+    /// <summary>Sends the browser to the company's identity provider.</summary>
+    [HttpGet]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<IActionResult> Sso(string? company, string? returnUrl, CancellationToken cancellationToken)
+    {
+        if (NoCompanyYet) return RedirectToAction("Select", "Tenant");
+        var code = company ?? Request.Cookies[WorkspaceCookie];
+        if (string.IsNullOrWhiteSpace(code)) { var all = await _directory.ListActiveAsync(cancellationToken); if (all.Count == 1) code = all[0].CompanyCode; }
+        var security = string.IsNullOrWhiteSpace(code) ? null : await _security.GetByCodeAsync(code, cancellationToken);
+        if (security is not { SsoEnabled: true, SsoAuthority: not null, SsoClientId: not null } || await _security.GetSsoSecretAsync(security.CompanyId, cancellationToken) is not { } secret)
+        {
+            TempData["ErrorMessage"] = "Single sign-on is not set up for this company.";
+            return RedirectToAction(nameof(Login), new { company });
+        }
+        var state = OidcClient.RandomToken();
+        var nonce = OidcClient.RandomToken();
+        var (verifier, challenge) = OidcClient.NewPkce();
+        Uri url;
+        try { url = await _oidc.BuildAuthorizeUrlAsync(new OidcSettings(security.SsoAuthority, security.SsoClientId, secret, security.SsoAllowedDomain), SsoRedirectUri, state, nonce, challenge, cancellationToken); }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or TaskCanceledException)
+        {
+            _logger.LogWarning(ex, "Single sign-on provider of {Company} could not be reached", security.CompanyCode);
+            TempData["ErrorMessage"] = "The single sign-on provider could not be reached. Try again, or sign in with your password.";
+            return RedirectToAction(nameof(Login), new { company = security.CompanyCode });
+        }
+        _sso.Start(HttpContext, new SsoStateData(state, nonce, verifier, _tenants.CurrentTenant?.Code, security.CompanyCode, Url.IsLocalUrl(returnUrl) ? returnUrl : null));
+        return Redirect(url.ToString());
+    }
+
+    /// <summary>The provider sends the person back here with a one-time code.</summary>
+    [HttpGet]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Login)]
+    public async Task<IActionResult> SsoCallback(string? code, string? state, string? error, CancellationToken cancellationToken)
+    {
+        var saved = _sso.Take(HttpContext);
+        if (saved is null || string.IsNullOrEmpty(state) || !System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(saved.State), System.Text.Encoding.UTF8.GetBytes(state))
+            || !string.Equals(saved.TenantCode, _tenants.CurrentTenant?.Code, StringComparison.OrdinalIgnoreCase))
+        {
+            TempData["ErrorMessage"] = "That single sign-on attempt expired or did not start here. Please try again.";
+            return RedirectToAction(nameof(Login));
+        }
+        if (!string.IsNullOrEmpty(error) || string.IsNullOrEmpty(code))
+        {
+            TempData["ErrorMessage"] = "Single sign-on was cancelled or refused by your provider.";
+            return RedirectToAction(nameof(Login), new { company = saved.CompanyCode });
+        }
+        var security = await _security.GetByCodeAsync(saved.CompanyCode, cancellationToken);
+        var secret = security is null ? null : await _security.GetSsoSecretAsync(security.CompanyId, cancellationToken);
+        if (security is not { SsoEnabled: true, SsoAuthority: not null, SsoClientId: not null } || secret is null)
+        {
+            TempData["ErrorMessage"] = "Single sign-on is not set up for this company.";
+            return RedirectToAction(nameof(Login), new { company = saved.CompanyCode });
+        }
+        var identity = await _oidc.RedeemAsync(new OidcSettings(security.SsoAuthority, security.SsoClientId, secret, security.SsoAllowedDomain), SsoRedirectUri, code, saved.Verifier, saved.Nonce, cancellationToken);
+        if (identity.IsFailure)
+        {
+            TempData["ErrorMessage"] = identity.FirstError!.Message;
+            return RedirectToAction(nameof(Login), new { company = saved.CompanyCode });
+        }
+        var outcome = await _accounts.SignInExternalAsync(identity.Value.Email, saved.CompanyCode, ClientIp, UserAgent, cancellationToken);
+        if (!outcome.Succeeded)
+        {
+            TempData["ErrorMessage"] = outcome.Message ?? "Sign-in failed.";
+            return RedirectToAction(nameof(Login), new { company = saved.CompanyCode });
+        }
+        if (await _gate.EvaluateAsync(_tenants.CurrentTenant, outcome.User!, ClientIp, viaSso: true, cancellationToken) == GateResult.IpDenied)
+        {
+            await LogInTenantAsync(_tenants.CurrentTenant, outcome.User!, "Blocked: address not in the company's allow-list", cancellationToken);
+            TempData["ErrorMessage"] = "Sign-in from this network is not allowed for this company. Connect from an approved network or contact your administrator.";
+            return RedirectToAction(nameof(Login), new { company = saved.CompanyCode });
+        }
+        return await FinishSignInAsync(outcome.User!, null, identity.Value.Email, remember: false, saved.ReturnUrl, mfaSetupRequired: false, cancellationToken);
     }
 
     // ---------------------------------------------------------------- two-step verification

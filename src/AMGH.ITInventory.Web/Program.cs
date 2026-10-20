@@ -45,6 +45,8 @@ try
     builder.Services.AddSingleton<TenantSignInService>();
     builder.Services.AddSingleton<SignInGate>();
     builder.Services.AddSingleton<MfaPending>();
+    builder.Services.AddSingleton<AMGH.ITInventory.Web.Infrastructure.Sso.SsoState>();
+    builder.Services.AddSingleton<AMGH.ITInventory.Web.Infrastructure.Sso.OidcClient>();
     builder.Services.AddSingleton<OperatorSession>();
     builder.Services.AddSingleton<BackupScheduleStore>();
     builder.Services.AddSingleton<ILogoFetcher, LogoFetcher>();

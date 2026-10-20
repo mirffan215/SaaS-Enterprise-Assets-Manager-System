@@ -6,7 +6,9 @@
     <NoWarn>$(NoWarn);CA1812;CA1848</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="6.35.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="6.35.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AMGH.ITInventory.Application\AMGH.ITInventory.Application.csproj" />
@@ -23,8 +25,7 @@
     <!-- Local developer settings and runtime folders never ship. -->
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
     <!-- Baseline database scripts: tenant provisioning runs them on a new customer database (Tenancy:ScriptsPath). -->
-    <Content Include="..\..\deployment\SQLScripts\*.sql" Exclude="..\..\deployment\SQLScripts\00_*.sql;..\..\deployment\SQLScripts\*_Rollback.sql;..\..\deployment\SQLScripts\*_Verify.sql"
-             Link="SQLScripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\deployment\SQLScripts\*.sql" Exclude="..\..\deployment\SQLScripts\00_*.sql;..\..\deployment\SQLScripts\*_Rollback.sql;..\..\deployment\SQLScripts\*_Verify.sql" Link="SQLScripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\deployment\SQLScripts\Migrations\*.sql" Link="SQLScripts\Migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\deployment\LoadTest\Generate-DemoData.sql" Link="SQLScripts\Demo\Generate-DemoData.sql" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Remove="App_Data\**" />

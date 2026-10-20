@@ -73,6 +73,11 @@
 
     <button type="submit" class="lp-submit">Sign in <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
 </form>
+@if (Model.ShowSso)
+{
+    <p class="text-center small my-2 text-body-secondary">or</p>
+    <a class="lp-submit lp-submit-secondary text-center text-decoration-none d-block" href="@Url.Action("Sso", "Account", new { company = Model.CompanyCode, returnUrl = Model.ReturnUrl })"><i class="bi bi-building-lock" aria-hidden="true"></i> Sign in with single sign-on</a>
+}
 
 @if (Model.ShowRegister)
 {
