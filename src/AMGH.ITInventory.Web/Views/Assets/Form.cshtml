@@ -193,36 +193,11 @@
                         <input asp-for="Asset.SalvageValue" class="form-control" type="number" min="0" step="0.01" />
                         <span asp-validation-for="Asset.SalvageValue" class="invalid-feedback d-block"></span>
                     </div>
-                    <div class="col-12"><h3 class="h6 mt-2 mb-0">Fixed asset (accounting)</h3><p class="small text-body-secondary mb-0">Recorded values come from finance (D365). The system does not calculate depreciation.</p></div>
-                    <div class="col-md-3">
-                        <label asp-for="Asset.CapitalizationDate" class="form-label">Capitalisation date</label>
-                        <input asp-for="Asset.CapitalizationDate" class="form-control" type="date" />
-                        <span asp-validation-for="Asset.CapitalizationDate" class="invalid-feedback d-block"></span>
-                    </div>
-                    <div class="col-md-3">
-                        <label asp-for="Asset.DepreciationMethod" class="form-label">Depreciation method</label>
-                        <select asp-for="Asset.DepreciationMethod" class="form-select"><option value="">—</option>
-                            @foreach (var dm in AMGH.ITInventory.Application.Assets.AssetEditModel.DepreciationMethods) { <option value="@dm">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(dm)</option> }</select>
-                        <span asp-validation-for="Asset.DepreciationMethod" class="invalid-feedback d-block"></span>
-                    </div>
-                    <div class="col-md-3">
-                        <label asp-for="Asset.FixedAssetGroup" class="form-label">Fixed asset group</label>
-                        <input asp-for="Asset.FixedAssetGroup" class="form-control" maxlength="50" placeholder="e.g. COMP-EQUIP" />
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-12"><h3 class="h6 mt-2 mb-0">Fixed asset (accounting)</h3><p class="small text-body-secondary mb-0">Recorded values come from finance (D365).</p></div>
+                    <div class="col-md-4">
                         <label asp-for="Asset.ErpFixedAssetId" class="form-label">D365 fixed asset ID <span class="text-body-secondary small">(optional)</span></label>
                         <input asp-for="Asset.ErpFixedAssetId" class="form-control font-monospace" maxlength="50" />
                         <span asp-validation-for="Asset.ErpFixedAssetId" class="invalid-feedback d-block"></span>
-                    </div>
-                    <div class="col-md-3">
-                        <label asp-for="Asset.RecordedBookValue" class="form-label">Book value (recorded)</label>
-                        <input asp-for="Asset.RecordedBookValue" class="form-control" type="number" min="0" step="0.01" />
-                        <span asp-validation-for="Asset.RecordedBookValue" class="invalid-feedback d-block"></span>
-                    </div>
-                    <div class="col-md-3">
-                        <label asp-for="Asset.RecordedBookValueDate" class="form-label">Book value as of</label>
-                        <input asp-for="Asset.RecordedBookValueDate" class="form-control" type="date" />
-                        <span asp-validation-for="Asset.RecordedBookValueDate" class="invalid-feedback d-block"></span>
                     </div>
                 </div>
             </div>

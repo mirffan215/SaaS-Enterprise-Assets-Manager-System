@@ -17,6 +17,7 @@ public static class DisplayText
         ["RecoveryCodeUsed"] = "Recovery code used",
         ["SsoSignIn"] = "Signed in with single sign-on",
         ["QrGenerated"] = "QR code generated",
+        ["RfidLabel"] = "RFID label",
         ["Oem"] = "OEM",
         ["Size50x30"] = "50 × 30 mm",
         ["Size70x40"] = "70 × 40 mm",

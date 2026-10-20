@@ -97,3 +97,44 @@ public class SignInSecurityTests
         Assert.True(Web.Infrastructure.SignInGate.Required(new CompanySecurity(1, "X", "X", 2, null, false, null, null, false, null), false));
     }
 }
+
+public class RfidEncodingTests
+{
+    [Fact]
+    public void An_epc_is_24_hex_characters_and_unique_per_asset()
+    {
+        var a = Application.Labels.RfidEncoding.NewEpc(1, 10);
+        var b = Application.Labels.RfidEncoding.NewEpc(1, 11);
+        Assert.True(Application.Labels.RfidEncoding.IsEpc(a));
+        Assert.StartsWith("A5000001" + "0000000A", a);
+        Assert.StartsWith("A5000001" + "0000000B", b);
+        Assert.NotEqual(Application.Labels.RfidEncoding.NewEpc(1, 10), a); // the random tail differs
+    }
+
+    [Theory]
+    [InlineData("A50000010000000A1234ABCD", true)]
+    [InlineData("a50000010000000a1234abcd", true)]
+    [InlineData("A50000010000000A1234ABC", false)]
+    [InlineData("A50000010000000A1234ABCG", false)]
+    [InlineData(null, false)]
+    public void Only_24_hex_characters_are_an_epc(string? text, bool expected) =>
+        Assert.Equal(expected, Application.Labels.RfidEncoding.IsEpc(text));
+
+    [Fact]
+    public void The_csv_quotes_fields_that_need_it()
+    {
+        var csv = Application.Labels.RfidEncoding.Csv(new[] { new Application.Labels.RfidTag("ACME-IT-1", "Laptop, 14\"", "A50000010000000A1234ABCD", "https://x/a/ACME-IT-1") });
+        Assert.StartsWith("AssetNumber,AssetName,EPC,Url\r\n", csv);
+        Assert.Contains("ACME-IT-1,\"Laptop, 14\"\"\",A50000010000000A1234ABCD,https://x/a/ACME-IT-1\r\n", csv);
+    }
+
+    [Fact]
+    public void The_zpl_writes_the_epc_and_cannot_be_hijacked_by_field_text()
+    {
+        var zpl = Application.Labels.RfidEncoding.Zpl(new[] { new Application.Labels.RfidTag("ACME-1", "Evil ^XZ~JA name", "A50000010000000A1234ABCD", "https://x/a/ACME-1") });
+        Assert.Contains("^RFW,H,2,12,1^FDA50000010000000A1234ABCD^FS", zpl);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(zpl, @"\^XZ"));   // only the label's own end command
+        Assert.DoesNotContain("~JA", zpl);
+        Assert.StartsWith("^XA", zpl);
+    }
+}

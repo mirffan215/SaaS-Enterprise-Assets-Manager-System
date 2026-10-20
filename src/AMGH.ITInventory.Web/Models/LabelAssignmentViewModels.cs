@@ -14,7 +14,7 @@ public sealed class LabelOptionsViewModel
     public string? ReprintReason { get; init; }
     public bool CanReprint { get; init; }
     public bool AnyPrinted(LabelDesign design) => Preview.Assets.Any(a => Preview.WasPrinted(design, a.AssetId));
-    public bool AnyPrintedAtAll => AnyPrinted(LabelDesign.QrLabel) || AnyPrinted(LabelDesign.AssetTag);
+    public bool AnyPrintedAtAll => AnyPrinted(LabelDesign.QrLabel) || AnyPrinted(LabelDesign.AssetTag) || AnyPrinted(LabelDesign.RfidLabel);
 }
 
 public sealed class AssignViewModel

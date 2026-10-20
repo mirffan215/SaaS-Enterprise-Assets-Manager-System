@@ -123,8 +123,8 @@ internal static class AssetMapper
             a.CurrencyId = m.CurrencyId;
             a.UsefulLifeMonths = m.UsefulLifeMonths;
             a.SalvageValue = m.SalvageValue;
-            a.CapitalizationDate = m.CapitalizationDate; a.DepreciationMethod = Clean(m.DepreciationMethod); a.FixedAssetGroup = Clean(m.FixedAssetGroup);
-            a.ErpFixedAssetId = Clean(m.ErpFixedAssetId); a.RecordedBookValue = m.RecordedBookValue; a.RecordedBookValueDate = m.RecordedBookValueDate;
+            // the fixed-asset fields other than the D365 ID are no longer edited here: values already stored are left as they are
+            a.ErpFixedAssetId = Clean(m.ErpFixedAssetId);
         }
         a.CostCenter = Clean(m.CostCenter); a.AssetCondition = Clean(m.AssetCondition); a.MaintenanceRequired = m.MaintenanceRequired;
         if (access.CanViewSecurityDetails)

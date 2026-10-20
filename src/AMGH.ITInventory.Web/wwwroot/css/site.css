@@ -557,3 +557,7 @@
 
 /* Release 2.14: master data import - long problem lists scroll inside their panel */
 .md-import-issues { max-height: 28rem; overflow-y: auto; }
+
+/* two-step verification setup: the QR code is shown at a scannable but not page-filling size */
+.qr-box { max-width: 16rem; }
+.qr-box svg { width: 100%; height: auto; display: block; }

@@ -28,6 +28,8 @@ public class AssetMaintenance : AuditableEntity, ICompanyOwned
     /// <summary>The technician (user account) the job is assigned to; Release 2.10, script 17. PerformedBy stays for external technicians.</summary>
     public int? AssignedToUserId { get; set; }
     public decimal? Cost { get; set; }
+    /// <summary>The vendor invoice (or internal reference) behind <see cref="Cost"/>; migration 0002.</summary>
+    public string? InvoiceNumber { get; set; }
     public int? CurrencyId { get; set; }
     public decimal? DowntimeHours { get; set; }
     public DateOnly? NextMaintenanceDate { get; set; }

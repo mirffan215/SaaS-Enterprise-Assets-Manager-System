@@ -4,5 +4,7 @@ namespace AMGH.ITInventory.Domain.Enums;
 public enum LabelDesign
 {
     QrLabel,
-    AssetTag
+    AssetTag,
+    /// <summary>QR label for an RFID tag: also carries the EPC written to the tag.</summary>
+    RfidLabel
 }

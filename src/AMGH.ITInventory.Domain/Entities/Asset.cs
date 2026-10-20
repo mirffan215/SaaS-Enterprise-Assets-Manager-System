@@ -19,6 +19,8 @@ public class Asset : AuditableEntity, ICompanyOwned
     public string? ModelName { get; set; }
     public string? SerialNumber { get; set; }
     public string? LegacyAssetTag { get; set; }
+    /// <summary>The 96-bit EPC (24 hex characters) written to the asset's RFID tag; set when an RFID label is first made.</summary>
+    public string? RfidEpc { get; set; }
     public string? Description { get; set; }
     public string? Hostname { get; set; }
     public string? IpAddress { get; set; }

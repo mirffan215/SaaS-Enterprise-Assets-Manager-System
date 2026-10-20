@@ -40,6 +40,7 @@ internal sealed class AssetMaintenanceConfiguration : IEntityTypeConfiguration<A
         builder.Property(e => e.PerformedBy).HasColumnType("nvarchar(150)").HasMaxLength(150);
         builder.Property(e => e.AssignedToUserId).HasColumnType("int");
         builder.Property(e => e.Cost).HasColumnType("decimal(18,2)");
+        builder.Property(e => e.InvoiceNumber).HasColumnType("nvarchar(50)").HasMaxLength(50);
         builder.Property(e => e.CurrencyId).HasColumnType("int");
         builder.Property(e => e.DowntimeHours).HasColumnType("decimal(9,2)");
         builder.Property(e => e.NextMaintenanceDate).HasColumnType("date");

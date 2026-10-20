@@ -28,6 +28,8 @@ public sealed class MaintenanceListViewModel
     public IReadOnlyList<TechnicianOption> Technicians { get; init; } = Array.Empty<TechnicianOption>();
     public bool Mine { get; init; }
     public int? CurrentUserId { get; init; }
+    /// <summary>The person may see costs (financial permission).</summary>
+    public bool CanViewCosts { get; init; }
 }
 
 public sealed class MaintenanceFormViewModel
@@ -36,6 +38,7 @@ public sealed class MaintenanceFormViewModel
     public MaintenanceForm Form { get; init; } = new();
     public IReadOnlyList<LookupOption> Vendors { get; init; } = Array.Empty<LookupOption>();
     public IReadOnlyList<TechnicianOption> Technicians { get; init; } = Array.Empty<TechnicianOption>();
+    public IReadOnlyList<LookupOption> Currencies { get; init; } = Array.Empty<LookupOption>();
 }
 
 public sealed class VerificationViewModel

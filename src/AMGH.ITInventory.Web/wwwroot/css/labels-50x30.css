@@ -3,3 +3,5 @@
 :root { --label-w: 50mm; --label-h: 30mm; --label-pad: 1.5mm; --label-gap: 1.5mm; --qr: 24mm; --org-size: 4.4pt; --number-size: 5.6pt; --text-size: 5.2pt; }
 :root { --tag-outer: .8mm; --tag-border: .45mm; --tag-radius: 1.6mm; --tag-inner: .7mm; --tag-band-h: 10.5mm; --tag-gap: 1mm;
         --tag-prop-size: 4.4pt; --tag-company-size: 7pt; --tag-contact-size: 5pt; --tag-number-size: 8.2pt; }
+
+.label-epc { font-size: 4.4pt; white-space: normal; word-break: break-all; }

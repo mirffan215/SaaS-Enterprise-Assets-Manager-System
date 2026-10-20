@@ -13,7 +13,7 @@
 @if (Model.Mine) { <p class="small text-body-secondary">Open jobs assigned to you.</p> }
 <div class="table-responsive panel p-0">
     <table class="table table-sm align-middle mb-0">
-        <thead><tr><th>Document</th><th>Asset</th><th>Type</th><th>Scheduled</th><th>Status</th><th>Work</th><th>Technician</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+        <thead><tr><th>Document</th><th>Asset</th><th>Type</th><th>Scheduled</th><th>Status</th><th>Work</th><th>Technician</th>@if (Model.CanViewCosts) {<th class="text-end">Cost</th>}<th><span class="visually-hidden">Actions</span></th></tr></thead>
         <tbody>
             @foreach (var j in Model.Jobs)
             {
@@ -24,7 +24,26 @@
                     <td>@j.Status</td>
                     <td class="small">@j.Problem@if (j.Resolution is not null) {<div class="text-body-secondary">→ @j.Resolution</div>}</td>
                     <td class="small">@(j.DoneBy ?? "—")@if (j.AssignedTo is not null && j.PerformedBy is not null) {<div class="text-body-secondary">with @j.PerformedBy</div>}@if (j.Ticket is not null) {<div class="text-body-secondary">Ticket @j.Ticket</div>}</td>
+                    @if (Model.CanViewCosts)
+                    {
+                        <td class="text-end text-nowrap">@if (j.Cost is > 0) { <span>@j.Cost.Value.ToString("N2", System.Globalization.CultureInfo.InvariantCulture) @j.Currency</span> @if (j.InvoiceNumber is not null) { <div class="small text-body-secondary">Inv. @j.InvoiceNumber</div> } } else { <span class="text-body-secondary">—</span> }</td>
+                    }
                     <td class="text-end">
+                        @if (canManage && j.Status == "Completed")
+                        {
+                            <details class="job-actions"><summary class="btn btn-sm btn-outline-secondary">@(j.Cost is > 0 ? "Edit cost" : "Add cost")</summary>
+                                <div class="job-actions-body">
+                                    <form asp-action="Cost" asp-route-jobId="@j.AssetMaintenanceId" method="post" class="text-start">
+                                        <div class="d-flex gap-1 mb-1">
+                                            <input class="form-control form-control-sm" name="Cost" type="number" min="0" step="0.01" placeholder="Cost" value="@j.Cost" />
+                                            <select class="form-select form-select-sm" name="CurrencyId" aria-label="Currency"><option value="">Currency</option>@foreach (var c in Model.Currencies) { <option value="@c.Id" selected="@(c.Text == j.Currency || c.Text.StartsWith(j.Currency + " ", StringComparison.Ordinal))">@c.Text</option> }</select>
+                                        </div>
+                                        <input class="form-control form-control-sm mb-1" name="InvoiceNumber" maxlength="50" placeholder="Invoice number" value="@j.InvoiceNumber" />
+                                        <button class="btn btn-sm btn-success" type="submit">Save cost</button>
+                                    </form>
+                                </div>
+                            </details>
+                        }
                         @if (canManage && j.Status is "Scheduled" or "In progress")
                         {
                             <details class="job-actions"><summary class="btn btn-sm btn-outline-primary">Update</summary>
@@ -49,6 +68,7 @@
                                             <input class="form-control form-control-sm" name="Cost" type="number" min="0" step="0.01" placeholder="Cost" />
                                             <select class="form-select form-select-sm" name="CurrencyId"><option value="">Currency</option>@foreach (var c in Model.Currencies) { <option value="@c.Id">@c.Text</option> }</select>
                                         </div>
+                                        <input class="form-control form-control-sm mb-1" name="InvoiceNumber" maxlength="50" placeholder="Invoice number (optional)" />
                                         <div class="d-flex gap-1 mb-1">
                                             <input class="form-control form-control-sm" name="DowntimeHours" type="number" min="0" step="0.5" placeholder="Downtime (h)" />
                                             <input class="form-control form-control-sm" name="NextMaintenanceDate" type="date" title="Next maintenance" />
@@ -65,7 +85,14 @@
                     </td>
                 </tr>
             }
-            @if (Model.Jobs.Count == 0) { <tr><td colspan="8" class="text-center text-body-secondary py-4">No jobs.</td></tr> }
+            @if (Model.Jobs.Count == 0) { <tr><td colspan="9" class="text-center text-body-secondary py-4">No jobs.</td></tr> }
         </tbody>
+        @if (Model.CanViewCosts && Model.Jobs.Any(j => j.Status == "Completed" && j.Cost is > 0))
+        {
+            <tfoot>
+                <tr class="table-light"><td colspan="7" class="text-end fw-semibold">Cost of the completed jobs listed</td>
+                    <td class="text-end fw-semibold text-nowrap" colspan="2">@string.Join(" + ", Model.Jobs.Where(j => j.Status == "Completed" && j.Cost is > 0).GroupBy(j => j.Currency ?? "").Select(g => g.Sum(j => j.Cost!.Value).ToString("N2", System.Globalization.CultureInfo.InvariantCulture) + " " + g.Key))</td></tr>
+            </tfoot>
+        }
     </table>
 </div>

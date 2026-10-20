@@ -48,6 +48,7 @@ internal sealed class AssetConfiguration : IEntityTypeConfiguration<Asset>
         builder.Property(e => e.ModelName).HasColumnType("nvarchar(150)").HasMaxLength(150);
         builder.Property(e => e.SerialNumber).HasColumnType("nvarchar(100)").HasMaxLength(100);
         builder.Property(e => e.LegacyAssetTag).HasColumnType("nvarchar(50)").HasMaxLength(50);
+        builder.Property(e => e.RfidEpc).HasColumnType("char(24)").HasMaxLength(24).IsFixedLength();
         builder.Property(e => e.Description).HasColumnType("nvarchar(1000)").HasMaxLength(1000);
         builder.Property(e => e.Hostname).HasColumnType("nvarchar(100)").HasMaxLength(100);
         builder.Property(e => e.IpAddress).HasColumnType("nvarchar(45)").HasMaxLength(45);
@@ -157,6 +158,7 @@ internal sealed class AssetConfiguration : IEntityTypeConfiguration<Asset>
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("FK_tblAsset_RiskLevelId");
 
+        builder.HasIndex(e => e.RfidEpc, "UX_tblAsset_RfidEpc").IsUnique().HasFilter("[RfidEpc] IS NOT NULL");
         builder.HasIndex(e => e.AssetNumber, "UX_tblAsset_AssetNumber").IsUnique().HasFilter(null);
         builder.HasIndex(e => new { e.CompanyId, e.ManufacturerId, e.SerialNumber }, "UX_tblAsset_ManufacturerId_SerialNumber").IsUnique().HasFilter("[SerialNumber] IS NOT NULL AND [IsDeleted] = 0");
         builder.HasIndex(e => new { e.CompanyId, e.Hostname }, "UX_tblAsset_Hostname").IsUnique().HasFilter("[Hostname] IS NOT NULL AND [IsDeleted] = 0");

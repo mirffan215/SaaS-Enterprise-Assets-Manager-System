@@ -365,6 +365,9 @@ public class SqlServerIntegrationTests
             var db = TenantProvisioningService.DatabasePrefix + code;
             Assert.Equal(1, await ScalarAsync<int>(db, "SELECT COUNT(*) FROM sys.tables WHERE name = 'tblUserRecoveryCode'", o));
             Assert.Equal(3, await ScalarAsync<int>(db, "SELECT COUNT(*) FROM sys.columns WHERE name IN ('TotpSecret','MfaPolicy','SsoClientSecret')", o));
+            Assert.Equal(1, await ScalarAsync<int>(db, "SELECT CASE WHEN COL_LENGTH('dbo.tblAsset', 'RfidEpc') IS NOT NULL AND COL_LENGTH('dbo.tblAssetMaintenance', 'InvoiceNumber') IS NOT NULL THEN 1 ELSE 0 END", o));
+            Assert.Equal(1, await ScalarAsync<int>(db, "SELECT COUNT(*) FROM sys.indexes WHERE name = 'UX_tblAsset_RfidEpc' AND is_unique = 1", o));
+            Assert.Equal(1, await ScalarAsync<int>(db, "SELECT COUNT(*) FROM sys.check_constraints WHERE name = 'CK_tblQrLabelPrintLog_LabelDesign_Domain' AND definition LIKE '%RfidLabel%'", o));
             // the sign-in history accepts the new event types
             await ScalarAsync<int>(db, "INSERT dbo.tblLoginAudit (UsernameAttempted, EventType, CompanyId) VALUES (N'x', N'SsoSignIn', 1); SELECT 1", o);
 

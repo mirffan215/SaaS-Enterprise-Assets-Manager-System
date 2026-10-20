@@ -26,6 +26,9 @@ public interface IAssetService
     /// <summary>Resolves a scanned label's asset number to the asset id (null when unknown or deleted).</summary>
     Task<int?> FindIdByNumberAsync(string assetNumber, CancellationToken cancellationToken = default);
 
+    /// <summary>The asset whose RFID tag carries this EPC (24 hex characters), or null.</summary>
+    Task<int?> FindIdByRfidAsync(string epc, CancellationToken cancellationToken = default);
+
     /// <summary>Database-backed checks (codes, hierarchy, uniqueness). Also used by the Excel import.</summary>
     Task<IReadOnlyList<Error>> ValidateReferencesAsync(AssetEditModel model, bool isNew, string? currentStatusCode, CancellationToken cancellationToken = default);
 }
@@ -100,7 +103,7 @@ internal sealed class AssetService : IAssetService
         return new AssetDetails(
             a.AssetId, a.AssetNumber, a.AssetName, a.Description,
             r.Category, r.SubCategory, r.StatusCode, r.StatusName, r.ColorHex,
-            r.Manufacturer, a.ModelName, a.SerialNumber, a.LegacyAssetTag,
+            r.Manufacturer, a.ModelName, a.SerialNumber, a.LegacyAssetTag, a.RfidEpc,
             a.Hostname, a.IpAddress, a.MacAddress, a.OperatingSystem, a.OsVersion, a.Processor,
             a.RamGb, a.StorageGb, a.FirmwareVersion, a.ImeiNumber, a.PhoneNumber,
             fin ? r.Vendor : null, fin ? a.PurchaseOrderNumber : null, fin ? a.InvoiceNumber : null, a.PurchaseDate,
@@ -113,7 +116,16 @@ internal sealed class AssetService : IAssetService
             a.CommissionDate, a.EndOfSupportDate, a.EndOfLifeDate, a.NextAuditDueDate, a.DecommissionDate,
             a.Notes, r.WarrantyEnd,
             a.CreatedBy, a.CreatedDate, a.ModifiedBy, a.ModifiedDate, Convert.ToBase64String(a.RowVersion),
-            await FixedAssetInfoAsync(a, fin, cancellationToken));
+            await FixedAssetInfoAsync(a, fin, cancellationToken), fin ? await MaintenanceCostsAsync(a.AssetId, cancellationToken) : null);
+    }
+
+    private async Task<IReadOnlyList<Lifecycle.CostTotal>> MaintenanceCostsAsync(int assetId, CancellationToken ct)
+    {
+        var rows = await _uow.Repository<AssetMaintenance>().QueryAsync(q => q
+            .Where(m => m.AssetId == assetId && m.MaintenanceStatus == Domain.Enums.MaintenanceStatus.Completed && m.Cost > 0 && m.Currency != null)
+            .GroupBy(m => m.Currency!.CurrencyCode)
+            .Select(g => new { Currency = g.Key, Total = g.Sum(m => m.Cost!.Value), Jobs = g.Count() }), ct);
+        return rows.OrderBy(r => r.Currency, StringComparer.Ordinal).Select(r => new Lifecycle.CostTotal(r.Currency, r.Total, r.Jobs)).ToList();
     }
 
     public async Task<AssetEditModel> NewAsync(CancellationToken cancellationToken = default)
@@ -153,6 +165,13 @@ internal sealed class AssetService : IAssetService
             a.AssetName, a.AssetStatus.StatusCode, a.AssetStatus.StatusName,
             a.Location == null ? null : a.Location.LocationName, a.AssignedEmployee == null ? null : a.AssignedEmployee.FirstName + " " + a.AssignedEmployee.LastName)),
             cancellationToken)).FirstOrDefault();
+
+    public async Task<int?> FindIdByRfidAsync(string epc, CancellationToken cancellationToken = default)
+    {
+        var code = (epc ?? string.Empty).Trim().ToUpperInvariant();
+        if (!Labels.RfidEncoding.IsEpc(code)) return null;
+        return (await _uow.Repository<Asset>().QueryAsync(q => q.Where(a => a.RfidEpc == code).Select(a => (int?)a.AssetId), cancellationToken)).FirstOrDefault();
+    }
 
     public async Task<int?> FindIdByNumberAsync(string assetNumber, CancellationToken cancellationToken = default)
     {

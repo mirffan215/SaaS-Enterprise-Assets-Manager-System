@@ -116,3 +116,6 @@ html, body { margin: 0; padding: 0; }
     .report-doc { margin: 0; padding: 0; box-shadow: none; max-width: none; }
     .report-doc::after { position: fixed; bottom: -9mm; left: 0; margin: 0; }
 }
+
+/* RFID label: the EPC printed under the name, small and monospaced */
+.label-epc { font-family: Consolas, "Cascadia Mono", "Courier New", monospace; letter-spacing: -.02em; }

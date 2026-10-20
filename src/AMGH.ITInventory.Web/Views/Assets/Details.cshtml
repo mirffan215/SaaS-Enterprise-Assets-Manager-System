@@ -94,6 +94,7 @@
                         <dt>Model</dt><dd>@T(a.ModelName)</dd>
                         <dt>Serial number</dt><dd>@T(a.SerialNumber)</dd>
                         <dt>Legacy tag</dt><dd>@T(a.LegacyAssetTag)</dd>
+                        @if (a.RfidEpc is { } epc) { <dt>RFID tag (EPC)</dt><dd class="font-monospace">@epc</dd> }
                         @if (a.Description is not null) { <dt>Description</dt><dd>@a.Description</dd> }
                     </dl>
                 </section>
@@ -140,14 +141,16 @@
                     <dt>Purchase cost</dt><dd>@N(a.PurchaseCost, a.CurrencyCode)</dd>
                     <dt>Useful life</dt><dd>@(a.UsefulLifeMonths is null ? "—" : $"{a.UsefulLifeMonths} months")</dd>
                     <dt>Salvage value</dt><dd>@N(a.SalvageValue, a.CurrencyCode)</dd>
-                    @if (a.FixedAsset?.RecordedBookValue is { } rbv) { <dt>Book value (recorded)</dt><dd class="fw-semibold">@N(rbv, a.CurrencyCode) <span class="small text-body-secondary">as of @Time.Date(a.FixedAsset.RecordedBookValueDate)</span></dd> }
-                    @if (a.FixedAsset?.DepreciationMethod != "None") { <dt>Estimated value (straight-line)</dt><dd>@N(a.BookValue, a.CurrencyCode)</dd> }
-                    @if (a.FixedAsset?.CapitalizationDate is not null) { <dt>Capitalised</dt><dd>@Time.Date(a.FixedAsset.CapitalizationDate)</dd> }
-                    @if (a.FixedAsset?.DepreciationMethod is { } dm) { <dt>Depreciation method</dt><dd>@AMGH.ITInventory.Application.Common.DisplayText.Humanize(dm)</dd> }
-                    @if (a.FixedAsset?.FixedAssetGroup is { } fg) { <dt>Fixed asset group</dt><dd>@fg</dd> }
                     @if (a.FixedAsset?.ErpFixedAssetId is { } erp) { <dt>D365 fixed asset ID</dt><dd class="font-monospace">@erp</dd> }
+                    @if (a.MaintenanceCosts is { Count: > 0 } costs)
+                    {
+                        <dt>Maintenance and repairs</dt><dd>@string.Join(" + ", costs.Select(c => c.Total.ToString("N2", System.Globalization.CultureInfo.InvariantCulture) + " " + c.Currency)) <span class="small text-body-secondary">(@costs.Sum(c => c.Jobs) job(s))</span></dd>
+                        @if (costs.Count == 1 && a.PurchaseCost is { } pc && string.Equals(costs[0].Currency, a.CurrencyCode, StringComparison.Ordinal))
+                        {
+                            <dt>Total cost of ownership</dt><dd class="fw-semibold">@N(pc + costs[0].Total, a.CurrencyCode) <span class="small text-body-secondary fw-normal">purchase + maintenance and repairs</span></dd>
+                        }
+                    }
                 </dl>
-                <p class="small text-body-secondary mb-0">The estimate is straight-line over the useful life down to the salvage value, for information only. It is not an accounting book value; the recorded book value comes from finance (D365).</p>
             </section>
         </div>
     }
@@ -327,7 +330,12 @@
                     @foreach (var m in lcm.Maintenance.Take(8))
                     {
                         <div class="lc-row"><span class="float-end small"><partial name="_DocLink" model='(m.DocumentNumber, "MNT", m.AssetMaintenanceId)' /></span><strong>@m.Type</strong> · @m.Status · @Time.Date(m.ScheduledDate)@if (m.Overdue) {<span class="text-danger"> (overdue)</span>}
-                            <div class="small text-body-secondary">@m.Problem@(m.Resolution is null ? "" : " → " + m.Resolution)</div></div>
+                            <div class="small text-body-secondary">@m.Problem@(m.Resolution is null ? "" : " → " + m.Resolution)</div>
+                            @if (Model.Access.CanViewFinancials && m.Cost is > 0) { <div class="small">Cost <strong>@m.Cost.Value.ToString("N2", inv) @m.Currency</strong>@(m.InvoiceNumber is null ? "" : " · invoice " + m.InvoiceNumber)</div> }</div>
+                    }
+                    @if (Model.Access.CanViewFinancials && a.MaintenanceCosts is { Count: > 0 } mc)
+                    {
+                        <div class="lc-row fw-semibold">Total maintenance and repair cost: @string.Join(" + ", mc.Select(c => c.Total.ToString("N2", inv) + " " + c.Currency))</div>
                     }
                     @if (lcm.Maintenance.Count == 0) { <p class="small text-body-secondary mb-0">No maintenance recorded.</p> }
                     <a class="small" asp-controller="Maintenance" asp-action="Index">All maintenance</a>
