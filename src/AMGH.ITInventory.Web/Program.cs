@@ -115,7 +115,8 @@ try
     });
 
     builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
-    builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
+    builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database").AddCheck<BackupHealthCheck>("backups", tags: new[] { "backups" });
+    builder.Services.AddSingleton<BackupAlerts>();
 
     // ---------------------------------------------------------------- pipeline
     var tenancySettings = builder.Configuration.GetSection(TenancyOptions.SectionName).Get<TenancyOptions>() ?? new TenancyOptions();
@@ -157,7 +158,8 @@ try
     app.UseMiddleware<ForcePasswordChangeMiddleware>();
     app.UseAuthorization();
 
-    app.MapHealthChecks("/health").AllowAnonymous();
+    app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = r => !r.Tags.Contains("backups") }).AllowAnonymous();
+    app.MapHealthChecks("/health/backups", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = r => r.Tags.Contains("backups") }).AllowAnonymous();
     app.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
 
     app.Run();

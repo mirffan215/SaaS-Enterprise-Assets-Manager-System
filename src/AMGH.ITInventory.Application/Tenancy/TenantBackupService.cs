@@ -13,7 +13,11 @@ namespace AMGH.ITInventory.Application.Tenancy;
 /// <param name="VerifiedUtc">When a test restore last checked it; null when it never was.</param>
 /// <param name="VerifyOk">Result of that check.</param>
 /// <param name="VerifyNote">Short result text (first line of the error when it failed).</param>
-public sealed record TenantBackupFile(string FileName, long SizeBytes, DateTime CreatedUtc, DateTime? VerifiedUtc = null, bool VerifyOk = false, string? VerifyNote = null);
+/// <param name="OffsiteUtc">When the last off-site copy was tried; null when never.</param>
+/// <param name="OffsiteOk">Whether it succeeded.</param>
+/// <param name="OffsiteNote">Where it went, or why it failed.</param>
+public sealed record TenantBackupFile(string FileName, long SizeBytes, DateTime CreatedUtc, DateTime? VerifiedUtc = null, bool VerifyOk = false, string? VerifyNote = null,
+    DateTime? OffsiteUtc = null, bool OffsiteOk = false, string? OffsiteNote = null);
 
 /// <summary>Back up a company's database and restore it from one of its own backups (operator page).</summary>
 public interface ITenantBackupService
@@ -38,6 +42,15 @@ public interface ITenantBackupService
     /// result next to the file. Needs disk space for a second copy of the database for a short time. Never touches the live company database.
     /// </summary>
     Task<Result<TenantBackupFile>> VerifyAsync(string tenantCode, string fileName, CancellationToken cancellationToken = default);
+
+    /// <summary>True when an off-site target (folder and/or Azure Blob) and the zip password are configured.</summary>
+    bool OffsiteConfigured { get; }
+
+    /// <summary>
+    /// Copies a backup off the server as an AES-256 zip (password Tenancy:OffsitePassword) to the configured folder and/or Azure container and remembers
+    /// the result next to the file. In a folder, scheduled copies beyond <paramref name="keepScheduled"/> are removed (the container is yours to expire with a lifecycle rule).
+    /// </summary>
+    Task<Result<TenantBackupFile>> CopyOffsiteAsync(string tenantCode, string fileName, int keepScheduled = 0, CancellationToken cancellationToken = default);
 
     /// <summary>The company's backups in the backup folder, newest first.</summary>
     Task<IReadOnlyList<TenantBackupFile>> ListAsync(string tenantCode, CancellationToken cancellationToken = default);
@@ -66,9 +79,11 @@ internal sealed partial class TenantBackupService : ITenantBackupService
     private readonly TenancyOptions _options;
     private readonly ILogger<TenantBackupService> _logger;
     private readonly IBackupArchive _archive;
+    private readonly HttpMessageHandler? _blobHandler;
 
-    public TenantBackupService(IOptions<TenancyOptions> options, ILogger<TenantBackupService> logger, IBackupArchive archive)
+    public TenantBackupService(IOptions<TenancyOptions> options, ILogger<TenantBackupService> logger, IBackupArchive archive, HttpMessageHandler? blobHandler = null)
     {
+        _blobHandler = blobHandler;
         _options = options.Value;
         _logger = logger;
         _archive = archive;
@@ -163,11 +178,27 @@ internal sealed partial class TenantBackupService : ITenantBackupService
         return new DirectoryInfo(folder).EnumerateFiles(database + "_*.bak")
             .Where(f => IsBackupOf(database, f.Name))
             .OrderByDescending(f => f.Name, StringComparer.Ordinal)
-            .Select(f => WithVerification(new TenantBackupFile(f.Name, f.Length, f.LastWriteTimeUtc), f.FullName))
+            .Select(f => WithOffsite(WithVerification(new TenantBackupFile(f.Name, f.Length, f.LastWriteTimeUtc), f.FullName), f.FullName))
             .ToList();
     }
 
     private static string VerifyFile(string backupPath) => backupPath + ".verify";
+    private static string OffsiteFile(string backupPath) => backupPath + ".offsite";
+
+    private static TenantBackupFile WithOffsite(TenantBackupFile file, string backupPath)
+    {
+        try
+        {
+            var path = OffsiteFile(backupPath);
+            if (!File.Exists(path)) return file;
+            var parts = File.ReadAllText(path).Split('|', 3);
+            return parts.Length == 3 && DateTime.TryParse(parts[1], CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var when)
+                ? file with { OffsiteUtc = when, OffsiteOk = parts[0] == "OK", OffsiteNote = parts[2].Trim() }
+                : file;
+        }
+        catch (IOException) { return file; }
+        catch (UnauthorizedAccessException) { return file; }
+    }
 
     private static TenantBackupFile WithVerification(TenantBackupFile file, string backupPath)
     {
@@ -274,7 +305,70 @@ internal sealed partial class TenantBackupService : ITenantBackupService
         try { await File.WriteAllTextAsync(VerifyFile(path), outcome, CancellationToken.None); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { _logger.LogWarning(ex, "Could not save the check result next to {File}", fileName); }
         var info = new FileInfo(path);
-        return Result<TenantBackupFile>.Success(WithVerification(new TenantBackupFile(fileName, info.Exists ? info.Length : 0, info.CreationTimeUtc), path));
+        return Result<TenantBackupFile>.Success(WithOffsite(WithVerification(new TenantBackupFile(fileName, info.Exists ? info.Length : 0, info.CreationTimeUtc), path), path));
+    }
+
+    public bool OffsiteConfigured =>
+        !string.IsNullOrWhiteSpace(_options.OffsitePassword) && (!string.IsNullOrWhiteSpace(_options.OffsiteFolder) || !string.IsNullOrWhiteSpace(_options.OffsiteBlobUrl));
+
+    public async Task<Result<TenantBackupFile>> CopyOffsiteAsync(string tenantCode, string fileName, int keepScheduled = 0, CancellationToken cancellationToken = default)
+    {
+        if (!OffsiteConfigured) return Result<TenantBackupFile>.Failure(Error.BusinessRule("Off-site copies are not configured (Tenancy:OffsiteFolder or OffsiteBlobUrl, and OffsitePassword).", "offsite.not_configured"));
+        string folder, database;
+        await using (var master = new SqlConnection(Server().ConnectionString))
+        {
+            await master.OpenAsync(cancellationToken);
+            database = await DatabaseOfAsync(master, tenantCode, cancellationToken) ?? string.Empty;
+            if (database.Length == 0) return Result<TenantBackupFile>.Failure(Error.NotFound("That company has no database here."));
+            if (!IsBackupOf(database, fileName)) return Result<TenantBackupFile>.Failure(Error.Validation("That is not a backup of this company."));
+            folder = await FolderAsync(master, cancellationToken);
+        }
+        var path = Path.Combine(folder, fileName);
+        var zipName = Path.ChangeExtension(fileName, ".zip");
+        var targets = new List<string>();
+        string outcome;
+        var temp = Path.Combine(Path.GetTempPath(), "eams-off-" + Guid.NewGuid().ToString("N") + ".zip");
+        try
+        {
+            await using (var source = File.OpenRead(path))
+            await using (var zip = new FileStream(temp, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 256 * 1024, FileOptions.Asynchronous))
+                await _archive.WriteAsync(zip, _options.OffsitePassword!, fileName, source, cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(_options.OffsiteFolder))
+            {
+                Directory.CreateDirectory(_options.OffsiteFolder);
+                var final = Path.Combine(_options.OffsiteFolder, zipName);
+                File.Copy(temp, final + ".part", overwrite: true);
+                File.Move(final + ".part", final, overwrite: true);
+                targets.Add("folder");
+                if (keepScheduled > 0) PruneOffsiteFolder(_options.OffsiteFolder, database, keepScheduled);
+            }
+            if (!string.IsNullOrWhiteSpace(_options.OffsiteBlobUrl))
+            {
+                await using var zip = File.OpenRead(temp);
+                await AzureBlobUploader.UploadAsync(_options.OffsiteBlobUrl, zipName, zip, _blobHandler, cancellationToken);
+                targets.Add("Azure container");
+            }
+            outcome = "OK|" + DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture) + "|Copied to " + string.Join(" and ", targets);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Off-site copy of {File} failed", fileName);
+            outcome = "FAILED|" + DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture) + "|" + FirstLine(ex);
+        }
+        finally { try { File.Delete(temp); } catch (IOException) { } }
+        try { await File.WriteAllTextAsync(OffsiteFile(path), outcome, CancellationToken.None); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { _logger.LogWarning(ex, "Could not save the off-site result next to {File}", fileName); }
+        var info = new FileInfo(path);
+        return Result<TenantBackupFile>.Success(WithOffsite(WithVerification(new TenantBackupFile(fileName, info.Length, info.CreationTimeUtc), path), path));
+    }
+
+    private static void PruneOffsiteFolder(string folder, string database, int keep)
+    {
+        var old = new DirectoryInfo(folder).EnumerateFiles(database + "_*_auto.zip")
+            .Where(f => IsBackupOf(database, Path.ChangeExtension(f.Name, ".bak")))
+            .OrderByDescending(f => f.Name, StringComparer.Ordinal).Skip(keep).ToList();
+        foreach (var f in old) { try { f.Delete(); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
     }
 
     public async Task<Result> RestoreAsync(string tenantCode, string fileName, CancellationToken cancellationToken = default)
@@ -427,7 +521,7 @@ internal sealed partial class TenantBackupService : ITenantBackupService
             .Where(f => IsBackupOf(database, f.Name))
             .OrderByDescending(f => f.Name, StringComparer.Ordinal).Skip(Math.Max(1, keep)).ToList();
         var deleted = 0;
-        foreach (var f in old) { try { f.Delete(); File.Delete(VerifyFile(f.FullName)); deleted++; } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+        foreach (var f in old) { try { f.Delete(); File.Delete(VerifyFile(f.FullName)); File.Delete(OffsiteFile(f.FullName)); deleted++; } catch (IOException) { } catch (UnauthorizedAccessException) { } }
         return deleted;
     }
 

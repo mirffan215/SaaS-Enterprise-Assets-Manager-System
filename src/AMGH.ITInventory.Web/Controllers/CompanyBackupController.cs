@@ -80,6 +80,16 @@ public sealed class CompanyBackupController : Controller
         return await ViewAsync(result.Value.VerifyOk ? $"{file}: test restore and consistency check passed." : $"{file} FAILED its check: {result.Value.VerifyNote}", result.Value.VerifyOk);
     }
 
+    /// <summary>Copies a backup off the server now (encrypted zip to the configured folder / Azure container).</summary>
+    [HttpPost("offsite")]
+    public async Task<IActionResult> Offsite(string? file)
+    {
+        if (_tenants.CurrentTenant is not { } tenant) return await ViewAsync(null, false);
+        var result = await _backups.CopyOffsiteAsync(tenant.Code, file ?? string.Empty, cancellationToken: CancellationToken.None);
+        if (result.IsFailure) return await ViewAsync(result.FirstError!.Message, false);
+        return await ViewAsync(result.Value.OffsiteOk ? $"{file}: {result.Value.OffsiteNote}." : $"{file}: the off-site copy FAILED: {result.Value.OffsiteNote}", result.Value.OffsiteOk);
+    }
+
     /// <summary>Downloads one of this workspace's backups as a password-protected zip (AES-256) the person chooses the password for.</summary>
     [HttpPost("download")]
     public async Task<IActionResult> Download(string? file, string? password)
@@ -155,8 +165,9 @@ public sealed class CompanyBackupController : Controller
             model.Message = "Backups of workspace databases are available in a multi-tenant installation.";
             return View("Index", model);
         }
+        model.OffsiteConfigured = _backups.OffsiteConfigured;
         model.Schedule = await _schedules.LoadAsync(tenant.Code, HttpContext.RequestAborted);
-        try { model.Files = (await _backups.ListAsync(tenant.Code, HttpContext.RequestAborted)).Select(f => new BackupRow(f.FileName, f.SizeBytes, f.CreatedUtc, f.VerifiedUtc, f.VerifyOk, f.VerifyNote)).ToList(); }
+        try { model.Files = (await _backups.ListAsync(tenant.Code, HttpContext.RequestAborted)).Select(f => new BackupRow(f.FileName, f.SizeBytes, f.CreatedUtc, f.VerifiedUtc, f.VerifyOk, f.VerifyNote, f.OffsiteUtc, f.OffsiteOk, f.OffsiteNote)).ToList(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             model.CanList = false;

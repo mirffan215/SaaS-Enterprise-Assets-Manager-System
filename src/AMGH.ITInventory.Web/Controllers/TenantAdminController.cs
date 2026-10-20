@@ -179,7 +179,7 @@ public sealed class TenantAdminController : Controller
         var company = await CompanyAsync(code);
         if (company is null) return NotFound();
         var model = new TenantBackupsViewModel { Code = company.Code, Name = company.Name, Message = message, Succeeded = succeeded };
-        try { model.Files = (await _backups.ListAsync(company.Code, HttpContext.RequestAborted)).Select(f => new BackupRow(f.FileName, f.SizeBytes, f.CreatedUtc, f.VerifiedUtc, f.VerifyOk, f.VerifyNote)).ToList(); }
+        try { model.Files = (await _backups.ListAsync(company.Code, HttpContext.RequestAborted)).Select(f => new BackupRow(f.FileName, f.SizeBytes, f.CreatedUtc, f.VerifiedUtc, f.VerifyOk, f.VerifyNote, f.OffsiteUtc, f.OffsiteOk, f.OffsiteNote)).ToList(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             model.CanList = false;

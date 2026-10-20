@@ -18,6 +18,8 @@ public sealed class BackupSchedule
     /// <summary>How many scheduled backups are kept (older ones are deleted; manual backups never are).</summary>
     public int Keep { get; set; } = 14;
     public DateTime? LastRunLocal { get; set; }
+    /// <summary>When a scheduled backup last finished and passed its test restore.</summary>
+    public DateTime? LastSuccessLocal { get; set; }
     public string? LastResult { get; set; }
 
     public static bool TryParseTime(string? text, out TimeSpan time) =>
@@ -34,6 +36,10 @@ public sealed class BackupSchedule
         slot = now.Date.AddDays(-back) + time;
         return slot <= now ? slot : slot.AddDays(-7);
     }
+
+    /// <summary>True when a backup was due more than <paramref name="grace"/> ago and no successful (checked) backup has been made since.</summary>
+    public bool IsOverdue(DateTime now, TimeSpan grace) =>
+        LastDueSlot(now) is { } slot && now - slot > grace && (LastSuccessLocal is null || LastSuccessLocal.Value < slot);
 
     /// <summary>True when a backup that was due has not been made yet (a run missed while the server was down is made as soon as it is up).</summary>
     public bool IsDue(DateTime now) => LastDueSlot(now) is { } slot && (LastRunLocal is null || LastRunLocal.Value < slot);

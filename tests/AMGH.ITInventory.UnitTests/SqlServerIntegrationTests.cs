@@ -262,4 +262,71 @@ public class SqlServerIntegrationTests
         }
         finally { await DropAsync(o, code); }
     }
+
+    private sealed class RecordingBlobService : HttpMessageHandler
+    {
+        public SortedDictionary<string, byte[]> Blocks { get; } = new(StringComparer.Ordinal);
+        public string? Name { get; private set; }
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var q = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+            if (q["comp"] == "block") { Blocks[System.Text.Encoding.ASCII.GetString(Convert.FromBase64String(q["blockid"]!))] = await request.Content!.ReadAsByteArrayAsync(ct); Name = Path.GetFileName(request.RequestUri.AbsolutePath); }
+            return new HttpResponseMessage(System.Net.HttpStatusCode.Created);
+        }
+    }
+
+    [SqlServerFact]
+    public async Task An_offsite_copy_is_an_encrypted_zip_that_restores_to_the_same_backup()
+    {
+        var o = Options();
+        o.OffsiteFolder = Path.Combine(Path.GetTempPath(), "eams-offsite-" + Guid.NewGuid().ToString("N"));
+        o.OffsitePassword = "Offsite-Password-9";
+        o.OffsiteBlobUrl = "https://acct.blob.core.windows.net/eams?sv=1&sig=abc";
+        var blob = new RecordingBlobService();
+        var code = NewCode();
+        try
+        {
+            Assert.True((await Provisioner(o, new MemoryCatalog()).ProvisionTenantAsync(code, "Offsite Test", "a@b.test", "Correct-Horse-9", includeErrorDetail: true)).IsSuccess);
+            var backups = new TenantBackupService(Microsoft.Extensions.Options.Options.Create(o), NullLogger<TenantBackupService>.Instance, new AesZipFile(), blob);
+            Assert.True(backups.OffsiteConfigured);
+            var made = await backups.BackupAsync(code, scheduled: true);
+            Assert.True(made.IsSuccess);
+
+            var copy = await backups.CopyOffsiteAsync(code, made.Value.FileName, keepScheduled: 7);
+            Assert.True(copy.IsSuccess && copy.Value.OffsiteOk, copy.IsSuccess ? copy.Value.OffsiteNote : copy.FirstError!.Message);
+            Assert.Contains("folder and Azure", copy.Value.OffsiteNote);
+            Assert.Contains(await backups.ListAsync(code), f => f.FileName == made.Value.FileName && f.OffsiteOk);
+
+            var original = await File.ReadAllBytesAsync(Path.Combine(o.BackupFolder!, made.Value.FileName));
+            foreach (var zipBytes in new[] { await File.ReadAllBytesAsync(Path.Combine(o.OffsiteFolder, Path.ChangeExtension(made.Value.FileName, ".zip"))), blob.Blocks.Values.SelectMany(b => b).ToArray() })
+            {
+                using var restored = new MemoryStream();
+                var read = await new AesZipFile().ReadAsync(new MemoryStream(zipBytes), "Offsite-Password-9", restored, long.MaxValue);
+                Assert.True(read.IsSuccess);
+                Assert.Equal(original, restored.ToArray());
+                Assert.True((await new AesZipFile().ReadAsync(new MemoryStream(zipBytes), "wrong-password-1", new MemoryStream(), long.MaxValue)).IsFailure);
+            }
+            Assert.EndsWith(".zip", blob.Name);
+        }
+        finally { await DropAsync(o, code); }
+    }
+
+    [SqlServerFact]
+    public async Task An_unreachable_offsite_target_is_a_recorded_failure_not_an_exception()
+    {
+        var o = Options();
+        o.OffsiteFolder = Path.Combine(Path.GetTempPath(), "eams-offsite-" + Guid.NewGuid().ToString("N"), "\0bad");
+        o.OffsitePassword = "Offsite-Password-9";
+        var code = NewCode();
+        try
+        {
+            Assert.True((await Provisioner(o, new MemoryCatalog()).ProvisionTenantAsync(code, "Offsite Fail", "a@b.test", "Correct-Horse-9")).IsSuccess);
+            var backups = new TenantBackupService(Microsoft.Extensions.Options.Options.Create(o), NullLogger<TenantBackupService>.Instance, new AesZipFile());
+            var made = await backups.BackupAsync(code);
+            var copy = await backups.CopyOffsiteAsync(code, made.Value.FileName);
+            Assert.True(copy.IsSuccess);
+            Assert.False(copy.Value.OffsiteOk);
+        }
+        finally { await DropAsync(o, code); }
+    }
 }

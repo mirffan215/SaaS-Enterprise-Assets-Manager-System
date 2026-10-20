@@ -76,3 +76,21 @@ Permissions: the application pool identity needs Modify rights on the backup fol
 ## Proving a backup works ("Checked")
 
 A backup nobody has ever restored is a hope, not a backup. **Check now** (Administration → Backup and restore) restores the file under a temporary name, runs `DBCC CHECKDB` and a sanity query, drops the copy and shows the result and time next to the file (the result is kept in `<backup>.bak.verify`). Your live data is never touched. It needs free disk space for a second copy of the database for a few minutes. Scheduled backups are checked automatically right after they are made, and a failed check is written to the log as an error.
+
+## Off-site copies
+
+Backups on the server's own disk do not survive a lost server. Set a second place and every **scheduled** backup is copied there automatically after it has passed its test restore:
+
+```powershell
+# a folder on another machine (or a synced folder) and/or an Azure Blob container
+.\Set-OperatorAccess.ps1 -OffsiteFolder "\\nas\eams-backups" -OffsiteBlobUrl "https://<account>.blob.core.windows.net/<container>?<SAS token>"
+```
+
+- The copy is an AES-256 zip. The script generates the zip password and shows it **once**: store it in your vault, an off-site copy cannot be opened without it. Open it with 7-Zip, or upload it under Backup and restore → "Restore from a downloaded zip" (that page accepts it for the same company).
+- The Azure SAS token needs create + write (+ list) rights on the container. Expire old blobs with a storage lifecycle rule; in a folder the newest *N* scheduled copies (the schedule's "keep" number) are kept.
+- The backup page shows an **Off-site** column and a **Copy now** button for each backup.
+
+## Alerts and health
+
+- A failed scheduled backup, failed test restore or failed off-site copy is logged as `BACKUP ALERT` and, with `-AlertWebhookUrl "https://hooks.slack.com/..."` (Slack, Teams and most chat tools accept `{"text": ...}`), posted there.
+- `https://<host>/health/backups` answers `200 Healthy` or `503 Unhealthy` (the last scheduled run failed, or a backup is more than six hours overdue; no details are exposed, the reason is in the log). Point your monitoring tool (Uptime Kuma, Zabbix, PRTG, Azure Monitor) at it. `/health` stays about the database only.

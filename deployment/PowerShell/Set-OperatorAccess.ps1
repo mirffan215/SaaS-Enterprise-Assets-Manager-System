@@ -26,6 +26,12 @@ param(
     [switch] $SetupBackups,
     [string] $BackupFolder = "C:\EAMSCloud\Backups",
     [string] $SqlServer = "localhost",
+    # off-site copy of every scheduled backup (encrypted zip): a folder on another machine (\\nas\eams) and/or an Azure Blob container SAS URL
+    [string] $OffsiteFolder,
+    [string] $OffsiteBlobUrl,
+    [switch] $NewOffsitePassword,
+    # https address of a Slack/Teams/other incoming webhook that is told when a backup, its check or its off-site copy fails
+    [string] $AlertWebhookUrl,
     [switch] $NoRestart
 )
 
@@ -110,6 +116,28 @@ if ($SetupBackups) {
     Initialize-BackupFolder $BackupFolder $SqlServer "IIS AppPool\$AppPoolName"
     Set-Setting "BackupFolder" $BackupFolder
     $shown["Backup folder (set up)"] = $BackupFolder
+}
+
+if ($OffsiteFolder -or $OffsiteBlobUrl) {
+    if ($OffsiteFolder) {
+        if (-not (Test-Path $OffsiteFolder)) { New-Item -ItemType Directory -Path $OffsiteFolder -ErrorAction Stop | Out-Null }
+        & icacls $OffsiteFolder /grant "IIS AppPool\${AppPoolName}:(OI)(CI)M" /Q | Out-Null
+        Set-Setting "OffsiteFolder" $OffsiteFolder
+    }
+    if ($OffsiteBlobUrl) {
+        if ($OffsiteBlobUrl -notmatch '^https://[^/]+/[^/?]+\?.+') { throw "-OffsiteBlobUrl must be a container SAS URL: https://<account>.blob.core.windows.net/<container>?<sas token>" }
+        Set-Setting "OffsiteBlobUrl" $OffsiteBlobUrl
+    }
+    if ($NewOffsitePassword -or [string]::IsNullOrWhiteSpace((Get-Setting "OffsitePassword"))) {
+        $op = New-StrongPassword
+        Set-Setting "OffsitePassword" $op
+        $shown["Off-site zip password (keep it in your vault: without it the off-site copies cannot be opened)"] = $op
+    }
+}
+if ($AlertWebhookUrl) {
+    if ($AlertWebhookUrl -notmatch '^https://') { throw "-AlertWebhookUrl must start with https://" }
+    Set-Setting "AlertWebhookUrl" $AlertWebhookUrl
+    $shown["Alert webhook (set)"] = "yes"
 }
 
 [IO.File]::WriteAllText($file, ($json | ConvertTo-Json -Depth 8), (New-Object Text.UTF8Encoding($false)))

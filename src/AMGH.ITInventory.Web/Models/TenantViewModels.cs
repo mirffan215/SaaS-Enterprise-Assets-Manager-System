@@ -30,7 +30,8 @@ public sealed class TenantAdminViewModel
     public IReadOnlyList<AMGH.ITInventory.Application.Tenancy.TenantSchemaStatus> Schema { get; set; } = Array.Empty<AMGH.ITInventory.Application.Tenancy.TenantSchemaStatus>();
 }
 
-public sealed record BackupRow(string FileName, long SizeBytes, DateTime CreatedUtc, DateTime? VerifiedUtc = null, bool VerifyOk = false, string? VerifyNote = null);
+public sealed record BackupRow(string FileName, long SizeBytes, DateTime CreatedUtc, DateTime? VerifiedUtc = null, bool VerifyOk = false, string? VerifyNote = null,
+    DateTime? OffsiteUtc = null, bool OffsiteOk = false, string? OffsiteNote = null);
 
 /// <summary>Backups of one company (operator page).</summary>
 public sealed class TenantBackupsViewModel
@@ -42,6 +43,8 @@ public sealed class TenantBackupsViewModel
     public bool Succeeded { get; set; }
     /// <summary>True when the backup folder can be listed (otherwise files made earlier are not shown).</summary>
     public bool CanList { get; set; } = true;
+    /// <summary>An off-site target is configured (copies are made after scheduled backups and can be made by hand).</summary>
+    public bool OffsiteConfigured { get; set; }
     /// <summary>The workspace's backup schedule (workspace page only).</summary>
     public AMGH.ITInventory.Web.Infrastructure.BackupSchedule Schedule { get; set; } = new();
 }
