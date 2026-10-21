@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
-    Backs up the SaaS installation: the catalog database, every customer database, the encryption keys and the uploaded documents.
+    Backs up the SaaS installation: the catalog database, every customer database, the encryption keys, the uploaded documents and the site itself (programs and settings).
 
 .DESCRIPTION
     * One compressed, checksummed full backup per database (ITInv_Catalog and every ITInv_Tenant_<code>), each verified afterwards.
     * The Keys folder (sign-in and secret-protection keys) as a dated copy and the Documents folder as a rolling mirror.
+    * The site folder (the program files and appsettings.Production.json with the site's secrets) as a dated zip, readable only by Administrators and SYSTEM.
     * Old database backups are deleted after -KeepDays days (the newest backup of each database is always kept).
     A customer database can be restored on its own; the others are not touched.
 
@@ -26,9 +27,11 @@ param(
     [string] $SqlServer = "localhost",
     [string] $CatalogDatabase = "ITInv_Catalog",
     [string] $DataRoot = "C:\EAMSCloud",
+    [string] $SitePath = "C:\inetpub\EAMSCloud",
     [string] $BackupRoot,
     [int]    $KeepDays = 14,
     [switch] $SkipFiles,
+    [switch] $SkipSite,
     [switch] $RegisterTask,
     [string] $TaskTime = "02:00"
 )
@@ -49,7 +52,7 @@ if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) { throw "sqlcmd was
 # ---------------------------------------------------------------- nightly task
 if ($RegisterTask) {
     $cred = Get-Credential -Message "Account the nightly backup runs as (must be allowed to back up the databases)"
-    $argument = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -SqlServer `"$SqlServer`" -CatalogDatabase `"$CatalogDatabase`" -DataRoot `"$DataRoot`" -KeepDays $KeepDays"
+    $argument = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -SqlServer `"$SqlServer`" -CatalogDatabase `"$CatalogDatabase`" -DataRoot `"$DataRoot`" -SitePath `"$SitePath`" -KeepDays $KeepDays"
     if ($BackupRoot) { $argument += " -BackupRoot `"$BackupRoot`"" }
     $action  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $argument
     $trigger = New-ScheduledTaskTrigger -Daily -At $TaskTime
@@ -105,6 +108,25 @@ if (-not $SkipFiles) {
     }
 }
 
+# ---------------------------------------------------------------- the site itself
+if (-not $SkipSite -and (Test-Path $SitePath)) {
+    Write-Step "Zipping the site folder ($SitePath)"
+    try {
+        $filesRoot = Join-Path $BackupRoot "files"
+        if (-not (Test-Path $filesRoot)) { New-Item -ItemType Directory -Path $filesRoot | Out-Null }
+        $zip = Join-Path $filesRoot "Site_$stamp.zip"
+        # app_offline.htm and the site's own log folder are left out; everything else (including appsettings.Production.json) is kept
+        $items = @(Get-ChildItem -Path $SitePath -Force | Where-Object { $_.Name -notin @("app_offline.htm", "logs") })
+        Compress-Archive -Path $items.FullName -DestinationPath $zip -CompressionLevel Optimal -Force
+        # the settings file holds the site's secrets: only Administrators and SYSTEM may read the archive
+        & icacls $zip /inheritance:r /grant:r "Administrators:F" "SYSTEM:F" | Out-Null
+        Write-Host "  OK  $zip" -ForegroundColor Green
+    } catch {
+        $failed += "Site"
+        Write-Host "  FAILED zipping the site: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
 # ---------------------------------------------------------------- retention (only when everything worked)
 if ($failed.Count -eq 0) {
     $limit = (Get-Date).AddDays(-$KeepDays)
@@ -116,6 +138,8 @@ if ($failed.Count -eq 0) {
     if (Test-Path $filesDir) {
         $keysCopies = @(Get-ChildItem -Path $filesDir -Directory -Filter "Keys_*" | Sort-Object Name -Descending)
         $keysCopies | Select-Object -Skip 1 | Where-Object { $_.LastWriteTime -lt $limit } | Remove-Item -Recurse -Force
+        $siteZips = @(Get-ChildItem -Path $filesDir -File -Filter "Site_*.zip" | Sort-Object Name -Descending)
+        $siteZips | Select-Object -Skip 1 | Where-Object { $_.LastWriteTime -lt $limit } | Remove-Item -Force
     }
 }
 
