@@ -404,4 +404,51 @@ public class SqlServerIntegrationTests
         }
         finally { await DropAsync(o, code); }
     }
+
+    [SqlServerFact]
+    public async Task A_single_database_is_set_up_with_only_a_database_owner_login_as_on_shared_hosting()
+    {
+        var o = Options(realMigrations: true);
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var database = "plesk_" + suffix;
+        var login = "plesk_user_" + suffix;
+        const string password = "Hosting!Pass-2026x";
+        await using (var admin = new SqlConnection(new SqlConnectionStringBuilder(o.ServerConnectionString) { InitialCatalog = "master" }.ConnectionString))
+        {
+            await admin.OpenAsync();
+            await using var cmd = admin.CreateCommand();
+            // what a control panel hands out: an empty database and a login that owns it, nothing at server level
+            cmd.CommandText = $"CREATE DATABASE [{database}]; CREATE LOGIN [{login}] WITH PASSWORD = N'{password}', CHECK_POLICY = OFF;";
+            await cmd.ExecuteNonQueryAsync();
+            cmd.CommandText = $"USE [{database}]; CREATE USER [{login}] FOR LOGIN [{login}]; ALTER ROLE db_owner ADD MEMBER [{login}];";
+            await cmd.ExecuteNonQueryAsync();
+        }
+        try
+        {
+            var cs = new SqlConnectionStringBuilder(o.ServerConnectionString) { InitialCatalog = database, UserID = login, Password = password }.ConnectionString;
+            var setup = new SingleDatabaseSetup(new FixedHasher(), Microsoft.Extensions.Options.Options.Create(o), NullLogger<SingleDatabaseSetup>.Instance);
+            Assert.False(await setup.IsInitializedAsync(cs));
+
+            var result = await setup.InitializeAsync(cs, "Hosted", "Hosted Co", "boss@hosted.test", "Correct-Horse-9", null);
+            Assert.True(result.IsSuccess, string.Join("; ", result.Errors.Select(e => e.Message)));
+            Assert.False(string.IsNullOrEmpty(result.Value.GeneratedMasterKeyPassword));
+            Assert.True(await setup.IsInitializedAsync(cs));
+            Assert.Equal("Hosted Co", await ScalarAsync<string>(database, "SELECT DisplayName FROM dbo.tblCompany WHERE CompanyId = 1", o));
+            Assert.Equal(1, await ScalarAsync<int>(database, "SELECT COUNT(*) FROM dbo.tblUser WHERE Username = 'admin'", o));
+            Assert.True(await ScalarAsync<int>(database, "SELECT COUNT(*) FROM sys.tables", o) > 30);
+            Assert.Equal(1, await ScalarAsync<int>(database, "SELECT COUNT(*) FROM dbo.tblSchemaMigration WHERE Name = '0002_RfidAndMaintenanceCost.sql'", o));
+
+            // a second setup is refused, an upgrade has nothing to do
+            Assert.True((await setup.InitializeAsync(cs, "Hosted", "Hosted Co", "boss@hosted.test", "Correct-Horse-9", null)).IsFailure);
+            Assert.Equal(0, await setup.UpgradeAsync(cs));
+        }
+        finally
+        {
+            await using var admin = new SqlConnection(new SqlConnectionStringBuilder(o.ServerConnectionString) { InitialCatalog = "master" }.ConnectionString);
+            await admin.OpenAsync();
+            await using var cmd = admin.CreateCommand();
+            cmd.CommandText = $"ALTER DATABASE [{database}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{database}]; DROP LOGIN [{login}];";
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
 }

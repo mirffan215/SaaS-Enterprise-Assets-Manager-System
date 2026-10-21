@@ -1,0 +1,20 @@
+@model AMGH.ITInventory.Application.Tenancy.SingleDatabaseSetupResult
+@{
+    ViewData["Title"] = "EAMS is ready";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">EAMS is ready</h1>
+    <p class="lp-tagline">@AMGH.ITInventory.Shared.AppInfo.Name</p>
+</header>
+<div class="alert alert-success" role="status">The database is set up. Sign in as <strong>@Model.AdminUsername</strong> (or with the e-mail address) and the password you chose.</div>
+@if (Model.GeneratedMasterKeyPassword is not null)
+{
+    <div class="alert alert-warning" role="alert">
+        <strong>Write this down now; it is shown only once.</strong> Database encryption password (needed if the database is ever restored on another server):
+        <div class="font-monospace user-select-all">@Model.GeneratedMasterKeyPassword</div>
+    </div>
+}
+<p class="small">Now remove the <code>Setup</code> section (the setup key) from appsettings.Production.json, so the setup page cannot come back.</p>
+<a class="lp-submit" href="@Url.Action("Login", "Account")">Go to sign-in <i class="bi bi-arrow-right" aria-hidden="true"></i></a>

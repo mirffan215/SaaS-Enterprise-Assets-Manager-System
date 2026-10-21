@@ -149,7 +149,7 @@ public sealed partial class TenantProvisioningService : ITenantProvisioningServi
     }
 
     /// <summary>The scripts create the first company as a placeholder; make it the customer's company and let the administrator keep the chosen password.</summary>
-    private static async Task FinishCompanyAsync(SqlConnectionStringBuilder server, string database, string code, string name, CancellationToken ct)
+    internal static async Task FinishCompanyAsync(SqlConnectionStringBuilder server, string database, string code, string name, CancellationToken ct)
     {
         var builder = new SqlConnectionStringBuilder(server.ConnectionString) { InitialCatalog = database };
         await using var connection = new SqlConnection(builder.ConnectionString);

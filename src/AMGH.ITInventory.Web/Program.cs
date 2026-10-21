@@ -22,6 +22,11 @@ try
     var builder = WebApplication.CreateBuilder(args);
     builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false);
 
+    // Folders may be given relative to the site (for example App_Data\Documents), which is all a hosting control panel shows you.
+    foreach (var key in new[] { "Storage:RootPath", "DataProtection:KeysPath", "Serilog:WriteTo:0:Args:path" })
+        if (builder.Configuration[key] is { Length: > 0 } configured && !Path.IsPathRooted(configured))
+            builder.Configuration[key] = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, configured));
+
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
@@ -65,7 +70,8 @@ try
     if (!string.IsNullOrWhiteSpace(keysPath))
     {
         dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
-        if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
+        // DPAPI needs the application pool's user profile to be loaded, which hosting panels often do not do: set DataProtection:ProtectWithDpapi to false there
+        if (OperatingSystem.IsWindows() && builder.Configuration.GetValue("DataProtection:ProtectWithDpapi", true)) dataProtection.ProtectKeysWithDpapi();
     }
 
     // ---------------------------------------------------------------- authentication / authorisation
@@ -169,6 +175,22 @@ try
             catch (Exception ex) { Log.Error(ex, "The start-up upgrade of the company databases failed"); }
         }
         app.UseMiddleware<TenantResolutionMiddleware>();
+    }
+    else if (!string.IsNullOrWhiteSpace(app.Configuration["Setup:Key"]))
+    {
+        // single database, hosted where only an empty database is provided: the first visit sets it up (see SetupController)
+        app.UseMiddleware<SetupGateMiddleware>();
+    }
+    if (!tenancy.Enabled && !string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("AMGHDatabase")) && tenancy.AutoUpgrade)
+    {
+        // new program versions bring database changes (SQLScripts\Migrations); apply them before the first request (silently skipped when the login may not change the schema)
+        try
+        {
+            using var upgradeScope = app.Services.CreateScope();
+            var applied = await upgradeScope.ServiceProvider.GetRequiredService<ISingleDatabaseSetup>().UpgradeAsync(app.Configuration.GetConnectionString("AMGHDatabase")!);
+            if (applied > 0) Log.Information("{Count} database change(s) applied", applied);
+        }
+        catch (Exception ex) { Log.Warning(ex, "The database could not be checked for upgrades at start-up"); }
     }
     app.UseAuthentication();
     app.UseMiddleware<ForcePasswordChangeMiddleware>();
