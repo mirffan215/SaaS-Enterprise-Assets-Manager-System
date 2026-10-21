@@ -115,9 +115,12 @@ if (-not $SkipSite -and (Test-Path $SitePath)) {
         $filesRoot = Join-Path $BackupRoot "files"
         if (-not (Test-Path $filesRoot)) { New-Item -ItemType Directory -Path $filesRoot | Out-Null }
         $zip = Join-Path $filesRoot "Site_$stamp.zip"
-        # app_offline.htm and the site's own log folder are left out; everything else (including appsettings.Production.json) is kept
-        $items = @(Get-ChildItem -Path $SitePath -Force | Where-Object { $_.Name -notin @("app_offline.htm", "logs") })
-        Compress-Archive -Path $items.FullName -DestinationPath $zip -CompressionLevel Optimal -Force
+        # the running site keeps its program files open: copy them with robocopy first (it can read them), then zip the copy
+        $temp = Join-Path ([IO.Path]::GetTempPath()) "eams-site-$stamp"
+        & robocopy $SitePath $temp /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP /XD logs /XF app_offline.htm | Out-Null
+        if ($LASTEXITCODE -ge 8) { throw "copying the site folder failed (robocopy exit code $LASTEXITCODE)" }
+        try { Compress-Archive -Path (Join-Path $temp "*") -DestinationPath $zip -CompressionLevel Optimal -Force }
+        finally { Remove-Item -Path $temp -Recurse -Force -ErrorAction SilentlyContinue }
         # the settings file holds the site's secrets: only Administrators and SYSTEM may read the archive
         & icacls $zip /inheritance:r /grant:r "Administrators:F" "SYSTEM:F" | Out-Null
         Write-Host "  OK  $zip" -ForegroundColor Green
