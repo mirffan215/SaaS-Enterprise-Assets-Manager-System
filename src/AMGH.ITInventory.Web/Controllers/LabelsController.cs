@@ -70,7 +70,26 @@ public sealed class LabelsController : Controller
         _logger.LogInformation("{Count} label(s) printed by {User}, batch {Batch}", result.Value.Labels.Count, User.Identity?.Name, result.Value.BatchId);
         Response.Headers.CacheControl = "no-store";
         ViewData["TagStyle"] = style;
-        return View(result.Value.Design == LabelDesign.AssetTag ? "PrintTags" : "Print", result.Value);
+        return View(result.Value.Design switch { LabelDesign.AssetTag => "PrintTags", LabelDesign.RfidLabel => "PrintRfid", _ => "Print" }, result.Value);
+    }
+
+    /// <summary>The file an RFID printer (or its encoding software) uses to write each tag's EPC: CSV, or ZPL for Zebra RFID printers.</summary>
+    [HttpPost("rfid-file")]
+    public async Task<IActionResult> RfidFile(int[] ids, string? format, CancellationToken cancellationToken)
+    {
+        if (ids is null || ids.Length == 0) return RedirectToAction("Index", "Assets");
+        var tags = await _labels.GetRfidTagsAsync(ids, BaseUrl, cancellationToken);
+        if (tags.Count == 0)
+        {
+            TempData["StatusMessage"] = "None of the selected assets can carry a tag.";
+            return RedirectToAction("Index", "Assets");
+        }
+        _logger.LogInformation("RFID encoding file for {Count} tag(s) made by {User}", tags.Count, User.Identity?.Name);
+        Response.Headers.CacheControl = "no-store";
+        var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmm", System.Globalization.CultureInfo.InvariantCulture);
+        return string.Equals(format, "zpl", StringComparison.OrdinalIgnoreCase)
+            ? File(System.Text.Encoding.ASCII.GetBytes(RfidEncoding.Zpl(tags)), "application/octet-stream", $"rfid-tags-{stamp}.zpl")
+            : File(new System.Text.UTF8Encoding(true).GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(RfidEncoding.Csv(tags))).ToArray(), "text/csv", $"rfid-tags-{stamp}.csv");
     }
 }
 
@@ -82,10 +101,22 @@ public sealed class ScanController : Controller
 
     public ScanController(Application.Assets.IAssetService assets) => _assets = assets;
 
+    /// <summary>The scan page of the mobile app: camera (QR label, barcode) or typed number, then the asset opens.</summary>
+    [HttpGet("scan")]
+    public IActionResult Index() => View("Scan");
+
     [HttpGet("a/{assetNumber}")]
     public async Task<IActionResult> Open(string assetNumber, CancellationToken cancellationToken)
     {
         var id = await _assets.FindIdByNumberAsync(assetNumber, cancellationToken);
+        return id is null ? NotFound() : RedirectToAction("Details", "Assets", new { id });
+    }
+
+    /// <summary>Target for an RFID reader or a scanner app: /r/A5000001000000010F3A9C21 opens the asset whose tag carries that EPC.</summary>
+    [HttpGet("r/{epc}")]
+    public async Task<IActionResult> OpenByRfid(string epc, CancellationToken cancellationToken)
+    {
+        var id = await _assets.FindIdByRfidAsync(epc, cancellationToken);
         return id is null ? NotFound() : RedirectToAction("Details", "Assets", new { id });
     }
 }

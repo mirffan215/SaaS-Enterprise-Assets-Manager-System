@@ -23,6 +23,12 @@ public interface IRepository<TEntity> where TEntity : class
     /// </summary>
     Task<List<TResult>> QueryAsync<TResult>(Func<IQueryable<TEntity>, IQueryable<TResult>> shape, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Like <see cref="QueryAsync{TResult}"/> but over all rows of the signed-in company including soft-deleted ones
+    /// (the company filter is never bypassed). Used by the recycle bin.
+    /// </summary>
+    Task<List<TResult>> QueryIncludingDeletedAsync<TResult>(Func<IQueryable<TEntity>, IQueryable<TResult>> shape, CancellationToken cancellationToken = default);
+
     /// <summary>Server-side COUNT of a filtered query (pair with <see cref="QueryAsync{TResult}"/> for paging).</summary>
     Task<int> QueryCountAsync(Func<IQueryable<TEntity>, IQueryable<TEntity>> filter, CancellationToken cancellationToken = default);
 

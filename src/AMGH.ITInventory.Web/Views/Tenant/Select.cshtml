@@ -1,0 +1,37 @@
+@model TenantSelectViewModel
+@{
+    ViewData["Title"] = "Find your company";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">@AMGH.ITInventory.Shared.AppInfo.Name</h1>
+    <p class="lp-tagline">@AMGH.ITInventory.Shared.AppInfo.Tagline</p>
+</header>
+
+<p class="lp-context"><span>Enter your company code to go to your workspace.</span></p>
+
+<form asp-action="Select" method="post" novalidate class="lp-form">
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2" role="alert"></div>
+    <div class="lp-field">
+        <label asp-for="Code" class="visually-hidden"></label>
+        <i class="bi bi-buildings" aria-hidden="true"></i>
+        <input asp-for="Code" class="form-control" placeholder="Company code" autocomplete="organization" autofocus />
+    </div>
+    <span asp-validation-for="Code" class="invalid-feedback d-block"></span>
+    <button type="submit" class="lp-submit">Continue <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+</form>
+@if (Model.ShowExploreDemo)
+{
+    <a class="lp-submit lp-submit-secondary" href="@Url.Action("ExploreDemo", "Account")"><i class="bi bi-play-circle" aria-hidden="true"></i> Explore Demo Environment</a>
+}
+
+<p class="lp-notice">
+    New here? <a href="@Url.Action("Index", "DemoRequest")">Request a demo</a> · <a href="@Url.Action("Index", "Register")">I have a company key</a>
+</p>
+
+<partial name="_InstallApp" />
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

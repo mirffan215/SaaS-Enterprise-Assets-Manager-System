@@ -42,7 +42,7 @@ public sealed class ApprovalsController : LifecycleControllerBase
 {
     public override void OnActionExecuting(Microsoft.AspNetCore.Mvc.Filters.ActionExecutingContext context)
     {
-        if (!User.HasPermission(Permissions.Movements.View) && !User.HasPermission(Permissions.Disposals.View)) context.Result = Forbid();
+        if (!User.HasPermission(Permissions.Movements.View) && !User.HasPermission(Permissions.Disposals.View) && !User.HasPermission(Permissions.CompanyAdmin.ExportDataApprove)) context.Result = Forbid();
         base.OnActionExecuting(context);
     }
 
@@ -169,7 +169,8 @@ public sealed class MaintenanceController : LifecycleControllerBase
             Currencies = await _lookups.GetOptionsAsync(LookupKeys.Currencies, ct),
             Technicians = User.HasPermission(Permissions.Maintenance.Manage) ? await _maint.TechniciansAsync(ct) : Array.Empty<TechnicianOption>(),
             Mine = mine,
-            CurrentUserId = me
+            CurrentUserId = me,
+            CanViewCosts = User.HasPermission(Permissions.Assets.ViewFinancials)
         });
     }
 
@@ -204,6 +205,11 @@ public sealed class MaintenanceController : LifecycleControllerBase
     public async Task<IActionResult> Complete(int jobId, MaintenanceCompletionForm form, CancellationToken ct) =>
         Done(await _maint.CompleteAsync(jobId, form, ct), "Job completed.", nameof(Index));
 
+    [HttpPost("maintenance/{jobId:int}/cost")]
+    [HasPermission(Permissions.Maintenance.Manage)]
+    public async Task<IActionResult> Cost(int jobId, MaintenanceCostForm form, CancellationToken ct) =>
+        Done(await _maint.UpdateCostAsync(jobId, form, ct), "Cost saved.", nameof(Index));
+
     [HttpPost("maintenance/{jobId:int}/assign")]
     [HasPermission(Permissions.Maintenance.Manage)]
     public async Task<IActionResult> Assign(int jobId, int? assignedToUserId, CancellationToken ct) =>
@@ -221,7 +227,7 @@ public sealed class MaintenanceController : LifecycleControllerBase
         return View("~/Views/Lifecycle/MaintenanceForm.cshtml", new MaintenanceFormViewModel
         {
             Asset = header, Form = form, Vendors = await _lookups.GetOptionsAsync(LookupKeys.Vendors, ct),
-            Technicians = await _maint.TechniciansAsync(ct)
+            Technicians = await _maint.TechniciansAsync(ct), Currencies = await _lookups.GetOptionsAsync(LookupKeys.Currencies, ct)
         });
     }
 }

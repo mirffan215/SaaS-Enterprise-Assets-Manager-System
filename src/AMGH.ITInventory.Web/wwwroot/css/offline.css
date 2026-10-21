@@ -1,0 +1,6 @@
+html, body { height: 100%; margin: 0; }
+body.offline { display: flex; align-items: center; justify-content: center; background: #0e3b43; color: #f3f6f6; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center; }
+.offline main { max-width: 22rem; padding: 1.5rem; }
+.offline h1 { font-size: 1.4rem; margin: 1rem 0 .5rem; }
+.offline p { margin: .5rem 0; line-height: 1.4; }
+.offline .retry { display: inline-block; margin-top: .75rem; padding: .6rem 1.4rem; border-radius: .5rem; background: #e8604c; color: #fff; text-decoration: none; font-weight: 600; }

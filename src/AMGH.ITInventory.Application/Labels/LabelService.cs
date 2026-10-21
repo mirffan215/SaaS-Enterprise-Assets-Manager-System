@@ -15,7 +15,7 @@ public sealed record LabelAsset(int AssetId, string AssetNumber, string AssetNam
     string? SerialNumber, string? Hostname, string? AssignedTo, string? Department, string? Location);
 
 /// <summary>One label: QR design carries <see cref="QrSvg"/>; asset-tag design carries <see cref="BarcodeSvg"/>.</summary>
-public sealed record LabelItem(LabelAsset Asset, string? QrSvg, string? BarcodeSvg, int Copies);
+public sealed record LabelItem(LabelAsset Asset, string? QrSvg, string? BarcodeSvg, int Copies, string? RfidEpc = null);
 
 public sealed record LabelSheet(LabelDesign Design, LabelSize Size, Guid BatchId, IReadOnlyList<LabelItem> Labels);
 
@@ -43,6 +43,12 @@ public interface ILabelService
     /// sheet to print. Re-printing an already labelled asset needs <paramref name="canReprint"/> and a reason.
     /// </summary>
     Task<Result<LabelSheet>> PrintAsync(LabelPrintRequest request, string baseUrl, bool canReprint, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The RFID tags of these assets, for the encoding file of an RFID printer. An asset without an EPC gets one now (it never changes afterwards).
+    /// Disposed assets are left out.
+    /// </summary>
+    Task<IReadOnlyList<RfidTag>> GetRfidTagsAsync(IReadOnlyList<int> assetIds, string baseUrl, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<LabelHistoryEntry>> GetHistoryAsync(int assetId, CancellationToken cancellationToken = default);
 
@@ -99,7 +105,7 @@ internal sealed class LabelService : ILabelService
         var reason = string.IsNullOrWhiteSpace(request.ReprintReason) ? null : request.ReprintReason.Trim();
         if (!Enum.IsDefined(request.Design)) return Result<LabelSheet>.Failure(Error.Validation("Choose a label design.", "Design"));
         var anyReprint = preview.Assets.Any(a => preview.WasPrinted(request.Design, a.AssetId));
-        var what = request.Design == LabelDesign.AssetTag ? "an asset tag" : "a QR label";
+        var what = request.Design switch { LabelDesign.AssetTag => "an asset tag", LabelDesign.RfidLabel => "an RFID label", _ => "a QR label" };
         if (anyReprint && !canReprint)
             return Result<LabelSheet>.Failure(Error.Forbidden($"Some of these assets already have {what}. Reprinting needs the 'Reprint QR labels' permission."));
         if (anyReprint && (reason is null || reason.Length < 5))
@@ -124,6 +130,12 @@ internal sealed class LabelService : ILabelService
                     {
                         items.Add(new LabelItem(asset, null, _barcode.Generate(asset.AssetNumber).Svg, request.Copies));
                     }
+                    else if (request.Design == LabelDesign.RfidLabel)
+                    {
+                        var epc = await EnsureEpcAsync(asset.AssetId, ct);
+                        var printed = compact ? BuildPayload(asset, baseUrl, compact: true) : full;
+                        items.Add(new LabelItem(asset, _qr.Generate(printed, quietZoneModules: 2).Svg, null, request.Copies, epc));
+                    }
                     else
                     {
                         var printed = compact ? BuildPayload(asset, baseUrl, compact: true) : full;
@@ -138,6 +150,32 @@ internal sealed class LabelService : ILabelService
         {
             return Result<LabelSheet>.Failure(Error.BusinessRule(ex.Message));
         }
+    }
+
+    /// <summary>The asset's RFID EPC; made once, on first use, and kept for the life of the asset.</summary>
+    private async Task<string> EnsureEpcAsync(int assetId, CancellationToken ct)
+    {
+        var asset = await _uow.Repository<Asset>().FirstOrDefaultAsync(a => a.AssetId == assetId, ct) ?? throw new BusinessRuleException("Asset not found.");
+        if (!RfidEncoding.IsEpc(asset.RfidEpc))
+        {
+            asset.RfidEpc = RfidEncoding.NewEpc(asset.CompanyId, asset.AssetId);
+            await _uow.SaveChangesAsync(ct);
+        }
+        return asset.RfidEpc!;
+    }
+
+    public async Task<IReadOnlyList<RfidTag>> GetRfidTagsAsync(IReadOnlyList<int> assetIds, string baseUrl, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(assetIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(baseUrl);
+        var preview = await PreviewAsync(assetIds, cancellationToken);
+        var tags = new List<RfidTag>();
+        await _uow.ExecuteInTransactionAsync(async ct =>
+        {
+            foreach (var a in preview.Assets)
+                tags.Add(new RfidTag(a.AssetNumber, a.AssetName, await EnsureEpcAsync(a.AssetId, ct), baseUrl.TrimEnd('/') + "/a/" + a.AssetNumber));
+        }, cancellationToken);
+        return tags;
     }
 
     /// <summary>Keeps the stored QR version while the encoded details are unchanged; otherwise stores a new version.</summary>

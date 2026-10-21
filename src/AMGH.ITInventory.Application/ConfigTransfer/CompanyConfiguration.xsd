@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  EAMS company configuration (export / import), version 1.
+  Carries the settings a company sets up once: asset categories (with sub-categories and their number series),
+  classifications, document numbering and locations. No assets, people, passwords or secrets.
+  The importer validates every file against this schema before anything is shown or saved.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:eams:company-configuration:1" xmlns="urn:eams:company-configuration:1"
+           elementFormDefault="qualified">
+
+  <xs:simpleType name="Code"><xs:restriction base="xs:string"><xs:pattern value="[A-Za-z0-9_\-]{1,20}"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="SequenceCode"><xs:restriction base="xs:string"><xs:pattern value="[A-Z]{2,10}"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Name100"><xs:restriction base="xs:string"><xs:minLength value="1"/><xs:maxLength value="100"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Name150"><xs:restriction base="xs:string"><xs:minLength value="1"/><xs:maxLength value="150"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Text100"><xs:restriction base="xs:string"><xs:maxLength value="100"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Text500"><xs:restriction base="xs:string"><xs:maxLength value="500"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Text1000"><xs:restriction base="xs:string"><xs:maxLength value="1000"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Color"><xs:restriction base="xs:string"><xs:pattern value="#[0-9A-Fa-f]{6}"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Padding"><xs:restriction base="xs:unsignedByte"><xs:minInclusive value="3"/><xs:maxInclusive value="10"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Level"><xs:restriction base="xs:unsignedByte"><xs:minInclusive value="1"/><xs:maxInclusive value="9"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Month"><xs:restriction base="xs:unsignedByte"><xs:minInclusive value="1"/><xs:maxInclusive value="12"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Digits"><xs:restriction base="xs:unsignedByte"><xs:minInclusive value="5"/><xs:maxInclusive value="8"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="NumberingMode"><xs:restriction base="xs:string"><xs:enumeration value="Continuous"/><xs:enumeration value="Yearly"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="YearFormat"><xs:restriction base="xs:string"><xs:enumeration value="Year"/><xs:enumeration value="FY"/></xs:restriction></xs:simpleType>
+  <xs:simpleType name="Sort"><xs:restriction base="xs:int"><xs:minInclusive value="0"/><xs:maxInclusive value="100000"/></xs:restriction></xs:simpleType>
+
+  <xs:element name="CompanyConfiguration">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="AssetCategories" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="Category" minOccurs="0" maxOccurs="500">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="Description" type="Text500" minOccurs="0"/>
+                    <xs:element name="SubCategory" minOccurs="0" maxOccurs="500">
+                      <xs:complexType>
+                        <xs:sequence><xs:element name="Description" type="Text500" minOccurs="0"/></xs:sequence>
+                        <xs:attribute name="code" type="Code" use="required"/>
+                        <xs:attribute name="name" type="Name100" use="required"/>
+                        <xs:attribute name="sortOrder" type="Sort" default="0"/>
+                        <xs:attribute name="isActive" type="xs:boolean" default="true"/>
+                      </xs:complexType>
+                    </xs:element>
+                  </xs:sequence>
+                  <xs:attribute name="code" type="Code" use="required"/>
+                  <xs:attribute name="name" type="Name100" use="required"/>
+                  <xs:attribute name="sequence" type="SequenceCode" use="required"/>
+                  <xs:attribute name="sequencePadding" type="Padding" default="5"/>
+                  <xs:attribute name="defaultUsefulLifeMonths" type="xs:positiveInteger"/>
+                  <xs:attribute name="requiresHostname" type="xs:boolean" default="false"/>
+                  <xs:attribute name="sortOrder" type="Sort" default="0"/>
+                  <xs:attribute name="isActive" type="xs:boolean" default="true"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="Classifications" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="Classification" minOccurs="0" maxOccurs="100">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="HandlingRequirements" type="Text1000" minOccurs="0"/>
+                    <xs:element name="Description" type="Text500" minOccurs="0"/>
+                  </xs:sequence>
+                  <xs:attribute name="code" type="Code" use="required"/>
+                  <xs:attribute name="name" type="Name100" use="required"/>
+                  <xs:attribute name="level" type="Level" use="required"/>
+                  <xs:attribute name="color" type="Color"/>
+                  <xs:attribute name="sortOrder" type="Sort" default="0"/>
+                  <xs:attribute name="isActive" type="xs:boolean" default="true"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="DocumentNumbering" minOccurs="0">
+          <xs:complexType>
+            <xs:attribute name="mode" type="NumberingMode" use="required"/>
+            <xs:attribute name="fiscalYearStartMonth" type="Month" default="1"/>
+            <xs:attribute name="yearFormat" type="YearFormat" default="Year"/>
+            <xs:attribute name="digits" type="Digits" default="6"/>
+          </xs:complexType>
+        </xs:element>
+
+        <xs:element name="Locations" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="Location" minOccurs="0" maxOccurs="2000">
+                <xs:complexType>
+                  <xs:sequence><xs:element name="AddressLine" type="Text500" minOccurs="0"/></xs:sequence>
+                  <xs:attribute name="code" type="Code" use="required"/>
+                  <xs:attribute name="name" type="Name150" use="required"/>
+                  <xs:attribute name="city" type="Text100"/>
+                  <xs:attribute name="country" type="Name100" use="required"/>
+                  <xs:attribute name="isActive" type="xs:boolean" default="true"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:positiveInteger" use="required" fixed="1"/>
+      <xs:attribute name="exportedUtc" type="xs:dateTime"/>
+      <xs:attribute name="sourceCompany" type="Text100"/>
+      <xs:attribute name="sourceCompanyName" type="Text100"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

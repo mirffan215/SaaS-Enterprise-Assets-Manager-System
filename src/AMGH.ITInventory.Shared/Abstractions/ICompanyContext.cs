@@ -10,6 +10,9 @@ public interface ICompanyContext
     /// <summary>The active company, or null (anonymous request, platform administration).</summary>
     int? CompanyId { get; }
 
+    /// <summary>Display name of the active company when known (from the session), else null.</summary>
+    string? CurrentCompanyName { get; }
+
     /// <summary>True inside <see cref="EnterPlatform"/>: platform-level rows (CompanyId NULL in logs) are accessible.</summary>
     bool IsPlatform { get; }
 
@@ -27,9 +30,16 @@ public interface ICompanyContext
 public sealed class CompanyContext : ICompanyContext
 {
     private readonly Func<int?> _ambient;
+    private readonly Func<string?> _ambientName;
     private readonly Stack<(int? Company, bool Platform)> _scopes = new();
 
-    public CompanyContext(Func<int?>? ambient = null) => _ambient = ambient ?? (() => null);
+    public CompanyContext(Func<int?>? ambient = null, Func<string?>? ambientName = null)
+    {
+        _ambient = ambient ?? (() => null);
+        _ambientName = ambientName ?? (() => null);
+    }
+
+    public string? CurrentCompanyName => _scopes.Count > 0 ? null : (_ambientName() is { Length: > 0 } n ? n : null);
 
     public int? CompanyId => _scopes.Count > 0 ? _scopes.Peek().Company : _ambient();
 

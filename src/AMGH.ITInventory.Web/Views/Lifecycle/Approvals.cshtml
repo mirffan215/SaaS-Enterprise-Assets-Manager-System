@@ -3,7 +3,7 @@
 <div class="page-head">
     <div>
         <h1 class="page-title">Approval Center</h1>
-        <p class="text-body-secondary mb-0">Movement and disposal requests waiting for a decision. Requesters can never approve their own requests.</p>
+        <p class="text-body-secondary mb-0">Movement, disposal and company data export requests waiting for a decision. Requesters can never approve their own requests.</p>
     </div>
     @if (User.HasPermission(Permissions.Administration.RolesManage)) { <a class="btn btn-outline-secondary" asp-action="Rules"><i class="bi bi-diagram-3" aria-hidden="true"></i> Approval stages</a> }
 </div>
@@ -14,9 +14,16 @@
     <section class="panel approval-card">
         <div class="d-flex flex-wrap justify-content-between gap-2">
             <div>
-                <span class="badge @(p.RequestType == "Disposal" ? "text-bg-danger" : "text-bg-primary")">@p.RequestType</span>
-                <span class="ms-1"><partial name="_DocLink" model='(p.DocumentNumber, p.RequestType == "Movement" ? "MOV" : "DSP", p.RequestId)' /></span>
-                <a class="fw-semibold ms-1" asp-controller="Assets" asp-action="Details" asp-route-id="@p.AssetId">@p.AssetNumber</a> @p.AssetName
+                <span class="badge @(p.RequestType == "Disposal" ? "text-bg-danger" : p.RequestType == "DataExport" ? "text-bg-dark" : "text-bg-primary")">@AMGH.ITInventory.Application.Common.DisplayText.Humanize(p.RequestType)</span>
+                @if (p.RequestType == "DataExport")
+                {
+                    <span class="fw-semibold ms-1">Request #@p.RequestId</span> <span>@p.AssetName</span>
+                }
+                else
+                {
+                    <span class="ms-1"><partial name="_DocLink" model='(p.DocumentNumber, p.RequestType == "Movement" ? "MOV" : "DSP", p.RequestId)' /></span>
+                    <a class="fw-semibold ms-1" asp-controller="Assets" asp-action="Details" asp-route-id="@p.AssetId">@p.AssetNumber</a> @p.AssetName
+                }
                 <div class="mt-1">@p.Summary</div>
                 <div class="small text-body-secondary">Reason: @p.Reason</div>
                 <div class="small text-body-secondary">Requested by @p.RequestedBy, @Time.Format(p.RequestedUtc) · Stage @p.Stage of @p.TotalStages@(p.StageRole is null ? "" : " (" + AMGH.ITInventory.Application.Common.DisplayText.Humanize(p.StageRole) + ")")</div>
@@ -44,7 +51,7 @@
             <tbody>
                 @foreach (var p in others)
                 {
-                    <tr><td>@p.RequestType</td><td><a asp-controller="Assets" asp-action="Details" asp-route-id="@p.AssetId">@p.AssetNumber</a></td><td class="small">@p.Summary</td>
+                    <tr><td>@AMGH.ITInventory.Application.Common.DisplayText.Humanize(p.RequestType)</td><td>@if (p.RequestType == "DataExport") { <span>Company data</span> } else { <a asp-controller="Assets" asp-action="Details" asp-route-id="@p.AssetId">@p.AssetNumber</a> }</td><td class="small">@p.Summary</td>
                         <td>@p.RequestedBy</td><td>@p.Stage / @p.TotalStages</td><td class="small text-body-secondary">@p.WhyNot</td></tr>
                 }
             </tbody>

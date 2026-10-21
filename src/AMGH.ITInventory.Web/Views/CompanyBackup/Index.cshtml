@@ -1,0 +1,206 @@
+@model TenantBackupsViewModel
+@{
+    ViewData["Title"] = "Backup and restore";
+    var s = Model.Schedule;
+    string Day(int d) => System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetDayName((DayOfWeek)d);
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Backup and restore</h1>
+        <p class="text-body-secondary mb-0">A full backup of this workspace (all its companies, users, assets, settings). Download it as a password-protected zip, and restore from it whenever you need to. Restoring brings everything back exactly as it was when the backup was made.</p>
+    </div>
+</div>
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert @(Model.Succeeded ? "alert-success" : "alert-warning")" role="status">@Model.Message</div>
+}
+@if (!string.IsNullOrEmpty(Model.Code))
+{
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <section class="panel h-100">
+                <h2 class="panel-title">Back up now</h2>
+                <form asp-action="Create" method="post" data-confirm="Back up the workspace now? It can take a few minutes; keep this page open.">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-hdd" aria-hidden="true"></i> Back up this workspace now</button>
+                </form>
+                <p class="small text-body-secondary mt-2 mb-0">The backup appears in the list below. Download it as a zip to keep a copy on your own computer or storage.</p>
+            </section>
+        </div>
+        <div class="col-lg-7">
+            <section class="panel h-100">
+                <h2 class="panel-title">Backup schedule</h2>
+                <form asp-action="Schedule" method="post" class="row g-2 align-items-end">
+                    <div class="col-sm-4">
+                        <label class="form-label small" for="mode">Repeat</label>
+                        <select class="form-select form-select-sm" id="mode" name="mode">
+                            <option value="Off" selected="@(s.Mode == "Off")">Off</option>
+                            <option value="Daily" selected="@(s.Mode == "Daily")">Every day</option>
+                            <option value="Weekly" selected="@(s.Mode == "Weekly")">Every week</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small" for="time">At (server time)</label>
+                        <input class="form-control form-control-sm" id="time" name="time" value="@s.Time" maxlength="5" placeholder="02:00" />
+                    </div>
+                    <div class="col-sm-3">
+                        <label class="form-label small" for="day">Weekly on</label>
+                        <select class="form-select form-select-sm" id="day" name="day">
+                            @for (var d = 0; d < 7; d++) { <option value="@d" selected="@(s.Day == d)">@Day(d)</option> }
+                        </select>
+                    </div>
+                    <div class="col-sm-2">
+                        <label class="form-label small" for="keep">Keep</label>
+                        <input class="form-control form-control-sm" type="number" id="keep" name="keep" min="1" max="365" value="@s.Keep" />
+                    </div>
+                    <div class="col-12"><button type="submit" class="btn btn-sm btn-outline-primary">Save schedule</button></div>
+                </form>
+                <p class="small text-body-secondary mt-2 mb-0">
+                    The newest scheduled backups are kept; older scheduled ones are deleted (backups you make by hand are never deleted).
+                    @if (s.LastRunLocal is { } last) { <span>Last run: @last.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) — @s.LastResult</span> }
+                </p>
+            </section>
+        </div>
+    </div>
+
+    <section class="panel mt-3" @(s.RunningSinceLocal is not null ? "data-refresh-seconds=15" : "")>
+        <h2 class="panel-title">Scheduled jobs</h2>
+        @{
+            var now = DateTime.Now;
+            var next = s.NextRun(now);
+            string F(DateTime? d) => d is null ? "never" : d.Value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+            var failing = s.LastResult?.Contains("FAILED", StringComparison.OrdinalIgnoreCase) == true;
+        }
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-3">
+                <thead><tr><th>Job</th><th>Status</th><th>Next run</th><th>Last run</th><th>Last result</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Scheduled backup</strong><div class="small text-body-secondary">@(s.Mode == "Off" ? "Not scheduled" : s.Mode == "Daily" ? $"Every day at {s.Time}" : $"Every {Day(s.Day)} at {s.Time}"), keeps the last @s.Keep</div></td>
+                        <td>
+                            @if (s.RunningSinceLocal is { } since) { <span class="badge text-bg-primary"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Running since @since.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)</span> }
+                            else if (s.Mode == "Off") { <span class="badge text-bg-secondary">Off</span> }
+                            else if (failing) { <span class="badge text-bg-danger">Last run failed</span> }
+                            else { <span class="badge text-bg-success">Waiting</span> }
+                        </td>
+                        <td>@(s.RunningSinceLocal is not null ? "—" : next is null ? "—" : next <= now ? "due now (starts within a minute)" : F(next))</td>
+                        <td>@F(s.LastRunLocal)</td>
+                        <td class="small">@(s.LastResult ?? "—")</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        @if (s.History.Count > 0)
+        {
+            <h3 class="h6">Recent runs</h3>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-3">
+                    <thead><tr><th>Started</th><th>Took</th><th>Type</th><th>Result</th></tr></thead>
+                    <tbody>
+                        @foreach (var run in s.History)
+                        {
+                            <tr>
+                                <td>@F(run.StartedLocal)</td>
+                                <td>@(run.FinishedLocal is { } fin ? Math.Max(1, (int)Math.Round((fin - run.StartedLocal).TotalSeconds)) + " s" : "—")</td>
+                                <td>@run.Kind</td>
+                                <td class="small">@if (run.Ok) { <span class="text-success"><i class="bi bi-check-circle" aria-hidden="true"></i></span> } else { <span class="text-danger"><i class="bi bi-x-circle" aria-hidden="true"></i></span> } @run.Summary</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (Model.Jobs.Count > 0)
+        {
+            <h3 class="h6">Background jobs of the site</h3>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Job</th><th>Status</th><th>Last started</th><th>Last finished</th><th>Result</th></tr></thead>
+                    <tbody>
+                        @foreach (var j in Model.Jobs)
+                        {
+                            <tr>
+                                <td><strong>@j.Name</strong><div class="small text-body-secondary">@j.Description</div></td>
+                                <td>@if (j.Running) { <span class="badge text-bg-primary">Running</span> } else if (j.LastOk == false) { <span class="badge text-bg-danger">Last run failed</span> } else { <span class="badge text-bg-success">Idle</span> }</td>
+                                <td>@F(j.LastStartLocal)</td>
+                                <td>@F(j.LastFinishLocal)</td>
+                                <td class="small">@(j.LastDetail ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-body-secondary mt-2 mb-0">Times are server time. These jobs run inside the website; if a job shows "never" the site was restarted a moment ago.</p>
+        }
+        else
+        {
+            <p class="small text-body-secondary mb-0">The site's background jobs have not run yet since it started (about a minute after start-up).</p>
+        }
+    </section>
+
+    <section class="panel mt-3">
+        <h2 class="panel-title">Backups</h2>
+        @if (Model.Files.Count == 0)
+        {
+            <p class="text-body-secondary mb-0">@(Model.CanList ? "There are no backups yet." : "The list of backups is not available.")</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Backup</th><th>Size</th><th>Made</th><th>Checked</th><th>Off-site</th><th>Download as zip</th><th>Restore</th></tr></thead>
+                    <tbody>
+                        @foreach (var f in Model.Files)
+                        {
+                            <tr>
+                                <td class="font-monospace small">@f.FileName</td>
+                                <td>@((f.SizeBytes / 1048576.0).ToString("N1", System.Globalization.CultureInfo.InvariantCulture)) MB</td>
+                                <td>@f.CreatedUtc.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC</td>
+                                <td class="small">
+                                    @if (f.VerifiedUtc is null) { <span class="text-body-secondary">not checked</span> }
+                                    else if (f.VerifyOk) { <span class="text-success"><i class="bi bi-check-circle" aria-hidden="true"></i> @f.VerifiedUtc.Value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC</span> }
+                                    else { <span class="text-danger"><i class="bi bi-x-circle" aria-hidden="true"></i> failed: @f.VerifyNote</span> }
+                                    <form asp-action="Verify" method="post" class="mt-1" data-confirm="Test-restore this backup into a temporary database and check it? It does not change your data, but it needs disk space and can take a few minutes."><input type="hidden" name="file" value="@f.FileName" /><button type="submit" class="btn btn-sm btn-link p-0">Check now</button></form>
+                                </td>
+                                <td class="small">
+                                    @if (f.OffsiteUtc is null) { <span class="text-body-secondary">@(Model.OffsiteConfigured ? "not copied" : "—")</span> }
+                                    else if (f.OffsiteOk) { <span class="text-success"><i class="bi bi-cloud-check" aria-hidden="true"></i> @f.OffsiteUtc.Value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC</span> }
+                                    else { <span class="text-danger"><i class="bi bi-cloud-slash" aria-hidden="true"></i> failed: @f.OffsiteNote</span> }
+                                    @if (Model.OffsiteConfigured)
+                                    {
+                                        <form asp-action="Offsite" method="post" class="mt-1"><input type="hidden" name="file" value="@f.FileName" /><button type="submit" class="btn btn-sm btn-link p-0">Copy now</button></form>
+                                    }
+                                </td>
+                                <td>
+                                    <form asp-action="Download" method="post" class="d-flex gap-2">
+                                        <input type="hidden" name="file" value="@f.FileName" />
+                                        <input class="form-control form-control-sm" type="password" name="password" placeholder="Choose a zip password" autocomplete="new-password" aria-label="Choose a password for the zip file" />
+                                        <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-download" aria-hidden="true"></i> Download</button>
+                                    </form>
+                                </td>
+                                <td>
+                                    <form asp-action="Restore" method="post" class="d-flex gap-2" data-confirm="Replace ALL current data of this workspace with this backup?">
+                                        <input type="hidden" name="file" value="@f.FileName" />
+                                        <input class="form-control form-control-sm" name="confirm" placeholder="Type @Model.Code" autocomplete="off" aria-label="Type the workspace code to confirm" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger text-nowrap"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Restore</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-body-secondary mt-2 mb-0">Restore replaces <strong>all current data</strong> with the chosen backup. A backup of the current state is taken first. Everyone, including you, signs in again afterwards.</p>
+        }
+    </section>
+
+    <section class="panel mt-3">
+        <h2 class="panel-title">Restore from a downloaded zip</h2>
+        <p class="small">Use the zip you downloaded earlier (even on another day or after a rebuild). It must be a backup of this same workspace; a backup of another company is refused.</p>
+        <form asp-action="Upload" method="post" enctype="multipart/form-data" class="row g-2 align-items-end" data-confirm="Replace ALL current data of this workspace with the uploaded backup?">
+            <div class="col-md-4"><label class="form-label small" for="zip">Backup zip file</label><input class="form-control form-control-sm" type="file" id="zip" name="zip" accept=".zip" required /></div>
+            <div class="col-md-3"><label class="form-label small" for="zipPassword">Zip password</label><input class="form-control form-control-sm" type="password" id="zipPassword" name="password" autocomplete="off" required /></div>
+            <div class="col-md-3"><label class="form-label small" for="zipConfirm">Type @Model.Code to confirm</label><input class="form-control form-control-sm" id="zipConfirm" name="confirm" autocomplete="off" required /></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-upload" aria-hidden="true"></i> Restore</button></div>
+        </form>
+    </section>
+}

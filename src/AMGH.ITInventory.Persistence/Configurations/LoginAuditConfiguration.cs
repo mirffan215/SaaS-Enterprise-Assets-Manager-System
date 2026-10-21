@@ -13,7 +13,7 @@ internal sealed class LoginAuditConfiguration : IEntityTypeConfiguration<LoginAu
         builder.ToTable("tblLoginAudit", "dbo", tb =>
         {
             tb.HasTrigger("trg_tblLoginAudit_Immutable");
-            tb.HasCheckConstraint("CK_tblLoginAudit_EventType_Domain", "[EventType] IN (N'LoginSuccess', N'LoginFailed', N'Logout', N'Lockout', N'PasswordChanged', N'PasswordReset', N'SessionExpired', N'AccountDisabled')");
+            tb.HasCheckConstraint("CK_tblLoginAudit_EventType_Domain", "[EventType] IN (N'LoginSuccess', N'LoginFailed', N'Logout', N'Lockout', N'PasswordChanged', N'PasswordReset', N'SessionExpired', N'AccountDisabled', N'MfaEnabled', N'MfaReset', N'RecoveryCodeUsed', N'SsoSignIn')");
         });
 
         builder.HasKey(e => e.LoginAuditId).HasName("PK_tblLoginAudit");

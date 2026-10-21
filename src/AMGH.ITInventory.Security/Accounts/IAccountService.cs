@@ -14,6 +14,15 @@ public interface IAccountService
     Task<SignInOutcome> SignInAsync(string username, string password, string? ipAddress, string? userAgent,
         string? companyCode = null, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Signs in a person who was already identified by their company's single sign-on provider (verified e-mail address). The person must be an
+    /// active user with access to the company; no password is involved. Recorded as a single sign-on event.
+    /// </summary>
+    Task<SignInOutcome> SignInExternalAsync(string email, string companyCode, string? ipAddress, string? userAgent, CancellationToken cancellationToken = default);
+
+    /// <summary>The authenticated user for a session after the second step succeeded; null when the account or its company access is no longer active.</summary>
+    Task<AuthenticatedUser?> CreateSessionAsync(int userId, int companyId, CancellationToken cancellationToken = default);
+
     /// <summary>Changes the user's own password. Returns the refreshed user (same company) for re-issuing the cookie.</summary>
     Task<Result<AuthenticatedUser>> ChangePasswordAsync(int userId, int companyId, string currentPassword, string newPassword,
         string? ipAddress, string? userAgent, CancellationToken cancellationToken = default);

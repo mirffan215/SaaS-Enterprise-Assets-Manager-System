@@ -1,0 +1,28 @@
+@model AMGH.ITInventory.Web.Controllers.SetupViewModel
+@{
+    ViewData["Title"] = "Set up EAMS";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">Set up EAMS</h1>
+    <p class="lp-tagline">First start: build the database and create your first company</p>
+</header>
+
+@if (!string.IsNullOrEmpty(Model.DatabaseProblem))
+{
+    <div class="alert alert-danger py-2" role="alert"><strong>The database cannot be reached.</strong> @Model.DatabaseProblem<br />Check <code>ConnectionStrings:AMGHDatabase</code> in appsettings.Production.json (server, database, user, password).</div>
+}
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-danger py-2" role="alert">@Model.Message</div>
+}
+
+<form asp-action="Run" method="post" novalidate class="lp-form" data-confirm="Set up the database now? It takes a minute or two; keep this page open.">
+    <div class="lp-field"><i class="bi bi-key" aria-hidden="true"></i><input asp-for="SetupKey" class="form-control" placeholder="Setup key (from appsettings.Production.json)" autocomplete="off" /></div>
+    <div class="lp-field"><i class="bi bi-hash" aria-hidden="true"></i><input asp-for="Code" class="form-control" placeholder="Company code (2-10 letters or digits)" maxlength="10" autocomplete="off" /></div>
+    <div class="lp-field"><i class="bi bi-buildings" aria-hidden="true"></i><input asp-for="Name" class="form-control" placeholder="Company name" maxlength="100" autocomplete="organization" /></div>
+    <div class="lp-field"><i class="bi bi-envelope" aria-hidden="true"></i><input asp-for="AdminEmail" class="form-control" placeholder="Administrator e-mail" autocomplete="email" /></div>
+    <div class="lp-field"><i class="bi bi-lock-fill" aria-hidden="true"></i><input asp-for="AdminPassword" class="form-control" placeholder="Administrator password (12+ characters, upper, lower, digit, symbol)" autocomplete="new-password" /></div>
+    <button type="submit" class="lp-submit">Set up now <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+</form>

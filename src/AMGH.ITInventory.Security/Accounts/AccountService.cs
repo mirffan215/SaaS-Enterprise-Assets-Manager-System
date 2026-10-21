@@ -123,6 +123,39 @@ internal sealed class AccountService : IAccountService
         return SignInOutcome.Success(await BuildAuthenticatedUserAsync(user, membership, now, cancellationToken));
     }
 
+    public async Task<SignInOutcome> SignInExternalAsync(string email, string companyCode, string? ipAddress, string? userAgent, CancellationToken cancellationToken = default)
+    {
+        const string notAllowed = "Your account is not allowed to sign in here. Contact your administrator.";
+        email = (email ?? string.Empty).Trim();
+        var now = _clock.UtcNow;
+        var user = email.Length == 0 ? null : await _uow.Repository<User>().FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+        var membership = user is null ? null : await ResolveMembershipAsync(user, companyCode, cancellationToken);
+        if (user is null || !user.IsActive || membership is null)
+        {
+            using (_company.EnterPlatform())
+            {
+                await AddLoginAuditAsync(user?.UserId, email, LoginEventType.LoginFailed, ipAddress, userAgent, "Single sign-on: no active account with access to " + Truncate(companyCode, 20), now, cancellationToken);
+                await _uow.SaveChangesAsync(cancellationToken);
+            }
+            return SignInOutcome.Fail(notAllowed);
+        }
+        using var scope = _company.Enter(membership.CompanyId);
+        if (user.LockoutEndUtc is { } until && until > now) return SignInOutcome.Locked(until);
+        user.LastLoginDate = now;
+        user.LastLoginIp = Truncate(ipAddress, 45);
+        await AddLoginAuditAsync(user.UserId, user.Username, LoginEventType.SsoSignIn, ipAddress, userAgent, null, now, cancellationToken);
+        await _uow.SaveChangesAsync(cancellationToken);
+        return SignInOutcome.Success(await BuildAuthenticatedUserAsync(user, membership, now, cancellationToken));
+    }
+
+    public async Task<AuthenticatedUser?> CreateSessionAsync(int userId, int companyId, CancellationToken cancellationToken = default)
+    {
+        var user = await _uow.Repository<User>().FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive, cancellationToken);
+        if (user is null) return null;
+        var membership = await AccessToAsync(user, companyId, cancellationToken);
+        return membership is null ? null : await BuildAuthenticatedUserAsync(user, membership, _clock.UtcNow, cancellationToken);
+    }
+
     public async Task<Result<AuthenticatedUser>> ChangePasswordAsync(int userId, int companyId, string currentPassword, string newPassword,
         string? ipAddress, string? userAgent, CancellationToken cancellationToken = default)
     {

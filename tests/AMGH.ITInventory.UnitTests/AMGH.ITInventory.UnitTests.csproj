@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1707;CA1812;CA1861</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AMGH.ITInventory.Application\AMGH.ITInventory.Application.csproj" />
+    <ProjectReference Include="..\..\src\AMGH.ITInventory.Shared\AMGH.ITInventory.Shared.csproj" />
+    <ProjectReference Include="..\..\src\AMGH.ITInventory.Infrastructure\AMGH.ITInventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\AMGH.ITInventory.Web\AMGH.ITInventory.Web.csproj" />
+  </ItemGroup>
+</Project>

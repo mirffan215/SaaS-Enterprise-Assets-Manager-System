@@ -24,9 +24,13 @@ public static class DependencyInjection
         bool enableSensitiveDataLogging = false)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+        var tenancy = configuration.GetSection(Application.Tenancy.TenancyOptions.SectionName).Get<Application.Tenancy.TenancyOptions>() ?? new();
+        // Multi-tenant mode needs no default database: every request or job names its tenant.
         var connectionString = configuration.GetConnectionString(ConnectionStringName)
-            ?? throw new InvalidOperationException($"Connection string '{ConnectionStringName}' is not configured.");
+            ?? (tenancy.Enabled ? "Server=.;Database=ITInv_NoTenant;Trusted_Connection=True;Encrypt=True;TrustServerCertificate=True"
+                : throw new InvalidOperationException($"Connection string '{ConnectionStringName}' is not configured."));
 
+        services.AddTenancy(configuration, tenancy);
         services.TryAddScoped<ICompanyContext>(_ => new CompanyContext());
         services.AddScoped<CompanySessionInterceptor>();
         services.AddDbContext<AMGHDbContext>((provider, options) =>
@@ -51,6 +55,28 @@ public static class DependencyInjection
         services.AddScoped<Application.Documents.IDocumentCounter, DocumentCounter>();
         services.AddScoped<IAssetLifecycleProcedures, AssetLifecycleProcedures>();
         services.AddScoped<ILicenseKeyStore, LicenseKeyStore>();
+        return services;
+    }
+
+    /// <summary>
+    /// Tenant accessor (always) and, when "Tenancy:Enabled" is true, the central catalog (connection string "TenantCatalog").
+    /// The host sets the active tenant per request (TenantResolutionMiddleware) or per job (<see cref="ITenantAccessor.Enter"/>).
+    /// </summary>
+    private static IServiceCollection AddTenancy(this IServiceCollection services, IConfiguration configuration, Application.Tenancy.TenancyOptions tenancy)
+    {
+        services.AddOptions<Application.Tenancy.TenancyOptions>().Bind(configuration.GetSection(Application.Tenancy.TenancyOptions.SectionName));
+        services.AddMemoryCache();
+        services.AddScoped<TenantAccessor>(_ => new TenantAccessor(tenancy.Enabled));
+        services.AddScoped<ITenantAccessor>(sp => sp.GetRequiredService<TenantAccessor>());
+        if (!tenancy.Enabled) return services;
+
+        var catalogConnection = configuration.GetConnectionString("TenantCatalog")
+            ?? throw new InvalidOperationException("Tenancy is enabled but connection string 'TenantCatalog' is not configured.");
+        services.AddDbContext<TenantCatalogDbContext>(o => o.UseSqlServer(catalogConnection, sql => sql.CommandTimeout(30)));
+        services.AddScoped<Tenancy.TenantCatalog>();
+        services.AddScoped<Application.Tenancy.ITenantCatalog>(sp => sp.GetRequiredService<Tenancy.TenantCatalog>());
+        services.AddScoped<Application.Tenancy.ITenantAdminStore>(sp => sp.GetRequiredService<Tenancy.TenantCatalog>());
+        services.AddScoped<Application.Tenancy.ICompanyKeyStore, Tenancy.CompanyKeyStore>();
         return services;
     }
 }

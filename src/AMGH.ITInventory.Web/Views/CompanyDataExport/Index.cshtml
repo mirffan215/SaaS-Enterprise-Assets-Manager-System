@@ -1,0 +1,64 @@
+@using AMGH.ITInventory.Web.Controllers
+@model DataExportPageModel
+@{
+    ViewData["Title"] = "Company data export";
+    var canRequest = User.HasPermission(Permissions.CompanyAdmin.ExportDataRequest);
+    var canApprove = User.HasPermission(Permissions.CompanyAdmin.ExportDataApprove);
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Company data export</h1>
+        <p class="text-body-secondary mb-0">A full copy of this company's data (one CSV file per table) in a password-protected .zip.@(Model.RequiresApproval ? " Another administrator must approve every request;" : " As company administrator you can create it yourself;") the download then works once, for you only, for 24 hours.</p>
+    </div>
+    @if (canApprove) { <a class="btn btn-outline-secondary" asp-controller="Approvals" asp-action="Index"><i class="bi bi-inbox" aria-hidden="true"></i> Approval Center</a> }
+</div>
+
+@if (canRequest)
+{
+    <section class="panel mb-4">
+        <h2 class="h5">@(Model.RequiresApproval ? "Request an export" : "Create an export")</h2>
+        <form asp-action="RequestExport" method="post" class="row g-2 align-items-end">
+            <div class="col-md-9">
+                <label class="form-label" for="reason">Why is the export needed?</label>
+                <input class="form-control" id="reason" name="reason" minlength="10" maxlength="500" required placeholder="e.g. Yearly offline backup for the audit committee" />
+            </div>
+            <div class="col-md-3"><button type="submit" class="btn btn-primary w-100"><i class="bi bi-box-arrow-down" aria-hidden="true"></i> @(Model.RequiresApproval ? "Request export" : "Create export")</button></div>
+        </form>
+    </section>
+}
+
+<div class="table-responsive panel p-0">
+    <table class="table align-middle mb-0">
+        <thead><tr><th>#</th><th>Status</th><th>Requested by</th><th>Reason</th><th>Decision</th><th></th></tr></thead>
+        <tbody>
+            @if (Model.Items.Count == 0) { <tr><td colspan="6" class="text-body-secondary">No exports yet.</td></tr> }
+            @foreach (var item in Model.Items)
+            {
+                var badge = item.Status switch { "Approved" => "text-bg-success", "Downloaded" => "text-bg-secondary", "Rejected" => "text-bg-danger", "Expired" => "text-bg-secondary", _ => "text-bg-warning" };
+                <tr>
+                    <td>@item.Id</td>
+                    <td><span class="badge @badge">@item.Status</span></td>
+                    <td>@item.RequestedBy<div class="small text-body-secondary">@Time.Format(item.RequestedUtc)</div></td>
+                    <td class="small">@item.Reason</td>
+                    <td class="small">
+                        @if (item.ApprovedBy is not null) { <span>Approved by @item.ApprovedBy, @Time.Format(item.ApprovedUtc!.Value)</span> }
+                        @if (item.RejectionReason is not null) { <span>Rejected: @item.RejectionReason</span> }
+                        @if (item.DownloadedUtc is not null) { <div class="text-body-secondary">Downloaded @Time.Format(item.DownloadedUtc.Value)</div> }
+                        @if (item.Status == "Requested") { <span class="text-body-secondary">Waiting for a second administrator</span> }
+                    </td>
+                    <td class="text-end">
+                        @if (Model.Credentials.TryGetValue(item.Id, out var c))
+                        {
+                            <div class="small text-start mb-2">Archive password (shown only to you):<br /><code class="user-select-all">@c.Password</code><br /><span class="text-body-secondary">Download by @Time.Format(c.ExpiresUtc)</span></div>
+                            <form asp-action="Download" asp-route-id="@item.Id" method="post">
+                                <input type="hidden" name="token" value="@c.Token" />
+                                <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-download" aria-hidden="true"></i> Download .zip</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<p class="small text-body-secondary mt-3">Open the archive with 7-Zip, WinZip or Keka (AES-256). Windows Explorer cannot open AES-protected archives. Password hashes and software license keys are never included. Every export and download is recorded in the audit log.</p>

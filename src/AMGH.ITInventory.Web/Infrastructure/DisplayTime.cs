@@ -3,6 +3,7 @@ using System.Globalization;
 using AMGH.ITInventory.Application.Abstractions.Persistence;
 using AMGH.ITInventory.Domain.Entities;
 using AMGH.ITInventory.Security.Claims;
+using AMGH.ITInventory.Shared.Abstractions;
 
 namespace AMGH.ITInventory.Web.Infrastructure;
 
@@ -32,7 +33,8 @@ internal sealed class DisplayTime : IDisplayTime
     private readonly IHttpContextAccessor _http;
     private readonly IServiceScopeFactory _scopes;
     private readonly (TimeZoneInfo Zone, string DateFormat) _default;
-    private static readonly ConcurrentDictionary<int, (TimeZoneInfo Zone, string DateFormat, DateTime Expires)> Cache = new();
+    // Company ids repeat from one tenant database to the next (every database has a company 1), so the tenant is part of the key.
+    private static readonly ConcurrentDictionary<(string Tenant, int Company), (TimeZoneInfo Zone, string DateFormat, DateTime Expires)> Cache = new();
 
     public DisplayTime(IConfiguration configuration, ILogger<DisplayTime> logger, IHttpContextAccessor http, IServiceScopeFactory scopes)
     {
@@ -48,12 +50,16 @@ internal sealed class DisplayTime : IDisplayTime
         get
         {
             if (_http.HttpContext?.User.GetCompanyId() is not { } companyId) return _default;
-            if (Cache.TryGetValue(companyId, out var c) && c.Expires > DateTime.UtcNow) return (c.Zone, c.DateFormat);
+            // the settings live in the signed-in tenant's database: the helper scope below must work in that tenant too
+            var tenant = _http.HttpContext.RequestServices.GetService<ITenantAccessor>()?.CurrentTenant;
+            var key = (tenant?.Code ?? string.Empty, companyId);
+            if (Cache.TryGetValue(key, out var c) && c.Expires > DateTime.UtcNow) return (c.Zone, c.DateFormat);
             using var scope = _scopes.CreateScope();
+            using var tenantScope = tenant is null ? null : scope.ServiceProvider.GetRequiredService<ITenantAccessor>().Enter(tenant);
             var row = scope.ServiceProvider.GetRequiredService<IUnitOfWork>().Repository<Company>()
                 .QueryAsync(q => q.Where(x => x.CompanyId == companyId).Select(x => new { x.TimeZone, x.DateFormat })).GetAwaiter().GetResult().FirstOrDefault();
             var settings = (row is null ? null : Find(row.TimeZone)) is { } zone ? (zone, row!.DateFormat) : _default;
-            Cache[companyId] = (settings.Item1, settings.Item2, DateTime.UtcNow.AddMinutes(5));
+            Cache[key] = (settings.Item1, settings.Item2, DateTime.UtcNow.AddMinutes(5));
             return settings;
         }
     }
@@ -81,5 +87,6 @@ internal sealed class DisplayTime : IDisplayTime
 
     public string Date(DateTime? utc) => utc is null ? string.Empty : ToLocal(utc.Value).ToString(Current.DateFormat, CultureInfo.InvariantCulture);
 
-    public void Invalidate(int companyId) => Cache.TryRemove(companyId, out _);
+    public void Invalidate(int companyId) =>
+        Cache.TryRemove((_http.HttpContext?.RequestServices.GetService<ITenantAccessor>()?.CurrentTenant?.Code ?? string.Empty, companyId), out _);
 }

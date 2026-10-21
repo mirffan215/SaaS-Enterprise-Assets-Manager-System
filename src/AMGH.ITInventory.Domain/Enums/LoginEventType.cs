@@ -10,5 +10,9 @@ public enum LoginEventType
     PasswordChanged,
     PasswordReset,
     SessionExpired,
-    AccountDisabled
+    AccountDisabled,
+    MfaEnabled,
+    MfaReset,
+    RecoveryCodeUsed,
+    SsoSignIn
 }

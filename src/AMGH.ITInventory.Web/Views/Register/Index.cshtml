@@ -1,0 +1,25 @@
+@model RegisterViewModel
+@{
+    ViewData["Title"] = "Register your company";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">Register your company</h1>
+    <p class="lp-tagline">@AMGH.ITInventory.Shared.AppInfo.Name</p>
+</header>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert alert-danger py-2" role="alert">@Model.Message</div>
+}
+
+<form asp-action="Create" method="post" novalidate class="lp-form" data-confirm="Create your company now? It takes a minute or two; keep this page open.">
+    <div class="lp-field"><i class="bi bi-key" aria-hidden="true"></i><input asp-for="CompanyKey" class="form-control font-monospace" placeholder="@(Model.KeyRequired ? "Company key (EAMS-XXXX-XXXX-XXXX)" : "Company key (optional)")" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" /></div>
+    <div class="lp-field"><i class="bi bi-hash" aria-hidden="true"></i><input asp-for="Code" class="form-control" placeholder="Company code (2-10 letters or digits)" maxlength="10" autocomplete="off" /></div>
+    <div class="lp-field"><i class="bi bi-buildings" aria-hidden="true"></i><input asp-for="Name" class="form-control" placeholder="Company name" maxlength="100" autocomplete="organization" /></div>
+    <div class="lp-field"><i class="bi bi-envelope" aria-hidden="true"></i><input asp-for="AdminEmail" class="form-control" placeholder="Administrator e-mail" autocomplete="email" /></div>
+    <div class="lp-field"><i class="bi bi-lock-fill" aria-hidden="true"></i><input asp-for="AdminPassword" class="form-control" placeholder="Password (12+ characters, upper, lower, digit, symbol)" autocomplete="new-password" /></div>
+    <button type="submit" class="lp-submit">Create my company <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+</form>
+<p class="lp-notice">No key yet? <a href="@Url.Action("Index", "DemoRequest")">Request a demo</a> · <a href="@Url.Action("Login", "Account")">Already registered? Sign in</a></p>

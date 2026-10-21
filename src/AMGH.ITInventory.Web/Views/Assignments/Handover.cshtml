@@ -10,7 +10,7 @@
 <main class="doc">
     <header class="doc-head">
         <div>
-            <p class="doc-org">Al Murjan Group Holding · Information Technology</p>
+            <p class="doc-org">@(string.IsNullOrWhiteSpace(User.GetCompanyName()) ? AMGH.ITInventory.Shared.AppInfo.Name : User.GetCompanyName()) · Information Technology</p>
             <h1>IT Asset Hand-over and Acceptable Use Acknowledgement</h1>
         </div>
         <p class="doc-ref">Ref. @(Model.DocumentNumber ?? "HO-" + Model.AssetAssignmentId.ToString("D6"))<br />@Time.Date(Model.AssignedDateUtc)</p>

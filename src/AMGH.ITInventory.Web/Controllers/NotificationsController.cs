@@ -1,3 +1,4 @@
+using AMGH.ITInventory.Web.Infrastructure;
 using AMGH.ITInventory.Application.Abstractions.Mail;
 using AMGH.ITInventory.Application.Notifications;
 using AMGH.ITInventory.Domain.Enums;
@@ -89,6 +90,7 @@ public sealed class NotificationSettingsController : Controller
         });
     }
 
+    [BlockInDemo]
     [HttpPost("mail")]
     public async Task<IActionResult> SaveMail([Bind(Prefix = "Mail")] MailSettingsForm form, CancellationToken ct)
     {

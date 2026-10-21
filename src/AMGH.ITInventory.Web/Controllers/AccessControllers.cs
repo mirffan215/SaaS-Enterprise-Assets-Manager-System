@@ -39,6 +39,7 @@ public sealed class RolesController : Controller
         });
     }
 
+    [BlockInDemo]
     [HttpPost("save/{id:int?}")]
     public async Task<IActionResult> Save(int? id, [Bind(Prefix = "Form")] RoleForm form, CancellationToken ct)
     {
@@ -78,6 +79,7 @@ public sealed class PlatformUsersController : Controller
         return a is null ? NotFound() : View(a);
     }
 
+    [BlockInDemo]
     [HttpPost("{id:int}/membership")]
     public async Task<IActionResult> Membership(int id, MembershipForm form, CancellationToken ct)
     {

@@ -14,7 +14,7 @@ internal sealed class QrLabelPrintLogConfiguration : IEntityTypeConfiguration<Qr
         {
             tb.HasTrigger("trg_tblQrLabelPrintLog_Immutable");
             tb.HasCheckConstraint("CK_tblQrLabelPrintLog_LabelSize_Domain", "[LabelSize] IN (N'Size50x30', N'Size70x40', N'Size100x50')");
-            tb.HasCheckConstraint("CK_tblQrLabelPrintLog_LabelDesign_Domain", "[LabelDesign] IN (N'QrLabel', N'AssetTag')");
+            tb.HasCheckConstraint("CK_tblQrLabelPrintLog_LabelDesign_Domain", "[LabelDesign] IN (N'QrLabel', N'AssetTag', N'RfidLabel')");
             tb.HasCheckConstraint("CK_tblQrLabelPrintLog_Copies", "[Copies] BETWEEN 1 AND 100");
             tb.HasCheckConstraint("CK_tblQrLabelPrintLog_Rule01", "[IsReprint] = 0 OR [ReprintReason] IS NOT NULL");
         });

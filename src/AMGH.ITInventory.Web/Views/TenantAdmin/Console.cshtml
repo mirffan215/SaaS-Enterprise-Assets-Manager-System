@@ -1,0 +1,251 @@
+@using System.Globalization
+@model TenantAdminViewModel
+@{
+    ViewData["Title"] = "EAMS Super Admin";
+    Layout = "_PlatformLayout";
+    var snapshot = Model.Snapshot;
+    string Size(long bytes) => bytes >= 1073741824 ? (bytes / 1073741824.0).ToString("N1", CultureInfo.InvariantCulture) + " GB" : (bytes / 1048576.0).ToString("N0", CultureInfo.InvariantCulture) + " MB";
+    string Ago(DateTime? utc)
+    {
+        if (utc is null) return "never";
+        var span = DateTime.UtcNow - utc.Value;
+        return span.TotalMinutes < 2 ? "just now" : span.TotalHours < 1 ? (int)span.TotalMinutes + " min ago" : span.TotalDays < 1 ? (int)span.TotalHours + " h ago" : (int)span.TotalDays + " d ago";
+    }
+    var warned = snapshot?.Companies.Count(c => c.Warnings.Count > 0) ?? 0;
+}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h1 class="h3 mb-0"><i class="bi bi-hdd-network" aria-hidden="true"></i> EAMS Super Admin</h1>
+        <div class="small text-body-secondary">@(snapshot?.Companies.Count ?? 0) companies · @(warned == 0 ? "no open warnings" : warned + " with warnings") · refreshed @snapshot?.AtUtc.ToString("HH:mm:ss", CultureInfo.InvariantCulture) UTC</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</a>
+        <form asp-action="Upgrade" method="post" data-confirm="Upgrade every company database now? A backup is made first for each company that changes."><button type="submit" class="btn btn-outline-secondary btn-sm">Upgrade all companies</button></form>
+        <form asp-action="Logout" method="post"><button type="submit" class="btn btn-outline-dark btn-sm">Close the console</button></form>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert @(Model.Succeeded ? "alert-success" : "alert-danger") py-2" role="status">@Model.Message</div>
+}
+
+@if (snapshot is not null && snapshot.Disks.Count > 0)
+{
+    <div class="row g-2 mb-3">
+        @foreach (var d in snapshot.Disks)
+        {
+            <div class="col-md-4">
+                <div class="card h-100 @(d.Low ? "border-danger" : "")">
+                    <div class="card-body py-2">
+                        <div class="small text-body-secondary">@d.Label disk</div>
+                        <div class="fw-semibold @(d.Low ? "text-danger" : "")">@Size(d.FreeBytes) free <span class="small fw-normal">(@d.FreePercent.ToString("N0", CultureInfo.InvariantCulture)%)</span></div>
+                        <div class="small text-body-secondary text-truncate" title="@d.Path">@d.Path</div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<div class="card mb-3">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr><th>Company</th><th>Status</th><th class="text-end">Users</th><th class="text-end">Assets</th><th class="text-end">Database</th><th class="text-end">Documents</th><th>Last sign-in</th><th>Last backup</th><th>Warnings</th><th></th></tr>
+            </thead>
+            <tbody>
+                @if (snapshot is null || snapshot.Companies.Count == 0)
+                {
+                    <tr><td colspan="10" class="text-body-secondary">No companies yet. Create the first one below.</td></tr>
+                }
+                else
+                {
+                    foreach (var c in snapshot.Companies)
+                    {
+                        var t = c.Tenant;
+                        <tr class="@(t.IsActive ? "" : "table-secondary")">
+                            <td><strong>@t.Code</strong>@(t.IsDemo ? " (demo)" : "")<div class="small text-body-secondary">@t.Name</div></td>
+                            <td>@if (t.IsActive) { <span class="badge text-bg-success">Active</span> } else { <span class="badge text-bg-secondary">Suspended</span> }</td>
+                            <td class="text-end">@(c.Usage?.ActiveUsers.ToString(CultureInfo.InvariantCulture) ?? "?")<span class="small text-body-secondary"> / @(c.Usage?.Users.ToString(CultureInfo.InvariantCulture) ?? "?")</span></td>
+                            <td class="text-end">@(c.Usage?.Assets.ToString("N0", CultureInfo.InvariantCulture) ?? "?")</td>
+                            <td class="text-end">@Size(c.Usage?.DatabaseBytes ?? 0)</td>
+                            <td class="text-end">@Size(c.DocumentBytes)</td>
+                            <td>@Ago(c.Usage?.LastSignInUtc)</td>
+                            <td>
+                                @if (t.IsDemo) { <span class="text-body-secondary">—</span> }
+                                else
+                                {
+                                    @Ago(c.LastBackupUtc)
+                                    @if (c.LastBackupChecked == true) { <i class="bi bi-check-circle text-success" title="passed its test restore" aria-label="checked"></i> }
+                                    @if (c.LastOffsiteOk == true) { <i class="bi bi-cloud-check text-success" title="copied off-site" aria-label="off-site"></i> }
+                                    <div class="small text-body-secondary">@(c.ScheduleMode == "Off" ? "no schedule" : c.ScheduleMode.ToLowerInvariant())</div>
+                                }
+                            </td>
+                            <td class="small">
+                                @if (c.Warnings.Count == 0) { <span class="text-success"><i class="bi bi-check-lg" aria-hidden="true"></i> none</span> }
+                                else { <ul class="list-unstyled mb-0 text-danger">@foreach (var w in c.Warnings) { <li>@w</li> }</ul> }
+                            </td>
+                            <td class="text-nowrap text-end">
+                                <a href="@Model.Tenants.First(r => r.Code == t.Code).Url" class="btn btn-sm btn-outline-primary">Open</a>
+                                <a asp-action="Backups" asp-route-code="@t.Code" class="btn btn-sm btn-outline-secondary">Backups</a>
+                                <form asp-action="Emergency" asp-route-code="@t.Code" method="post" class="d-inline" data-confirm="Emergency access for @t.Code: clears its allowed networks, two-step requirement and single sign-on, and resets the two-step verification of its administrator 'admin'. Passwords are not changed. Continue?"><button type="submit" class="btn btn-sm btn-outline-warning" title="For a company that locked itself out">Emergency</button></form>
+                                @if (t.IsActive)
+                                {
+                                    <form asp-action="Suspend" asp-route-code="@t.Code" method="post" class="d-inline" data-confirm="Suspend @t.Code? Nobody can use it until you resume it. Nothing is deleted."><button type="submit" class="btn btn-sm btn-outline-danger">Suspend</button></form>
+                                }
+                                else
+                                {
+                                    <form asp-action="Resume" asp-route-code="@t.Code" method="post" class="d-inline"><button type="submit" class="btn btn-sm btn-outline-success">Resume</button></form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (Model.NewKey is not null)
+{
+    <div class="alert alert-warning border-warning" role="alert">
+        <div class="fw-semibold mb-1"><i class="bi bi-key-fill" aria-hidden="true"></i> New company key@(Model.NewKeyFor is null ? "" : " for " + Model.NewKeyFor)</div>
+        <div class="font-monospace fs-4 user-select-all">@Model.NewKey</div>
+        <div class="small mb-2">Shown only once, valid until @Model.NewKeyExpires?.ToString("d MMM yyyy", CultureInfo.InvariantCulture), can be used for one company. Give it to the customer: they open <code>/Register</code> and enter it.</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            @if (Model.NewKeyFor is not null)
+            {
+                <a class="btn btn-sm btn-outline-dark" href="mailto:@Model.NewKeyFor?subject=@Uri.EscapeDataString("Your company key for " + AMGH.ITInventory.Shared.AppInfo.Name)&body=@Uri.EscapeDataString("Your company key: " + Model.NewKey + "\n\nCreate your company at " + Context.Request.Scheme + "://" + Context.Request.Host + "/Register?key=" + Uri.EscapeDataString(Model.NewKey) + "\nThe key can be used once.")"><i class="bi bi-envelope" aria-hidden="true"></i> Open in my e-mail program</a>
+                @if (Model.MailReady && !Model.KeyEmailed)
+                {
+                    <form asp-action="SendKey" method="post" class="d-inline"><input type="hidden" name="key" value="@Model.NewKey" /><input type="hidden" name="email" value="@Model.NewKeyFor" /><button type="submit" class="btn btn-sm btn-dark"><i class="bi bi-send" aria-hidden="true"></i> E-mail it from here</button></form>
+                }
+            }
+        </div>
+    </div>
+}
+
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-inbox" aria-hidden="true"></i> Demo requests</span>
+        @if (!Model.MailReady) { <span class="small text-body-secondary">E-mail is not set up: requests are only listed here (see docs/Super-Admin-and-Company-Keys.md)</span> }</div>
+    @if (Model.KeysUnavailable)
+    {
+        <div class="card-body text-danger small">The catalog needs an update for company keys: run <code>Install-SaaS.ps1 -Update</code>.</div>
+    }
+    else if (Model.Requests.Count == 0)
+    {
+        <div class="card-body small text-body-secondary">No requests yet. People ask for a demo on the front page ("Request a demo").</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Received</th><th>Who</th><th>Company</th><th>Message</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model.Requests)
+                    {
+                        <tr>
+                            <td class="text-nowrap small">@r.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)</td>
+                            <td>@r.FullName<div class="small"><a href="mailto:@r.Email">@r.Email</a>@(r.Phone is null ? "" : " · " + r.Phone)</div></td>
+                            <td>@r.CompanyName</td>
+                            <td class="small">@r.Message</td>
+                            <td>@if (r.Status == "New") { <span class="badge text-bg-primary">New</span> } else if (r.Status == "KeySent") { <span class="badge text-bg-success">Key made</span> } else { <span class="badge text-bg-secondary">Declined</span> }</td>
+                            <td class="text-nowrap text-end">
+                                <form asp-action="GenerateKey" method="post" class="d-inline-flex gap-1 align-items-center">
+                                    <input type="hidden" name="requestId" value="@r.Id" />
+                                    <input class="form-control form-control-sm input-days" type="number" name="days" value="14" min="1" max="365" aria-label="Days the key is valid" title="Days the key is valid" />
+                                    @if (Model.MailReady) { <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" name="sendEmail" value="true" id="mail_@r.Id" checked /><label class="form-check-label small" for="mail_@r.Id">e-mail</label></div> }
+                                    <button type="submit" class="btn btn-sm btn-primary">@(r.Status == "KeySent" ? "New key" : "Generate key")</button>
+                                </form>
+                                @if (r.Status == "New") { <form asp-action="DeclineRequest" asp-route-id="@r.Id" method="post" class="d-inline"><button type="submit" class="btn btn-sm btn-outline-secondary">Decline</button></form> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-key" aria-hidden="true"></i> Company keys</div>
+    <div class="card-body border-bottom">
+        <form asp-action="GenerateKey" method="post" class="row g-2 align-items-end">
+            <div class="col-md-4"><label class="form-label small mb-0" for="gk_email">For (e-mail, optional)</label><input class="form-control form-control-sm" id="gk_email" name="email" type="email" maxlength="256" autocomplete="off" /></div>
+            <div class="col-md-4"><label class="form-label small mb-0" for="gk_note">Note (optional)</label><input class="form-control form-control-sm" id="gk_note" name="note" maxlength="200" placeholder="e.g. Acme Ltd, trial" autocomplete="off" /></div>
+            <div class="col-md-2"><label class="form-label small mb-0" for="gk_days">Valid (days)</label><input class="form-control form-control-sm" id="gk_days" name="days" type="number" value="14" min="1" max="365" /></div>
+            <div class="col-md-2 d-flex gap-2 align-items-center">
+                @if (Model.MailReady) { <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="sendEmail" value="true" id="gk_mail" /><label class="form-check-label small" for="gk_mail">e-mail</label></div> }
+                <button type="submit" class="btn btn-sm btn-primary">Generate key</button>
+            </div>
+        </form>
+    </div>
+    @if (Model.Keys.Count > 0)
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Key</th><th>For</th><th>Made</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var k in Model.Keys)
+                    {
+                        var st = k.Status(DateTime.UtcNow);
+                        <tr>
+                            <td class="font-monospace">EAMS-····-····-@k.Hint</td>
+                            <td class="small">@k.IssuedTo@(k.Note is null ? "" : (k.IssuedTo is null ? "" : " · ") + k.Note)</td>
+                            <td class="small text-nowrap">@k.CreatedAtUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
+                            <td class="small text-nowrap">@k.ExpiresAtUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)</td>
+                            <td>@if (st == "Unused") { <span class="badge text-bg-primary">Unused</span> } else if (st == "Used") { <span class="badge text-bg-success">Used by @k.UsedCompanyCode</span> } else { <span class="badge text-bg-secondary">@st</span> }</td>
+                            <td class="text-end">@if (st == "Unused") { <form asp-action="RevokeKey" asp-route-id="@k.Id" method="post" class="d-inline" data-confirm="Withdraw this key? It will no longer create a company."><button type="submit" class="btn btn-sm btn-outline-danger">Withdraw</button></form> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Create a company</div>
+            <div class="card-body">
+                <form asp-action="Create" method="post" novalidate class="d-grid gap-2" data-confirm="Create this company now? It takes a minute or two; keep this page open.">
+                    <input asp-for="Code" class="form-control" placeholder="Company code (2-10 letters or digits)" maxlength="10" autocomplete="off" />
+                    <input asp-for="Name" class="form-control" placeholder="Company name" maxlength="100" autocomplete="off" />
+                    <input asp-for="AdminEmail" class="form-control" placeholder="Administrator e-mail" autocomplete="off" />
+                    <input asp-for="AdminPassword" type="password" class="form-control" placeholder="Administrator password (12+ characters)" autocomplete="new-password" />
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Create company</button>
+                        <button type="submit" asp-action="CreateDemo" formnovalidate class="btn btn-outline-secondary" onclick="this.form.removeAttribute('data-confirm')">Create demo company now</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Recent operator activity</div>
+            <div class="card-body small">
+                @if (Model.EventsUnavailable)
+                {
+                    <p class="text-danger mb-0">The activity log needs a catalog update: run <code>Install-SaaS.ps1 -Update</code>.</p>
+                }
+                else if (Model.Events.Count == 0)
+                {
+                    <p class="text-body-secondary mb-0">Nothing recorded yet.</p>
+                }
+                else
+                {
+                    <ul class="list-unstyled mb-0">
+                        @foreach (var e in Model.Events)
+                        {
+                            <li class="mb-1"><span class="text-body-secondary">@e.AtUtc.ToString("MM-dd HH:mm", CultureInfo.InvariantCulture)</span> · <strong>@e.Action</strong>@(e.Code is null ? "" : " · " + e.Code)@(string.IsNullOrEmpty(e.Detail) ? "" : " · " + e.Detail)</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+<p class="small text-body-secondary mt-3">Monitoring: <code>/platform/metrics</code> (Prometheus format, operator key as Bearer token) and <code>/health/backups</code>.</p>

@@ -1,7 +1,7 @@
 @model LabelOptionsViewModel
 @using AMGH.ITInventory.Domain.Enums
 @{
-    ViewData["Title"] = Model.Design == LabelDesign.AssetTag ? "Generate asset tags" : "Print QR labels";
+    ViewData["Title"] = Model.Design switch { LabelDesign.AssetTag => "Generate asset tags", LabelDesign.RfidLabel => "Generate RFID labels", _ => "Print QR labels" };
     var p = Model.Preview;
     var sizes = new[]
     {
@@ -43,6 +43,25 @@
                                 <span class="fw-semibold d-block">QR label</span>
                                 <span class="small text-body-secondary">QR code with asset details and a link to the record. For phone cameras.</span>
                             </label>
+                        </div>
+                        <div class="size-option">
+                            <input class="form-check-input" type="radio" name="design" id="design_rfid" value="RfidLabel" checked="@(Model.Design == LabelDesign.RfidLabel)" data-design-switch="true" />
+                            <label for="design_rfid">
+                                <span class="design-preview design-preview-qr" aria-hidden="true"><span></span><i></i></span>
+                                <span class="fw-semibold d-block"><i class="bi bi-broadcast" aria-hidden="true"></i> RFID label</span>
+                                <span class="small text-body-secondary">QR label that also shows the RFID tag's EPC. For RFID inlays, readers and gates.</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mt-3" data-design-only="RfidLabel">
+                        <div class="alert alert-info mb-0">
+                            <strong>RFID tags.</strong> Each asset gets its own tag number (EPC, 24 hex characters) the first time; it never changes. Use the encoding file to write it into the tags with your RFID printer,
+                            or print this label on pre-encoded inlays and read the EPC from the printed text. A reader or scanner app that opens <code>/r/&lt;EPC&gt;</code> lands on the asset.
+                            <div class="mt-2 d-flex flex-wrap gap-2">
+                                <button type="submit" formaction="@Url.Action("RfidFile")" name="format" value="csv" class="btn btn-sm btn-outline-primary"><i class="bi bi-filetype-csv" aria-hidden="true"></i> Encoding file (CSV)</button>
+                                <button type="submit" formaction="@Url.Action("RfidFile")" name="format" value="zpl" class="btn btn-sm btn-outline-primary"><i class="bi bi-printer" aria-hidden="true"></i> Zebra RFID printer file (ZPL)</button>
+                            </div>
                         </div>
                     </div>
 
@@ -110,6 +129,7 @@
                                 <span class="fw-semibold">@a.AssetNumber</span> @a.AssetName
                                 @if (p.WasPrinted(LabelDesign.AssetTag, a.AssetId)) { <span class="badge text-bg-secondary">tag printed</span> }
                                 @if (p.WasPrinted(LabelDesign.QrLabel, a.AssetId)) { <span class="badge text-bg-secondary">QR printed</span> }
+                                @if (p.WasPrinted(LabelDesign.RfidLabel, a.AssetId)) { <span class="badge text-bg-secondary">RFID printed</span> }
                             </li>
                         }
                     </ul>

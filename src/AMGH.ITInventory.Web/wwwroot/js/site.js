@@ -10,6 +10,13 @@
         }
     });
 
+    // ---- select-all checkbox: <input type="checkbox" data-check-all="fieldName"> ticks every checkbox with that name
+    document.addEventListener("change", function (e) {
+        var master = e.target;
+        if (!(master instanceof HTMLInputElement) || !master.dataset.checkAll) return;
+        document.querySelectorAll('input[type="checkbox"][name="' + master.dataset.checkAll + '"]').forEach(function (box) { box.checked = master.checked; });
+    });
+
     // ---- copy buttons: <button data-copy-target="#id">
     document.addEventListener("click", function (e) {
         var button = e.target.closest("[data-copy-target]");

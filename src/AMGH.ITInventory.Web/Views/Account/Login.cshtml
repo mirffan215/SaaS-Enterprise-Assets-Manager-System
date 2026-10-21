@@ -4,7 +4,7 @@
     Layout = "_LoginLayout";
     // no company chosen: direct sign-in (the person's default company is used after the password is checked)
     var direct = string.IsNullOrEmpty(Model.CompanyCode);
-    var logo = Model.LogoUrl ?? Url.Content("~/images/amgh-emblem.png");
+    var logo = Model.LogoUrl ?? Url.Action("DefaultLogo", "Branding");
 }
 <header class="lp-brand">
     <img class="lp-logo" src="@logo" alt="@Model.CompanyName" />
@@ -19,13 +19,23 @@
     {
         <span>Sign in with your user name or e-mail. You go straight to your company.</span>
         @if (Model.CanChangeCompany) { <a href="@Url.Action("Login", "Account", new { change = true, returnUrl = Model.ReturnUrl })">Choose a company instead</a> }
+        @if (Model.GlobalSignIn) { <a href="@Url.Action("Select", "Tenant")">Use a company code instead</a> }
     }
     else
     {
         <span>Signing in to <strong>@Model.CompanyName</strong></span>
         @if (Model.CanChangeCompany) { <a href="@Url.Action("Login", "Account", new { change = true, returnUrl = Model.ReturnUrl })">Change company</a> }
+        @if (Model.ShowOtherOrganisation) { <a href="@Url.Action("Forget", "Tenant")">Not your organisation?</a> }
     }
 </p>
+
+@if (!string.IsNullOrEmpty(Model.DemoUser))
+{
+    <div class="alert alert-info py-2" role="status">
+        <strong>Demo environment.</strong> Sample data only; some actions are disabled.<br />
+        User name <code>@Model.DemoUser</code> · password <code>@Model.DemoPassword</code>
+    </div>
+}
 
 @if (Model.SessionExpired)
 {
@@ -57,11 +67,27 @@
             <input class="form-check-input" type="checkbox" asp-for="RememberMe" />
             <label class="form-check-label" asp-for="RememberMe" title="Remembers your user name on this computer. You are still signed out after inactivity.">Remember me</label>
         </div>
-        <a href="@Url.Action("ForgotPassword", "Account", new { company = Model.CompanyCode })">Forgot password?</a>
+        @if (!Model.GlobalSignIn) { <a href="@Url.Action("ForgotPassword", "Account", new { company = Model.CompanyCode })">Forgot password?</a> }
+        else { <a href="@Url.Action("Select", "Tenant")">Forgot password?</a> }
     </div>
 
     <button type="submit" class="lp-submit">Sign in <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
 </form>
+@if (Model.ShowSso)
+{
+    <p class="text-center small my-2 text-body-secondary">or</p>
+    <a class="lp-submit lp-submit-secondary text-center text-decoration-none d-block" href="@Url.Action("Sso", "Account", new { company = Model.CompanyCode, returnUrl = Model.ReturnUrl })"><i class="bi bi-building-lock" aria-hidden="true"></i> Sign in with single sign-on</a>
+}
+
+@if (Model.ShowRegister)
+{
+    <a class="lp-submit lp-submit-secondary" href="@Url.Action("Index", "Register")"><i class="bi bi-building-add" aria-hidden="true"></i> Register your company (company key)</a>
+    <p class="text-center small mt-2 mb-0"><a href="@Url.Action("Index", "DemoRequest")">No key yet? Request a demo</a></p>
+}
+@if (Model.ShowExploreDemo)
+{
+    <a class="lp-submit lp-submit-secondary" href="@Url.Action("ExploreDemo", "Account")"><i class="bi bi-play-circle" aria-hidden="true"></i> Explore Demo Environment</a>
+}
 
 <ul class="lp-features" aria-label="What the system offers">
     <li><i class="bi bi-shield-check" aria-hidden="true"></i><span>Secure access</span></li>
@@ -70,6 +96,8 @@
     <li><i class="bi bi-bar-chart-fill" aria-hidden="true"></i><span>Real-time reporting</span></li>
 </ul>
 <p class="lp-notice">@(Model.LoginTagline ?? $"For authorised {Model.CompanyName} users only. Sign-ins and changes are logged.")</p>
+
+<partial name="_InstallApp" />
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

@@ -135,7 +135,7 @@ if (-not $SkipSeed) {
 # Script 10 (multi-company) runs right after the tables, before the code objects that use CompanyId.
 $scripts = @(
     "01_CreateDatabase.sql", "02_Tables.sql", "10_MultiCompany.sql", "16_AssetConfiguration.sql", "17_TechnicianAssignment.sql", "03_Functions.sql", "04_Views.sql",
-    "05_StoredProcedures.sql", "06_Triggers.sql", "07_SeedData.sql", "08_DatabaseSecurity.sql", "11_Workspaces.sql", "12_Reports.sql", "13_Approvals.sql", "14_Notifications.sql", "15_CompanyProfile.sql", "18_DocumentNumbering.sql"
+    "05_StoredProcedures.sql", "06_Triggers.sql", "07_SeedData.sql", "08_DatabaseSecurity.sql", "11_Workspaces.sql", "12_Reports.sql", "13_Approvals.sql", "14_Notifications.sql", "15_CompanyProfile.sql", "18_DocumentNumbering.sql", "19_CompanyDataExport.sql"
 )
 if ($SkipSeed) { $scripts = $scripts | Where-Object { $_ -ne "07_SeedData.sql" } }
 
@@ -144,6 +144,11 @@ try {
         $path = Join-Path $scriptDir $s
         if (-not (Test-Path $path)) { throw "Missing script: $path" }
         Invoke-SqlScript -File $path -Variables $vars
+    }
+    # later changes (numbered, safe to run twice): see SQLScripts\Migrations\README.md
+    $migrationDir = Join-Path $scriptDir "Migrations"
+    if (Test-Path $migrationDir) {
+        foreach ($m in (Get-ChildItem $migrationDir -Filter "????_*.sql" | Sort-Object Name)) { Invoke-SqlScript -File $m.FullName -Variables $vars }
     }
     Write-Log "Deployment completed successfully."
     Write-Log "NEXT: back up the encryption certificate - see docs\Deployment.md 'Encryption key backup'." "WARN"

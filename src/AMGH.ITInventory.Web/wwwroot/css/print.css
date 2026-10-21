@@ -75,7 +75,7 @@ html, body { margin: 0; padding: 0; }
 }
 .tag-mono .tag-band { background: #000; }
 .tag-logo { height: calc(var(--tag-band-h) - 1.2mm); width: auto; border-radius: .4mm; }
-/* black & white tags use amgh-emblem-mono.png: white calligraphy, no grey (thermal printers cannot print grey) */
+/* black & white tags use badge-mono.svg: white mark, no grey (thermal printers cannot print grey) */
 .tag-band-text { text-align: center; line-height: 1.05; min-width: 0; }
 .tag-prop { font-size: var(--tag-prop-size); font-weight: 700; letter-spacing: .06em; }
 .tag-company { font-size: var(--tag-company-size); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -116,3 +116,6 @@ html, body { margin: 0; padding: 0; }
     .report-doc { margin: 0; padding: 0; box-shadow: none; max-width: none; }
     .report-doc::after { position: fixed; bottom: -9mm; left: 0; margin: 0; }
 }
+
+/* RFID label: the EPC printed under the name, small and monospaced */
+.label-epc { font-family: Consolas, "Cascadia Mono", "Courier New", monospace; letter-spacing: -.02em; }

@@ -62,6 +62,7 @@ public sealed class UsersController : Controller
         return View("Form", await ToFormAsync(details, cancellationToken));
     }
 
+    [BlockInDemo]
     [HttpPost]
     [HasPermission(Permissions.Administration.UsersManage)]
     public async Task<IActionResult> Edit(int id, UserFormViewModel model, CancellationToken cancellationToken)
@@ -104,6 +105,7 @@ public sealed class UsersController : Controller
         return RedirectToAction(nameof(Edit), new { id });
     }
 
+    [BlockInDemo]
     [HttpPost]
     [HasPermission(Permissions.Administration.UsersManage)]
     public async Task<IActionResult> ResetPassword(int id, CancellationToken cancellationToken)

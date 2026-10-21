@@ -25,7 +25,7 @@ internal sealed class SecurityHeadersMiddleware
             if (!h.ContainsKey("X-Frame-Options")) h["X-Frame-Options"] = "DENY";
             h["Referrer-Policy"] = "no-referrer";
             // The camera is allowed only on the physical-verification page (QR scanning), and only for this site.
-            var camera = context.Request.Path.StartsWithSegments("/verification", StringComparison.OrdinalIgnoreCase) ? "camera=(self)" : "camera=()";
+            var camera = context.Request.Path.StartsWithSegments("/verification", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/scan", StringComparison.OrdinalIgnoreCase) ? "camera=(self)" : "camera=()";
             h["Permissions-Policy"] = camera + ", microphone=(), geolocation=(), payment=(), usb=()";
             h["Cross-Origin-Opener-Policy"] = "same-origin";
             h.Remove("X-Powered-By");

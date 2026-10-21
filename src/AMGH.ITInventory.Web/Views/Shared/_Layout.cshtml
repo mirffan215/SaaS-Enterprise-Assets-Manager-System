@@ -3,10 +3,13 @@
 @using AMGH.ITInventory.Web.Infrastructure
 @inject IOptions<SecurityOptions> SecurityOptions
 @inject INavigation Navigation
+@inject AMGH.ITInventory.Shared.Abstractions.ICompanyContext CompanyContext
 @inject AMGH.ITInventory.Application.Notifications.INotificationService Notifications
 @{
     var nav = await Navigation.BuildAsync(Context);
     var companyCode = User.GetCompanyCode();
+    // Brand: the active company's name when set, otherwise the neutral SaaS name.
+    var brandName = string.IsNullOrWhiteSpace(CompanyContext.CurrentCompanyName) ? AMGH.ITInventory.Shared.AppInfo.ShortName : CompanyContext.CurrentCompanyName;
     var displayName = User.GetDisplayName();
     var initials = string.Concat(displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
     var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => AMGH.ITInventory.Application.Common.DisplayText.Humanize(c.Value)).ToList();
@@ -23,6 +26,13 @@
     @* applies the saved theme and sidebar state before the page paints (external file: the CSP allows no inline script) *@
     <script src="~/js/theme.js" asp-append-version="true"></script>
     <link rel="icon" href="~/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="~/manifest.webmanifest" />
+    <meta name="theme-color" content="#0E3B43" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="EAMS" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="apple-touch-icon" href="~/images/icons/apple-touch-icon.png" />
     <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -37,8 +47,8 @@
     <aside class="app-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="appSidebar" aria-label="Main menu">
         <div class="sidebar-brand">
             <a class="sidebar-brand-link" href="@nav.HomeUrl">
-                <span class="app-brand-mark" aria-hidden="true">@(companyCode.Length > 0 ? companyCode : "AMGH")</span>
-                <span class="sidebar-label sidebar-brand-text"><span class="sidebar-brand-name">@AMGH.ITInventory.Shared.AppInfo.ShortName</span><span class="sidebar-brand-sub">Enterprise Asset Management</span></span>
+                <span class="app-brand-mark" aria-hidden="true">@(companyCode.Length > 0 ? companyCode : "ITI")</span>
+                <span class="sidebar-label sidebar-brand-text"><span class="sidebar-brand-name">@brandName</span><span class="sidebar-brand-sub">@AMGH.ITInventory.Shared.AppInfo.Name</span></span>
             </a>
             <button type="button" class="btn-close d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="Close menu"></button>
         </div>
@@ -124,6 +134,7 @@
                         </div>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item" asp-controller="Account" asp-action="ChangePassword"><i class="bi bi-key" aria-hidden="true"></i> Change password</a>
+                        <a class="dropdown-item" asp-controller="Account" asp-action="Security"><i class="bi bi-shield-lock" aria-hidden="true"></i> Two-step verification</a>
                         <form asp-controller="Account" asp-action="SwitchCompany" method="post"><button type="submit" class="dropdown-item"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Switch company</button></form>
                         <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm"><button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Sign out</button></form>
                     </div>
@@ -144,7 +155,7 @@
             @RenderBody()
         </main>
         <footer class="app-footer">
-            @User.GetCompanyName() · @AMGH.ITInventory.Shared.AppInfo.Name @AMGH.ITInventory.Shared.AppInfo.Version · @AMGH.ITInventory.Shared.AppInfo.Owner. Authorised use only; activity is logged.
+            @User.GetCompanyName() · @AMGH.ITInventory.Shared.AppInfo.Name @AMGH.ITInventory.Shared.AppInfo.Version@(string.IsNullOrEmpty(AMGH.ITInventory.Shared.AppInfo.Build) ? "" : " (build " + AMGH.ITInventory.Shared.AppInfo.Build + ")"). Authorised use only; activity is logged.
         </footer>
     </div>
 
@@ -170,5 +181,7 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/shell.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
+    <script src="~/js/auto-refresh.js" asp-append-version="true"></script>
+    <script src="~/js/pwa.js" asp-append-version="true"></script>
 </body>
 </html>

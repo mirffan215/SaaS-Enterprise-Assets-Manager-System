@@ -22,10 +22,12 @@ internal sealed class AppCookieEvents : CookieAuthenticationEvents
     private readonly IDateTimeProvider _clock;
     private readonly SecurityOptions _options;
     private readonly ILogger<AppCookieEvents> _logger;
+    private readonly ITenantAccessor _tenants;
 
     public AppCookieEvents(IAccountService accounts, IDateTimeProvider clock, IOptions<SecurityOptions> options,
-        ILogger<AppCookieEvents> logger)
+        ILogger<AppCookieEvents> logger, ITenantAccessor tenants)
     {
+        _tenants = tenants;
         _accounts = accounts;
         _clock = clock;
         _options = options.Value;
@@ -46,6 +48,13 @@ internal sealed class AppCookieEvents : CookieAuthenticationEvents
         if (userId is null || stamp is null || authTime is null || companyId is null)
         {
             await RejectAsync(context, "Invalid session cookie");
+            return;
+        }
+
+        // A session is bound to the tenant it was issued for: it is never valid in another customer's workspace.
+        if (_tenants.IsMultiTenant && !string.Equals(principal.GetTenantCode(), _tenants.CurrentTenant?.Code, StringComparison.OrdinalIgnoreCase))
+        {
+            await RejectAsync(context, "Session belongs to another company");
             return;
         }
 

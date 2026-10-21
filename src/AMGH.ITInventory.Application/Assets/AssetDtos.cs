@@ -183,7 +183,7 @@ public sealed record AssetFormLookups(
 public sealed record AssetDetails(
     int AssetId, string AssetNumber, string AssetName, string? Description,
     string CategoryName, string? SubCategoryName, string StatusCode, string StatusName, string? StatusColor,
-    string? ManufacturerName, string? ModelName, string? SerialNumber, string? LegacyAssetTag,
+    string? ManufacturerName, string? ModelName, string? SerialNumber, string? LegacyAssetTag, string? RfidEpc,
     string? Hostname, string? IpAddress, string? MacAddress, string? OperatingSystem, string? OsVersion, string? Processor,
     decimal? RamGb, decimal? StorageGb, string? FirmwareVersion, string? ImeiNumber, string? PhoneNumber,
     string? VendorName, string? PurchaseOrderNumber, string? InvoiceNumber, DateOnly? PurchaseDate, decimal? PurchaseCost,
@@ -196,7 +196,7 @@ public sealed record AssetDetails(
     DateOnly? CommissionDate, DateOnly? EndOfSupportDate, DateOnly? EndOfLifeDate, DateOnly? NextAuditDueDate, DateOnly? DecommissionDate,
     string? Notes, DateOnly? WarrantyEndDate,
     string CreatedBy, DateTime CreatedDateUtc, string? ModifiedBy, DateTime? ModifiedDateUtc, string RowVersion,
-    FixedAssetInfo? FixedAsset = null);
+    FixedAssetInfo? FixedAsset = null, IReadOnlyList<Lifecycle.CostTotal>? MaintenanceCosts = null);
 
 /// <summary>Release 2.9 fixed-asset fields. The financial ones are null for users without the financial permission.</summary>
 public sealed record FixedAssetInfo(DateOnly? CapitalizationDate, string? DepreciationMethod, string? FixedAssetGroup, string? ErpFixedAssetId,

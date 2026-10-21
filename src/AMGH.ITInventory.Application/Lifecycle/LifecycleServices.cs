@@ -29,7 +29,29 @@ public sealed class MaintenanceForm
     public string? PerformedBy { get; set; }
     /// <summary>The technician (user) the job is assigned to.</summary>
     public int? AssignedToUserId { get; set; }
+
+    // Work that has already been done (a repair paid for last week): recorded as a completed job, with its cost.
+    /// <summary>The work is finished: record it as completed (needs <see cref="CompletedOn"/> and <see cref="ResolutionDetails"/>) instead of scheduling it.</summary>
+    public bool AlreadyDone { get; set; }
+    public DateOnly? CompletedOn { get; set; }
+    public string? ResolutionDetails { get; set; }
+    public decimal? Cost { get; set; }
+    public int? CurrencyId { get; set; }
+    /// <summary>The vendor invoice or internal reference behind the cost.</summary>
+    public string? InvoiceNumber { get; set; }
+    public decimal? DowntimeHours { get; set; }
 }
+
+/// <summary>Cost (and invoice) of a completed job, entered or corrected afterwards.</summary>
+public sealed class MaintenanceCostForm
+{
+    public decimal? Cost { get; set; }
+    public int? CurrencyId { get; set; }
+    public string? InvoiceNumber { get; set; }
+}
+
+/// <summary>What an asset's maintenance and repairs have cost, per currency (completed jobs with a cost).</summary>
+public sealed record CostTotal(string Currency, decimal Total, int Jobs);
 
 /// <summary>A person who may be assigned maintenance: an active member of the company whose role grants Maintenance.Manage.</summary>
 public sealed record TechnicianOption(int UserId, string Name);
@@ -39,6 +61,7 @@ public sealed class MaintenanceCompletionForm
     public string? ResolutionDetails { get; set; }
     public decimal? Cost { get; set; }
     public int? CurrencyId { get; set; }
+    public string? InvoiceNumber { get; set; }
     public decimal? DowntimeHours { get; set; }
     public DateOnly? NextMaintenanceDate { get; set; }
 }
@@ -48,6 +71,7 @@ public sealed record MaintenanceItem(int AssetMaintenanceId, int AssetId, string
     string? PerformedBy, decimal? Cost, string? Currency, decimal? DowntimeHours, DateOnly? NextDate, bool Overdue,
     int? AssignedToUserId = null, string? AssignedTo = null)
 {
+    public string? InvoiceNumber { get; init; }
     /// <summary>Document number (Release 2.13).</summary>
     public string? DocumentNumber { get; init; }
     /// <summary>Who does the job: the assigned technician, else the external name, else the vendor.</summary>
@@ -64,6 +88,8 @@ public interface IMaintenanceService
     /// <summary>Completes the job; an asset taken out of service returns to Assigned (if it has a custodian) or In Stock.</summary>
     Task<Result> CompleteAsync(int maintenanceId, MaintenanceCompletionForm form, CancellationToken cancellationToken = default);
     Task<Result> CancelAsync(int maintenanceId, string reason, CancellationToken cancellationToken = default);
+    /// <summary>Enters or corrects the cost (and invoice number) of a completed job.</summary>
+    Task<Result> UpdateCostAsync(int maintenanceId, MaintenanceCostForm form, CancellationToken cancellationToken = default);
     /// <summary>Jobs by view; with <c>assignedToUserId</c> only that technician's jobs ("My jobs").</summary>
     Task<IReadOnlyList<MaintenanceItem>> ListAsync(int? assetId, MaintenanceView view, int max = 300, int? assignedToUserId = null,
         CancellationToken cancellationToken = default);
@@ -131,7 +157,17 @@ internal sealed class MaintenanceService : IMaintenanceService
         var problem = form.ProblemDescription?.Trim() ?? string.Empty;
         var errors = new List<Error>();
         if (problem.Length is < 3 or > 2000) errors.Add(Error.Validation("Describe the work or the problem (3-2000 characters).", nameof(form.ProblemDescription)));
-        if (form.ScheduledDate is null) errors.Add(Error.Validation("Enter the scheduled date.", nameof(form.ScheduledDate)));
+        var resolution = form.ResolutionDetails?.Trim() ?? string.Empty;
+        if (form.AlreadyDone)
+        {
+            if (form.CompletedOn is null) errors.Add(Error.Validation("Enter the date the work was done.", nameof(form.CompletedOn)));
+            else if (form.CompletedOn > _clock.UtcToday || form.CompletedOn < _clock.UtcToday.AddYears(-10))
+                errors.Add(Error.Validation("The date the work was done must be in the past ten years, not in the future.", nameof(form.CompletedOn)));
+            if (resolution.Length is < 3 or > 2000) errors.Add(Error.Validation("Describe what was done (3-2000 characters).", nameof(form.ResolutionDetails)));
+            errors.AddRange(CostErrors(form.Cost, form.CurrencyId, form.InvoiceNumber, nameof(form.Cost), nameof(form.CurrencyId), nameof(form.InvoiceNumber)));
+            if (form.DowntimeHours is < 0 or > 10000) errors.Add(Error.Validation("Downtime must be between 0 and 10,000 hours.", nameof(form.DowntimeHours)));
+        }
+        else if (form.ScheduledDate is null) errors.Add(Error.Validation("Enter the scheduled date.", nameof(form.ScheduledDate)));
         else if (form.ScheduledDate < _clock.UtcToday.AddYears(-1) || form.ScheduledDate > _clock.UtcToday.AddYears(3))
             errors.Add(Error.Validation("The scheduled date must be within the last year and the next three years.", nameof(form.ScheduledDate)));
         if (form.TicketNumber?.Trim().Length > 50) errors.Add(Error.Validation("Ticket number: up to 50 characters.", nameof(form.TicketNumber)));
@@ -140,10 +176,24 @@ internal sealed class MaintenanceService : IMaintenanceService
         if (errors.Count > 0) return Result<int>.Failure(errors.ToArray());
         var job = new AssetMaintenance
         {
-            AssetId = assetId, MaintenanceType = form.MaintenanceType, MaintenanceStatus = MaintenanceStatus.Scheduled, ScheduledDate = form.ScheduledDate!.Value,
+            AssetId = assetId, MaintenanceType = form.MaintenanceType, MaintenanceStatus = MaintenanceStatus.Scheduled,
+            ScheduledDate = form.AlreadyDone ? form.CompletedOn!.Value : form.ScheduledDate!.Value,
             ProblemDescription = problem, VendorId = form.VendorId, TicketNumber = Text.Clean(form.TicketNumber), PerformedBy = Text.Clean(form.PerformedBy),
             AssignedToUserId = form.AssignedToUserId
         };
+        if (form.AlreadyDone)
+        {
+            // recorded after the fact: closed at once, the asset's status is not touched
+            var done = form.CompletedOn!.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            job.MaintenanceStatus = MaintenanceStatus.Completed;
+            job.StartDate = done;
+            job.CompletedDate = done;
+            job.ResolutionDetails = resolution;
+            job.Cost = form.Cost;
+            job.CurrencyId = form.Cost is > 0 ? form.CurrencyId : null;
+            job.InvoiceNumber = Text.Clean(form.InvoiceNumber);
+            job.DowntimeHours = form.DowntimeHours;
+        }
         await _uow.ExecuteInTransactionAsync(async ct =>
         {
             job.DocumentNumber = await _docs.NextAsync(Documents.DocumentTypes.Maintenance, _clock.UtcToday, ct);
@@ -180,8 +230,7 @@ internal sealed class MaintenanceService : IMaintenanceService
         var errors = new List<Error>();
         var resolution = form.ResolutionDetails?.Trim() ?? string.Empty;
         if (resolution.Length is < 3 or > 2000) errors.Add(Error.Validation("Describe what was done (3-2000 characters).", nameof(form.ResolutionDetails)));
-        if (form.Cost is < 0) errors.Add(Error.Validation("Cost cannot be negative.", nameof(form.Cost)));
-        if (form.Cost is > 0 && form.CurrencyId is null) errors.Add(Error.Validation("Select the currency of the cost.", nameof(form.CurrencyId)));
+        errors.AddRange(CostErrors(form.Cost, form.CurrencyId, form.InvoiceNumber, nameof(form.Cost), nameof(form.CurrencyId), nameof(form.InvoiceNumber)));
         if (form.DowntimeHours is < 0 or > 10000) errors.Add(Error.Validation("Downtime must be between 0 and 10,000 hours.", nameof(form.DowntimeHours)));
         if (form.NextMaintenanceDate is { } n && n <= _clock.UtcToday) errors.Add(Error.Validation("The next maintenance date must be in the future.", nameof(form.NextMaintenanceDate)));
         if (errors.Count > 0) return Result.Failure(errors.ToArray());
@@ -192,9 +241,33 @@ internal sealed class MaintenanceService : IMaintenanceService
         job.ResolutionDetails = resolution;
         job.Cost = form.Cost;
         job.CurrencyId = form.Cost is > 0 ? form.CurrencyId : null;
+        job.InvoiceNumber = Text.Clean(form.InvoiceNumber);
         job.DowntimeHours = form.DowntimeHours;
         job.NextMaintenanceDate = form.NextMaintenanceDate;
         await ReturnToServiceAsync(job.AssetId, job.AssetMaintenanceId, cancellationToken);
+        await _uow.SaveChangesAsync(cancellationToken);
+        return Result.Success();
+    }
+
+    private static IEnumerable<Error> CostErrors(decimal? cost, int? currencyId, string? invoice, string costField, string currencyField, string invoiceField)
+    {
+        if (cost is < 0) yield return Error.Validation("Cost cannot be negative.", costField);
+        if (cost is > 9_999_999_999m) yield return Error.Validation("That cost is too large.", costField);
+        if (cost is > 0 && currencyId is null) yield return Error.Validation("Select the currency of the cost.", currencyField);
+        if (invoice?.Trim().Length > 50) yield return Error.Validation("Invoice number: up to 50 characters.", invoiceField);
+    }
+
+    public async Task<Result> UpdateCostAsync(int maintenanceId, MaintenanceCostForm form, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(form);
+        var job = await _uow.Repository<AssetMaintenance>().FirstOrDefaultAsync(m => m.AssetMaintenanceId == maintenanceId, cancellationToken);
+        if (job is null) return Result.Failure(Error.NotFound("Maintenance job not found."));
+        if (job.MaintenanceStatus != MaintenanceStatus.Completed) return Result.Failure(Error.BusinessRule("The cost is entered when the job is completed; only a completed job's cost can be changed here."));
+        var errors = CostErrors(form.Cost, form.CurrencyId, form.InvoiceNumber, nameof(form.Cost), nameof(form.CurrencyId), nameof(form.InvoiceNumber)).ToList();
+        if (errors.Count > 0) return Result.Failure(errors.ToArray());
+        job.Cost = form.Cost;
+        job.CurrencyId = form.Cost is > 0 ? form.CurrencyId : null;
+        job.InvoiceNumber = Text.Clean(form.InvoiceNumber);
         await _uow.SaveChangesAsync(cancellationToken);
         return Result.Success();
     }
@@ -252,14 +325,14 @@ internal sealed class MaintenanceService : IMaintenanceService
                 {
                     m.AssetMaintenanceId, m.DocumentNumber, m.AssetId, m.Asset.AssetNumber, m.Asset.AssetName, m.MaintenanceType, m.MaintenanceStatus, m.ScheduledDate, m.StartDate,
                     m.CompletedDate, m.ProblemDescription, m.ResolutionDetails, Vendor = m.Vendor == null ? null : m.Vendor.VendorName, m.TicketNumber, m.PerformedBy,
-                    m.Cost, Cur = m.Currency == null ? null : m.Currency.CurrencyCode, m.DowntimeHours, m.NextMaintenanceDate,
+                    m.Cost, Cur = m.Currency == null ? null : m.Currency.CurrencyCode, m.InvoiceNumber, m.DowntimeHours, m.NextMaintenanceDate,
                     m.AssignedToUserId, AssignedTo = m.AssignedToUser == null ? null : m.AssignedToUser.DisplayName
                 });
         }, cancellationToken);
         return rows.Select(m => new MaintenanceItem(m.AssetMaintenanceId, m.AssetId, m.AssetNumber, m.AssetName,
             Common.DisplayText.Humanize(m.MaintenanceType.ToString()), Common.DisplayText.Humanize(m.MaintenanceStatus.ToString()), m.ScheduledDate, m.StartDate,
             m.CompletedDate, m.ProblemDescription, m.ResolutionDetails, m.Vendor, m.TicketNumber, m.PerformedBy, m.Cost, m.Cur, m.DowntimeHours,
-            m.NextMaintenanceDate, m.MaintenanceStatus == MaintenanceStatus.Scheduled && m.ScheduledDate < today, m.AssignedToUserId, m.AssignedTo) { DocumentNumber = m.DocumentNumber }).ToList();
+            m.NextMaintenanceDate, m.MaintenanceStatus == MaintenanceStatus.Scheduled && m.ScheduledDate < today, m.AssignedToUserId, m.AssignedTo) { DocumentNumber = m.DocumentNumber, InvoiceNumber = m.InvoiceNumber }).ToList();
     }
 }
 

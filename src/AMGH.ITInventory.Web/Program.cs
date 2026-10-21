@@ -1,7 +1,9 @@
 using System.Threading.RateLimiting;
 using AMGH.ITInventory.Application;
+using AMGH.ITInventory.Application.Tenancy;
 using AMGH.ITInventory.Infrastructure;
 using AMGH.ITInventory.Persistence;
+using AMGH.ITInventory.Persistence.Tenancy;
 using AMGH.ITInventory.Security;
 using AMGH.ITInventory.Security.Claims;
 using AMGH.ITInventory.Shared.Abstractions;
@@ -10,6 +12,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateBootstrapLogger();
@@ -18,6 +21,11 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
     builder.WebHost.ConfigureKestrel(o => o.AddServerHeader = false);
+
+    // Folders may be given relative to the site (for example App_Data\Documents), which is all a hosting control panel shows you.
+    foreach (var key in new[] { "Storage:RootPath", "DataProtection:KeysPath", "Serilog:WriteTo:0:Args:path" })
+        if (builder.Configuration[key] is { Length: > 0 } configured && !Path.IsPathRooted(configured))
+            builder.Configuration[key] = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, configured));
 
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
@@ -31,12 +39,21 @@ try
     builder.Services.AddScoped<ICompanyContext>(sp =>
     {
         var accessor = sp.GetRequiredService<IHttpContextAccessor>();
-        return new CompanyContext(() => accessor.HttpContext?.User is { } user ? user.GetCompanyId() : null);
+        return new CompanyContext(
+            () => accessor.HttpContext?.User is { } user ? user.GetCompanyId() : null,
+            () => accessor.HttpContext?.User is { Identity.IsAuthenticated: true } user ? user.GetCompanyName() : null);
     });
     builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
     builder.Services.AddSingleton<IDisplayTime, DisplayTime>();
     builder.Services.Configure<TagOptions>(builder.Configuration.GetSection(TagOptions.SectionName));
     builder.Services.AddScoped<INavigation, Navigation>();
+    builder.Services.AddSingleton<TenantSignInService>();
+    builder.Services.AddSingleton<SignInGate>();
+    builder.Services.AddSingleton<MfaPending>();
+    builder.Services.AddSingleton<AMGH.ITInventory.Web.Infrastructure.Sso.SsoState>();
+    builder.Services.AddSingleton<AMGH.ITInventory.Web.Infrastructure.Sso.OidcClient>();
+    builder.Services.AddSingleton<OperatorSession>();
+    builder.Services.AddSingleton<BackupScheduleStore>();
     builder.Services.AddSingleton<ILogoFetcher, LogoFetcher>();
     builder.Services.AddSingleton<AMGH.ITInventory.Application.Abstractions.Mail.ISecretProtector, DataProtectionSecretProtector>();
     if (!builder.Configuration.GetValue("Notifications:DisableWorker", false)) builder.Services.AddHostedService<NotificationWorker>();
@@ -48,12 +65,13 @@ try
     var security = builder.Configuration.GetSection(SecurityOptions.SectionName).Get<SecurityOptions>() ?? new SecurityOptions();
 
     // ---------------------------------------------------------------- data protection (cookie encryption keys)
-    var dataProtection = builder.Services.AddDataProtection().SetApplicationName("AMGH.ITInventory");
+    var dataProtection = builder.Services.AddDataProtection().SetApplicationName("EAMS.Cloud");
     var keysPath = builder.Configuration["DataProtection:KeysPath"];
     if (!string.IsNullOrWhiteSpace(keysPath))
     {
         dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
-        if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
+        // DPAPI needs the application pool's user profile to be loaded, which hosting panels often do not do: set DataProtection:ProtectWithDpapi to false there
+        if (OperatingSystem.IsWindows() && builder.Configuration.GetValue("DataProtection:ProtectWithDpapi", true)) dataProtection.ProtectKeysWithDpapi();
     }
 
     // ---------------------------------------------------------------- authentication / authorisation
@@ -61,7 +79,7 @@ try
     builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
         .AddCookie(options =>
         {
-            options.Cookie.Name = "__Host-AMGH.Auth";
+            options.Cookie.Name = "__Host-EAMS.Auth";
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             options.Cookie.SameSite = SameSiteMode.Strict;
@@ -80,7 +98,7 @@ try
 
     builder.Services.AddAntiforgery(options =>
     {
-        options.Cookie.Name = "__Host-AMGH.AF";
+        options.Cookie.Name = "__Host-EAMS.AF";
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Strict;
         options.HeaderName = "X-CSRF-TOKEN";
@@ -97,15 +115,26 @@ try
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        // company self-registration builds a database: at most 3 per hour per address
+        options.AddPolicy(RateLimitPolicies.Register, context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = 8, Window = TimeSpan.FromHours(1), QueueLimit = 0 }));
         options.AddPolicy(RateLimitPolicies.Login, context => RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     });
 
     builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
-    builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
+    builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database").AddCheck<BackupHealthCheck>("backups", tags: new[] { "backups" });
+    builder.Services.AddSingleton<BackupAlerts>();
+    builder.Services.AddSingleton<BackgroundJobs>();
+    builder.Services.AddSingleton<PlatformMailer>();
 
     // ---------------------------------------------------------------- pipeline
+    var tenancySettings = builder.Configuration.GetSection(TenancyOptions.SectionName).Get<TenancyOptions>() ?? new TenancyOptions();
+    if (tenancySettings.Enabled && tenancySettings.DemoEnabled) builder.Services.AddHostedService<DemoTenantSeeder>();
+    if (tenancySettings.Enabled) builder.Services.AddScoped<PlatformOverview>();
+    if (tenancySettings.Enabled) builder.Services.AddHostedService<BackupScheduler>();
     var app = builder.Build();
 
     if (!app.Environment.IsDevelopment())
@@ -128,11 +157,49 @@ try
     app.UseSerilogRequestLogging();
     app.UseRouting();
     app.UseRateLimiter();
+    // Database per tenant: the tenant is resolved before authentication, which already reads the tenant's database.
+    var tenancy = app.Services.GetRequiredService<IOptions<TenancyOptions>>().Value;
+    if (tenancy.Enabled)
+    {
+        using var scope = app.Services.CreateScope();
+        try { await TenantCatalogInitializer.EnsureAsync(scope.ServiceProvider.GetRequiredService<TenantCatalogDbContext>()); }
+        catch (Exception ex) { Log.Error(ex, "The tenant catalog could not be initialised"); }
+        // company databases are brought up to this version BEFORE the site takes requests: the program reads columns that newer versions add
+        if (tenancy.AutoUpgrade)
+        {
+            try
+            {
+                foreach (var s in (await scope.ServiceProvider.GetRequiredService<ITenantMigrationService>().UpgradeAllAsync()).Where(s => !s.UpToDate))
+                    Log.Error("Company {Code} is not up to date: {Reason}", s.Code, s.Problem ?? s.Pending + " change(s) pending");
+            }
+            catch (Exception ex) { Log.Error(ex, "The start-up upgrade of the company databases failed"); }
+        }
+        app.UseMiddleware<TenantResolutionMiddleware>();
+    }
+    else if (!string.IsNullOrWhiteSpace(app.Configuration["Setup:Key"]))
+    {
+        // single database, hosted where only an empty database is provided: the first visit sets it up (see SetupController)
+        app.UseMiddleware<SetupGateMiddleware>();
+    }
+    if (!tenancy.Enabled && !string.IsNullOrWhiteSpace(app.Configuration.GetConnectionString("AMGHDatabase")) && tenancy.AutoUpgrade)
+    {
+        // new program versions bring database changes (SQLScripts\Migrations); apply them before the first request (silently skipped when the login may not change the schema)
+        try
+        {
+            using var upgradeScope = app.Services.CreateScope();
+            var applied = await upgradeScope.ServiceProvider.GetRequiredService<ISingleDatabaseSetup>().UpgradeAsync(app.Configuration.GetConnectionString("AMGHDatabase")!);
+            if (applied > 0) Log.Information("{Count} database change(s) applied", applied);
+        }
+        catch (Exception ex) { Log.Warning(ex, "The database could not be checked for upgrades at start-up"); }
+    }
     app.UseAuthentication();
     app.UseMiddleware<ForcePasswordChangeMiddleware>();
+    app.UseMiddleware<IpAllowListMiddleware>();
+    app.UseMiddleware<ForceMfaSetupMiddleware>();
     app.UseAuthorization();
 
-    app.MapHealthChecks("/health").AllowAnonymous();
+    app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = r => !r.Tags.Contains("backups") }).AllowAnonymous();
+    app.MapHealthChecks("/health/backups", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions { Predicate = r => r.Tags.Contains("backups") }).AllowAnonymous();
     app.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
 
     app.Run();

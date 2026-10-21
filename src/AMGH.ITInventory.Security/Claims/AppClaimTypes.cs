@@ -13,4 +13,8 @@ public static class AppClaimTypes
     public const string CompanyCode = "amgh:ccode";
     public const string CompanyName = "amgh:cname";
     public const string PlatformAdmin = "amgh:padmin";
+    /// <summary>"true" until the person has set up two-step verification that their company requires.</summary>
+    public const string MfaSetupRequired = "amgh:mfa_setup";
+    /// <summary>The tenant (customer database) the session was issued for; a cookie is never valid in another tenant.</summary>
+    public const string Tenant = "amgh:tenant";
 }

@@ -1,3 +1,4 @@
+using AMGH.ITInventory.Web.Infrastructure;
 using AMGH.ITInventory.Application.AssetConfiguration;
 using AMGH.ITInventory.Security.Authorization;
 using AMGH.ITInventory.Shared.Security;
@@ -34,6 +35,7 @@ public sealed class AssetConfigurationController : Controller
     [HttpGet("numbering")]
     public async Task<IActionResult> Numbering(CancellationToken ct) => View(await _numbering.ListAsync(ct));
 
+    [BlockInDemo]
     [HttpPost("numbering/{id:int}")]
     [HasPermission(Permissions.MasterData.Manage)]
     public async Task<IActionResult> SaveSeries(int id, NumberSeriesForm form, CancellationToken ct)

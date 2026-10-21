@@ -1,0 +1,48 @@
+@model SecurityViewModel
+@{
+    ViewData["Title"] = "Two-step verification";
+}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7">
+        <h1 class="page-title">Two-step verification</h1>
+        @if (Model.State.Enabled)
+        {
+            <div class="alert alert-success" role="status"><i class="bi bi-shield-check" aria-hidden="true"></i> On. Signing in asks for a code from your authenticator app. Recovery codes left: <strong>@Model.State.RecoveryCodesLeft</strong>.</div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card h-100"><div class="card-body">
+                        <h2 class="h6">New recovery codes</h2>
+                        <p class="small text-body-secondary">Replaces all old codes. Enter a code from the app to confirm.</p>
+                        <form asp-action="MfaCodes" method="post" class="d-flex gap-2">
+                            <input name="Code" class="form-control" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="20" aria-label="Code from the app" />
+                            <button type="submit" class="btn btn-outline-primary text-nowrap">Make new codes</button>
+                        </form>
+                    </div></div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100"><div class="card-body">
+                        <h2 class="h6">Turn off</h2>
+                        @if (Model.RequiredByCompany)
+                        {
+                            <p class="small text-body-secondary mb-0">Your company requires two-step verification for you, so it cannot be turned off.</p>
+                        }
+                        else
+                        {
+                            <p class="small text-body-secondary">Enter a code from the app to confirm.</p>
+                            <form asp-action="MfaDisable" method="post" class="d-flex gap-2" data-confirm="Turn off two-step verification?">
+                                <input name="Code" class="form-control" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="20" aria-label="Code from the app" />
+                                <button type="submit" class="btn btn-outline-danger text-nowrap">Turn off</button>
+                            </form>
+                        }
+                    </div></div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-secondary" role="status">Off. Your account is protected by your password only.@(Model.RequiredByCompany ? " Your company requires two-step verification." : "")</div>
+            <p>Two-step verification asks for a code from an app on your phone as well as your password, so a stolen password alone is not enough to get in.</p>
+            <a asp-action="MfaSetup" class="btn btn-primary">Set up two-step verification</a>
+        }
+    </div>
+</div>

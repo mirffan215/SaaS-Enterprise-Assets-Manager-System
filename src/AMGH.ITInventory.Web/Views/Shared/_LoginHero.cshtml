@@ -1,7 +1,10 @@
-@* Sign-in illustration: the system's capabilities around the group emblem. Vector (SVG), so it is sharp on any screen;
+@* Sign-in illustration: the system's capabilities around a neutral cloud-inventory emblem. Vector (SVG), so it is sharp on any screen;
    decorative only (aria-hidden). Hidden on small screens. *@
 @{
-    var emblem = Url.Content("~/images/amgh-emblem.png");
+    // No company context on the sign-in page: neutral enterprise copy; a loaded company shows its own name.
+    var companyName = Context.RequestServices.GetService<AMGH.ITInventory.Shared.Abstractions.ICompanyContext>()?.CurrentCompanyName;
+    var headline = string.IsNullOrWhiteSpace(companyName) ? "Cloud Asset & IT Inventory" : companyName;
+    var subline = string.IsNullOrWhiteSpace(companyName) ? "Your company workspace" : "Cloud Asset & IT Inventory";
     var nodes = new (double X, double Y, string Icon, string Line1, string Line2)[]
     {
         (400, 120, "M-14,-8 h28 v18 h-28 z M-18,12 h36", "ASSET", "MANAGEMENT"),
@@ -46,8 +49,11 @@
         <g transform="translate(400 380)">
             <path d="M-95,-70 L0,-115 L95,-70 L95,60 L0,105 L-95,60 Z" fill="url(#lpCube)" stroke="#9CC2FF" stroke-opacity=".8" stroke-width="1.5" />
             <path d="M-95,-70 L0,-25 L95,-70 M0,-25 L0,105" fill="none" stroke="#CFE1FF" stroke-opacity=".55" />
-            <image href="@emblem" x="-58" y="-48" width="116" height="116" opacity=".97" />
-            <rect x="-58" y="-48" width="116" height="116" fill="none" stroke="url(#lpGold)" stroke-width="1.2" opacity=".6" />
+            <!-- neutral emblem: a cloud over an asset tag -->
+            <g fill="none" stroke="#F8F1DE" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".95">
+                <path d="M-34,18 a20,20 0 0 1 4,-39 a28,28 0 0 1 54,6 a17,17 0 0 1 2,33 z" />
+                <path d="M-14,30 h28 M-8,40 h16" stroke="url(#lpGold)" />
+            </g>
         </g>
         <!-- capability nodes -->
         @foreach (var n in nodes)
@@ -59,5 +65,7 @@
                 <text text-anchor="middle" fill="#FFFFFF" font-size="10.5" font-weight="700" font-family="Segoe UI, Arial, sans-serif" letter-spacing=".4"><tspan x="0" y="@(string.IsNullOrEmpty(n.Line2) ? 27 : 22)">@n.Line1</tspan>@if (!string.IsNullOrEmpty(n.Line2)) {<tspan x="0" y="35">@n.Line2</tspan>}</text>
             </g>
         }
+        <text x="400" y="650" text-anchor="middle" fill="#FFFFFF" font-size="22" font-weight="700" font-family="Segoe UI, Arial, sans-serif">@headline</text>
+        <text x="400" y="672" text-anchor="middle" fill="#CFE1FF" font-size="13" font-family="Segoe UI, Arial, sans-serif">@subline</text>
     </svg>
 </aside>

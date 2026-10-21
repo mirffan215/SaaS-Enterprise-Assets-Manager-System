@@ -1,0 +1,50 @@
+@using AMGH.ITInventory.Security.Accounts
+@{
+    ViewData["Title"] = "Configuration transfer";
+    var sources = (IReadOnlyList<CompanyMembership>)ViewData["Sources"]!;
+}
+<div class="page-head">
+    <div>
+        <h1 class="page-title">Configuration transfer</h1>
+        <p class="text-body-secondary mb-0">Move the setup of @User.GetCompanyName() (asset categories, classifications, document numbering, locations) between companies. You always see a preview first and choose what to apply.</p>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <section class="panel h-100">
+            <h2 class="panel-title">Export</h2>
+            <p class="small text-body-secondary">Download this company's configuration as an XML file. It holds no assets, people, passwords or secrets.</p>
+            <a class="btn btn-outline-primary" asp-action="Export"><i class="bi bi-filetype-xml" aria-hidden="true"></i> Download XML</a>
+        </section>
+    </div>
+    <div class="col-lg-4">
+        <section class="panel h-100">
+            <h2 class="panel-title">Import from a file</h2>
+            <form asp-action="Preview" method="post" enctype="multipart/form-data">
+                <label class="form-label small" for="file">Configuration XML (max 2 MB)</label>
+                <input class="form-control mb-2" type="file" id="file" name="file" accept=".xml,application/xml,text/xml" required />
+                <button class="btn btn-primary" type="submit"><i class="bi bi-eye" aria-hidden="true"></i> Preview changes</button>
+            </form>
+        </section>
+    </div>
+    <div class="col-lg-4">
+        <section class="panel h-100">
+            <h2 class="panel-title">Copy from another company</h2>
+            @if (sources.Count == 0)
+            {
+                <p class="small text-body-secondary mb-0">You have access to no other company in this workspace.</p>
+            }
+            else
+            {
+                <form asp-action="PreviewCopy" method="post">
+                    <label class="form-label small" for="sourceCompanyId">Source company</label>
+                    <select class="form-select mb-2" id="sourceCompanyId" name="sourceCompanyId" required>
+                        @foreach (var s in sources) { <option value="@s.CompanyId">@s.CompanyName (@s.CompanyCode)</option> }
+                    </select>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-eye" aria-hidden="true"></i> Preview changes</button>
+                </form>
+            }
+        </section>
+    </div>
+</div>

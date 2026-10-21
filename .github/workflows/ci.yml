@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Start SQL Server 2022
+        run: |
+          mkdir -p /tmp/sqlbak && chmod 777 /tmp/sqlbak
+          docker run -d --name sql -e ACCEPT_EULA=Y -e 'MSSQL_SA_PASSWORD=Str0ng!Passw0rd#1' -p 14333:1433 \
+            -v /tmp/sqlbak:/tmp/sqlbak mcr.microsoft.com/mssql/server:2022-latest
+          for i in $(seq 1 40); do docker logs sql 2>&1 | grep -q "ready for client connections" && break; sleep 3; done
+      - name: Build
+        run: dotnet build AMGH.ITInventory.sln --configuration Release
+      - name: Test (unit + real SQL Server: provisioning, migrations, backup/restore, test restore)
+        env:
+          EAMS_TEST_SQL: Server=localhost,14333;User Id=sa;Password=Str0ng!Passw0rd#1;Encrypt=True;TrustServerCertificate=True
+          EAMS_TEST_BACKUPS: /tmp/sqlbak
+        run: dotnet test AMGH.ITInventory.sln --configuration Release --no-build

@@ -37,6 +37,17 @@ public class Company
     public string? VatNumber { get; set; }
     public string? Region { get; set; }
     public string DateFormat { get; set; } = "dd MMM yyyy";
+    // Sign-in security (migration 0001)
+    /// <summary>0 optional, 1 required for administrators, 2 required for everyone.</summary>
+    public byte MfaPolicy { get; set; }
+    /// <summary>Addresses or CIDR ranges that may use the company; null or empty means anywhere.</summary>
+    public string? AllowedIpRanges { get; set; }
+    public bool SsoEnabled { get; set; }
+    public string? SsoAuthority { get; set; }
+    public string? SsoClientId { get; set; }
+    /// <summary>Protected by the application.</summary>
+    public string? SsoClientSecret { get; set; }
+    public string? SsoAllowedDomain { get; set; }
     public bool NotificationsEnabled { get; set; } = true;
     public bool AssetAuditEnabled { get; set; } = true;
     public string CreatedBy { get; set; } = "SYSTEM";

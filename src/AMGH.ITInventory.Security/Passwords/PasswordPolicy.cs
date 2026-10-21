@@ -16,7 +16,7 @@ internal sealed class PasswordPolicy : IPasswordPolicy
     {
         "password", "passw0rd", "p@ssw0rd", "p@ssword", "qwerty", "qwe123", "asdf", "zxcv", "123456",
         "1234", "abcd", "admin", "welcome", "letmein", "iloveyou", "monkey", "dragon", "changeme",
-        "!@#$", "@#$%", "#$%^", "amgh", "murjan", "inventory"
+        "!@#$", "@#$%", "#$%^", "inventory", "company", "assets"
     };
 
     private readonly Microsoft.Extensions.Options.IOptions<SecurityOptions> _options;

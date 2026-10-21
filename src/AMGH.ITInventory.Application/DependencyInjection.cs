@@ -35,6 +35,9 @@ public static class DependencyInjection
         services.AddScoped<Views.ISavedViewService, Views.SavedViewService>();
         // asset lifecycle (Release 2.3)
         services.AddScoped<Lifecycle.IApprovalService, Lifecycle.ApprovalService>();
+        services.AddScoped<CompanyAdmin.ICompanyDataExportService, CompanyAdmin.CompanyDataExportService>();
+        services.AddScoped<ConfigTransfer.IConfigurationTransferService, ConfigTransfer.ConfigurationTransferService>();
+        services.AddScoped<RecycleBin.IRecycleBinService, RecycleBin.RecycleBinService>();
         services.AddScoped<Lifecycle.IMovementService, Lifecycle.MovementService>();
         services.AddScoped<Lifecycle.IDisposalService, Lifecycle.DisposalService>();
         services.AddScoped<Lifecycle.IMaintenanceService, Lifecycle.MaintenanceService>();
@@ -67,6 +70,13 @@ public static class DependencyInjection
         services.AddSingleton<IMasterDataDefinition, CategoryDefinition>();
         services.AddSingleton<IMasterDataDefinition, SubCategoryDefinition>();
         services.AddScoped<IMasterDataService, MasterDataService>();
+        // multi-tenancy: provisioning of customer databases
+        services.AddScoped<Tenancy.ITenantProvisioningService, Tenancy.TenantProvisioningService>();
+        services.AddScoped<Tenancy.ITenantBackupService, Tenancy.TenantBackupService>();
+        services.AddScoped<Tenancy.ITenantMigrationService, Tenancy.TenantMigrationService>();
+        services.AddScoped<Tenancy.ISingleDatabaseSetup, Tenancy.SingleDatabaseSetup>();
+        services.AddScoped<Tenancy.ITenantUsageService, Tenancy.TenantUsageService>();
+        services.AddScoped<Tenancy.ITenantEmergencyService, Tenancy.TenantEmergencyService>();
         return services;
     }
 }

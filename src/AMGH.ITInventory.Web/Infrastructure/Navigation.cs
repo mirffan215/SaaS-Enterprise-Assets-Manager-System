@@ -47,7 +47,7 @@ internal sealed class Navigation : INavigation
         string Md(string type) => A("List", "MasterData", new { type });
 
         int? waiting = null;
-        if (P(Permissions.Movements.Approve) || P(Permissions.Disposals.Approve))
+        if (P(Permissions.Movements.Approve) || P(Permissions.Disposals.Approve) || P(Permissions.CompanyAdmin.ExportDataApprove))
         {
             var actor = new ApprovalActor(user.Identity?.Name ?? string.Empty,
                 user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToHashSet(StringComparer.Ordinal),
@@ -72,10 +72,11 @@ internal sealed class Navigation : INavigation
         Section("Overview",
             (dashboard, new NavItem("Executive dashboard", A("Index", "Dashboard"), "bi-speedometer2", M("/dashboard"))),
             (!dashboard, new NavItem("Overview", A("Index", "Home", new { overview = true }), "bi-house", M("/Home"))),
-            (P(Permissions.Movements.View) || P(Permissions.Disposals.View), new NavItem("Approval Center", A("Index", "Approvals"), "bi-inbox", M("/approvals"), waiting)),
+            (P(Permissions.Movements.View) || P(Permissions.Disposals.View) || P(Permissions.CompanyAdmin.ExportDataApprove), new NavItem("Approval Center", A("Index", "Approvals"), "bi-inbox", M("/approvals"), waiting)),
             (true, new NavItem("Notifications", A("Index", "Notifications"), "bi-bell", M("/notifications"))));
         Section("Asset management",
             (P(Permissions.Assets.View), new NavItem("Asset register", A("Index", "Assets"), "bi-box-seam", M("/Assets", "/labels", "/a/"))),
+            (P(Permissions.Assets.View), new NavItem("Scan an asset", A("Index", "Scan"), "bi-qr-code-scan", M("/scan"))),
             (P(Permissions.Assets.Create), new NavItem("Add new asset", A("Create", "Assets"), "bi-plus-square", M("/Assets/Create"))),
             (P(Permissions.Assets.Import), new NavItem("Import from Excel", A("Import", "Assets"), "bi-file-earmark-arrow-up", M("/Assets/Import"))),
             (P(Permissions.MasterData.View), new NavItem("Asset categories", A("Categories", "AssetConfiguration"), "bi-tags", M("/admin/asset-configuration/categories", "/master-data/categories", "/master-data/subcategories"))),
@@ -106,6 +107,12 @@ internal sealed class Navigation : INavigation
             (P(Permissions.Administration.UsersView), new NavItem("Users and roles", A("Index", "Users"), "bi-person-gear", M("/Users"))),
             (P(Permissions.Administration.RolesManage), new NavItem("Roles and permissions", A("Index", "Roles"), "bi-shield-lock", M("/admin/roles"))),
             (P(Permissions.Administration.RolesManage), new NavItem("Approval stages", A("Rules", "Approvals"), "bi-signpost-split", M("/approvals/rules"))),
+            (P(Permissions.Administration.SystemSettings), new NavItem("Sign-in security", A("Index", "SecuritySettings"), "bi-shield-check", M("/admin/security"))),
+            (user.IsPlatformAdmin(), new NavItem("Backup and restore", A("Index", "CompanyBackup"), "bi-hdd", M("/admin/backup"))),
+            (P(Permissions.Administration.SystemSettings), new NavItem("Recycle bin", A("Index", "RecycleBin"), "bi-trash3", M("/recycle-bin"))),
+            (P(Permissions.Administration.SystemSettings), new NavItem("Configuration transfer", A("Index", "ConfigurationTransfer"), "bi-arrow-left-right", M("/admin/configuration"))),
+            (P(Permissions.CompanyAdmin.ExportDataRequest) || P(Permissions.CompanyAdmin.ExportDataApprove) || P(Permissions.CompanyAdmin.ExportDataDownload),
+                new NavItem("Company data export", A("Index", "CompanyDataExport"), "bi-box-arrow-down", M("/company/data-export"))),
             (P(Permissions.Administration.NotificationsManage), new NavItem("E-mail and notifications", A("Index", "NotificationSettings"), "bi-envelope-at", M("/settings/notifications"))));
         Section("Platform",
             (user.IsPlatformAdmin(), new NavItem("Company directory", A("Index", "Platform"), "bi-buildings", M("/platform/companies"))),

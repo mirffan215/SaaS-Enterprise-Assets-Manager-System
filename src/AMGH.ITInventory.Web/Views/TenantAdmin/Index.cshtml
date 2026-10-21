@@ -1,0 +1,26 @@
+@model TenantAdminViewModel
+@{
+    ViewData["Title"] = "Operator";
+    Layout = "_LoginLayout";
+}
+<header class="lp-brand">
+    <img class="lp-logo" src="@Url.Action("DefaultLogo", "Branding")" alt="" />
+    <h1 class="lp-title">Operator sign-in</h1>
+    <p class="lp-tagline">Operator page</p>
+</header>
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="alert @(Model.Succeeded ? "alert-success" : "alert-danger") py-2" role="status">@Model.Message</div>
+}
+
+@{
+    <form asp-action="Login" method="post" novalidate class="lp-form">
+        <div class="lp-field"><i class="bi bi-key" aria-hidden="true"></i><input asp-for="OperatorKey" class="form-control" placeholder="Operator key" autocomplete="off" autofocus /></div>
+        <button type="submit" class="lp-submit">Open the operator page <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+    </form>
+}
+
+@section Scripts {
+    <script src="~/js/tenant-admin.js" asp-append-version="true"></script>
+}

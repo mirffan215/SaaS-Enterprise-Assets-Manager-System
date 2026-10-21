@@ -1,6 +1,7 @@
 using AMGH.ITInventory.Application.Abstractions.Lifecycle;
 using AMGH.ITInventory.Application.Abstractions.Persistence;
 using AMGH.ITInventory.Application.Assets;
+using AMGH.ITInventory.Application.CompanyAdmin;
 using AMGH.ITInventory.Domain.Entities;
 using AMGH.ITInventory.Domain.Enums;
 using AMGH.ITInventory.Shared.Abstractions;
@@ -14,8 +15,15 @@ public static class RequestTypes
 {
     public const string Movement = "Movement";
     public const string Disposal = "Disposal";
-    public static readonly IReadOnlyList<string> All = new[] { Movement, Disposal };
-    public static string ApprovePermission(string type) => type == Movement ? Permissions.Movements.Approve : Permissions.Disposals.Approve;
+    /// <summary>Full export of the company's data: needs a second administrator (script 19).</summary>
+    public const string DataExport = "DataExport";
+    public static readonly IReadOnlyList<string> All = new[] { Movement, Disposal, DataExport };
+    public static string ApprovePermission(string type) => type switch
+    {
+        Movement => Permissions.Movements.Approve,
+        DataExport => Permissions.CompanyAdmin.ExportDataApprove,
+        _ => Permissions.Disposals.Approve
+    };
 }
 
 /// <summary>Who is acting: taken from the signed-in session by the web layer.</summary>
@@ -44,6 +52,11 @@ public interface IApprovalService
     Task<IReadOnlyList<ApprovalRuleItem>> RulesAsync(CancellationToken cancellationToken = default);
     /// <summary>Replaces the stages of a request type (empty list = single stage, any approver).</summary>
     Task<Result> SaveRulesAsync(string requestType, IReadOnlyList<string> stageRoles, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Opens a full-data-export request: it waits in the Approval Center for a second administrator and only then can be
+    /// downloaded. Returns the request id.
+    /// </summary>
+    Task<Result<int>> RequestDataExportAsync(string reason, CancellationToken cancellationToken = default);
 }
 
 internal sealed class ApprovalService : IApprovalService
@@ -54,10 +67,14 @@ internal sealed class ApprovalService : IApprovalService
     private readonly ICurrentUserService _user;
 
     private readonly Notifications.INotificationService _notify;
+    private readonly Abstractions.Mail.ISecretProtector _protector;
+    private readonly Microsoft.Extensions.Options.IOptions<Tenancy.TenancyOptions> _tenancy;
 
     public ApprovalService(IUnitOfWork uow, IAssetLifecycleProcedures procedures, IDateTimeProvider clock, ICurrentUserService user,
-        Notifications.INotificationService notify)
+        Notifications.INotificationService notify, Abstractions.Mail.ISecretProtector protector, Microsoft.Extensions.Options.IOptions<Tenancy.TenancyOptions> tenancy)
     {
+        _protector = protector;
+        _tenancy = tenancy;
         _uow = uow;
         _procedures = procedures;
         _clock = clock;
@@ -81,12 +98,16 @@ internal sealed class ApprovalService : IApprovalService
             {
                 Id = d.AssetDisposalId, Doc = d.DocumentNumber, d.AssetId, d.Asset.AssetNumber, d.Asset.AssetName, Method = d.DisposalMethod.MethodName, d.Reason, d.RequestedBy, d.RequestedDate
             }), ct);
+        var exports = await _uow.Repository<DataExportRequest>().QueryAsync(q => q.Where(x => x.Status == DataExportStatuses.Requested)
+            .OrderBy(x => x.RequestedDate).Select(x => new { Id = x.DataExportRequestId, x.Reason, x.RequestedBy, x.RequestedDate }), ct);
         // only the decisions of requests that are still pending (not the whole history): this runs on every page (menu badge)
         var pendingMoves = movements.Select(m => m.Id).ToList();
         var pendingDisposals = disposals.Select(d => d.Id).ToList();
+        var pendingExports = exports.Select(x => x.Id).ToList();
         var steps = (await _uow.Repository<ApprovalStep>().QueryAsync(q => q.Where(s => s.Decision == "Approved"
                 && ((s.RequestType == RequestTypes.Movement && pendingMoves.Contains(s.RequestId))
-                    || (s.RequestType == RequestTypes.Disposal && pendingDisposals.Contains(s.RequestId))))
+                    || (s.RequestType == RequestTypes.Disposal && pendingDisposals.Contains(s.RequestId))
+                    || (s.RequestType == RequestTypes.DataExport && pendingExports.Contains(s.RequestId))))
             .Select(s => new { s.RequestType, s.RequestId, s.StageNo, s.ApproverRole, s.Decision, s.DecidedBy, s.DecidedDate, s.Remarks }), ct))
             .GroupBy(s => (s.RequestType, s.RequestId))
             .ToDictionary(g => g.Key, g => (IReadOnlyList<ApprovalStepItem>)g.OrderBy(s => s.StageNo)
@@ -103,6 +124,11 @@ internal sealed class ApprovalService : IApprovalService
         {
             var done = steps.GetValueOrDefault((RequestTypes.Disposal, d.Id)) ?? Array.Empty<ApprovalStepItem>();
             result.Add(Build(RequestTypes.Disposal, d.Id, d.AssetId, d.AssetNumber, d.AssetName, "Disposal: " + d.Method, d.Reason, d.RequestedBy, d.RequestedDate, done, rules, actor) with { DocumentNumber = d.Doc });
+        }
+        foreach (var x in exports)
+        {
+            var done = steps.GetValueOrDefault((RequestTypes.DataExport, x.Id)) ?? Array.Empty<ApprovalStepItem>();
+            result.Add(Build(RequestTypes.DataExport, x.Id, 0, string.Empty, "Company data", "Full export of all company data (encrypted archive)", x.Reason, x.RequestedBy, x.RequestedDate, done, rules, actor));
         }
         return result;
     }
@@ -150,9 +176,10 @@ internal sealed class ApprovalService : IApprovalService
                 await _uow.SaveChangesAsync(ct);
                 if (!final) return;
                 if (requestType == RequestTypes.Movement) await _procedures.ApproveMovementAsync(requestId, ct);
+                else if (requestType == RequestTypes.DataExport) await ApproveExportAsync(requestId, ct);
                 else await _procedures.ApproveDisposalAsync(requestId, ct);
             }, cancellationToken);
-            if (final)
+            if (final && requestType != RequestTypes.DataExport)
                 await Notifications.WorkflowNotifications.DecidedAsync(_notify, _uow, requestType, requestId, item.AssetId, item.RequestedBy, true, _user.UserName, Clean(remarks), cancellationToken);
             return Result<string>.Success(final ? "Approved." : $"Stage {item.Stage} of {item.TotalStages} approved; waiting for stage {item.Stage + 1}.");
         }
@@ -180,9 +207,11 @@ internal sealed class ApprovalService : IApprovalService
                 }, ct);
                 await _uow.SaveChangesAsync(ct);
                 if (requestType == RequestTypes.Movement) await _procedures.RejectMovementAsync(requestId, reason, ct);
+                else if (requestType == RequestTypes.DataExport) await RejectExportAsync(requestId, reason, ct);
                 else await _procedures.RejectDisposalAsync(requestId, reason, ct);
             }, cancellationToken);
-            await Notifications.WorkflowNotifications.DecidedAsync(_notify, _uow, requestType, requestId, item.AssetId, item.RequestedBy, false, _user.UserName, reason, cancellationToken);
+            if (requestType != RequestTypes.DataExport)
+                await Notifications.WorkflowNotifications.DecidedAsync(_notify, _uow, requestType, requestId, item.AssetId, item.RequestedBy, false, _user.UserName, reason, cancellationToken);
             return Result.Success();
         }
         catch (BusinessRuleException ex)
@@ -209,9 +238,12 @@ internal sealed class ApprovalService : IApprovalService
         var known = (await _uow.Repository<Role>().QueryAsync(q => q.Where(r => r.IsActive).Select(r => r.RoleName), cancellationToken)).ToHashSet();
         var unknown = roles.FirstOrDefault(r => !known.Contains(r));
         if (unknown is not null) return Result.Failure(Error.Validation($"Unknown role '{unknown}'."));
-        var pending = requestType == RequestTypes.Movement
-            ? await _uow.Repository<AssetMovement>().AnyAsync(m => m.MovementStatus == WorkflowStatus.Requested, cancellationToken)
-            : await _uow.Repository<AssetDisposal>().AnyAsync(d => d.DisposalStatus == WorkflowStatus.Requested, cancellationToken);
+        var pending = requestType switch
+        {
+            RequestTypes.Movement => await _uow.Repository<AssetMovement>().AnyAsync(m => m.MovementStatus == WorkflowStatus.Requested, cancellationToken),
+            RequestTypes.DataExport => await _uow.Repository<DataExportRequest>().AnyAsync(x => x.Status == DataExportStatuses.Requested, cancellationToken),
+            _ => await _uow.Repository<AssetDisposal>().AnyAsync(d => d.DisposalStatus == WorkflowStatus.Requested, cancellationToken)
+        };
         if (pending) return Result.Failure(Error.BusinessRule("Decide the pending requests of this type first: changing stages mid-way would be unclear."));
 
         await _uow.ExecuteInTransactionAsync(async ct =>
@@ -224,6 +256,50 @@ internal sealed class ApprovalService : IApprovalService
             await _uow.SaveChangesAsync(ct);
         }, cancellationToken);
         return Result.Success();
+    }
+
+    // ---------------------------------------------------------------- full data export (second-administrator approval)
+    public async Task<Result<int>> RequestDataExportAsync(string reason, CancellationToken cancellationToken = default)
+    {
+        reason = (reason ?? string.Empty).Trim();
+        if (reason.Length is < 10 or > 500) return Result<int>.Failure(Error.Validation("Explain why the data is needed (10-500 characters).", "reason"));
+        // a person has one open request at a time
+        if (await _uow.Repository<DataExportRequest>().AnyAsync(x => x.RequestedBy == _user.UserName
+                && (x.Status == DataExportStatuses.Requested || x.Status == DataExportStatuses.Approved), cancellationToken))
+            return Result<int>.Failure(Error.Conflict("You already have an export that is waiting for approval or ready to download."));
+        var request = new DataExportRequest { Reason = reason, RequestedBy = _user.UserName, RequestedDate = _clock.UtcNow, Status = DataExportStatuses.Requested };
+        if (!_tenancy.Value.ExportRequiresApproval)
+        {
+            // self-service: the company administrator may take the export right away; it is still recorded (who, why, when) and downloads once
+            request.Status = DataExportStatuses.Approved;
+            request.ApprovedBy = "(self-service)";
+            request.ApprovedDate = _clock.UtcNow;
+            ExportCredentialFactory.Issue(request, _clock.UtcNow, _protector);
+        }
+        await _uow.Repository<DataExportRequest>().AddAsync(request, cancellationToken);
+        await _uow.SaveChangesAsync(cancellationToken);
+        return Result<int>.Success(request.DataExportRequestId);
+    }
+
+    /// <summary>Final approval: the export becomes downloadable with a one-time token and an archive password (24 hours).</summary>
+    private async Task ApproveExportAsync(int requestId, CancellationToken ct)
+    {
+        var request = await _uow.Repository<DataExportRequest>().FirstOrDefaultAsync(x => x.DataExportRequestId == requestId, ct)
+            ?? throw new BusinessRuleException("The export request no longer exists.");
+        request.Status = DataExportStatuses.Approved;
+        request.ApprovedBy = _user.UserName;
+        request.ApprovedDate = _clock.UtcNow;
+        ExportCredentialFactory.Issue(request, _clock.UtcNow, _protector);
+        await _uow.SaveChangesAsync(ct);
+    }
+
+    private async Task RejectExportAsync(int requestId, string reason, CancellationToken ct)
+    {
+        var request = await _uow.Repository<DataExportRequest>().FirstOrDefaultAsync(x => x.DataExportRequestId == requestId, ct)
+            ?? throw new BusinessRuleException("The export request no longer exists.");
+        request.Status = DataExportStatuses.Rejected;
+        request.RejectionReason = reason;
+        await _uow.SaveChangesAsync(ct);
     }
 
     private static string? Clean(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();

@@ -8,7 +8,7 @@
     <div class="row g-3">
         <div class="col-md-4"><label class="form-label" for="Form_MaintenanceType">Type</label>
             <select class="form-select" id="Form_MaintenanceType" name="Form.MaintenanceType">@foreach (var t in Enum.GetValues<MaintenanceType>()) { <option value="@t" selected="@(t == f.MaintenanceType)">@(t == MaintenanceType.Corrective ? "Corrective (repair)" : AMGH.ITInventory.Application.Common.DisplayText.Humanize(t.ToString()))</option> }</select></div>
-        <div class="col-md-4"><label class="form-label" for="Form_ScheduledDate">Scheduled date *</label><input class="form-control" type="date" id="Form_ScheduledDate" name="Form.ScheduledDate" value="@(f.ScheduledDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" /></div>
+        <div class="col-md-4"><label class="form-label" for="Form_ScheduledDate">Scheduled date (not needed when the work is already done)</label><input class="form-control" type="date" id="Form_ScheduledDate" name="Form.ScheduledDate" value="@(f.ScheduledDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" /></div>
         <div class="col-md-4"><label class="form-label" for="Form_TicketNumber">Ticket no.</label><input class="form-control" id="Form_TicketNumber" name="Form.TicketNumber" value="@f.TicketNumber" maxlength="50" /></div>
         <div class="col-md-6">
             <label class="form-label" for="Form_AssignedToUserId">Technician</label>
@@ -22,5 +22,19 @@
         <partial name="_SelectField" model='new SelectFieldModel("Form.VendorId", "Service vendor", Model.Vendors, S(f.VendorId))' />
         <div class="col-12"><label class="form-label" for="Form_ProblemDescription">Problem or work to do *</label><textarea class="form-control" id="Form_ProblemDescription" name="Form.ProblemDescription" rows="3" maxlength="2000">@f.ProblemDescription</textarea></div>
     </div>
-    <div class="form-actions"><button class="btn btn-primary" type="submit">Schedule</button></div>
+    <details class="mt-3 border rounded p-3" open="@(f.AlreadyDone)">
+        <summary class="fw-semibold">The work is already done: record it with its cost</summary>
+        <p class="small text-body-secondary mt-2">Use this for a repair or service that has been finished (for example paid for last week). It is recorded as completed straight away and its cost is added to the asset's maintenance and repair cost. The asset's status is not changed.</p>
+        <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="Form_AlreadyDone" name="Form.AlreadyDone" value="true" checked="@(f.AlreadyDone)" /><input type="hidden" name="Form.AlreadyDone" value="false" /><label class="form-check-label" for="Form_AlreadyDone">Yes, this work is already done</label></div>
+        <div class="row g-3">
+            <div class="col-md-4"><label class="form-label" for="Form_CompletedOn">Date the work was done</label><input class="form-control" type="date" id="Form_CompletedOn" name="Form.CompletedOn" value="@(f.CompletedOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" /></div>
+            <div class="col-md-8"><label class="form-label" for="Form_ResolutionDetails">What was done</label><input class="form-control" id="Form_ResolutionDetails" name="Form.ResolutionDetails" value="@f.ResolutionDetails" maxlength="2000" placeholder="e.g. Replaced the screen" /></div>
+            <div class="col-md-3"><label class="form-label" for="Form_Cost">Cost</label><input class="form-control" type="number" min="0" step="0.01" id="Form_Cost" name="Form.Cost" value="@f.Cost" /></div>
+            <div class="col-md-3"><label class="form-label" for="Form_CurrencyId">Currency</label>
+                <select class="form-select" id="Form_CurrencyId" name="Form.CurrencyId"><option value="">—</option>@foreach (var c in Model.Currencies) { <option value="@c.Id" selected="@(c.Id == f.CurrencyId)">@c.Text</option> }</select></div>
+            <div class="col-md-3"><label class="form-label" for="Form_InvoiceNumber">Invoice number</label><input class="form-control" id="Form_InvoiceNumber" name="Form.InvoiceNumber" value="@f.InvoiceNumber" maxlength="50" /></div>
+            <div class="col-md-3"><label class="form-label" for="Form_DowntimeHours">Downtime (hours)</label><input class="form-control" type="number" min="0" step="0.5" id="Form_DowntimeHours" name="Form.DowntimeHours" value="@f.DowntimeHours" /></div>
+        </div>
+    </details>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save</button><span class="small text-body-secondary ms-2">Schedules the work, or records it as done when the box above is ticked.</span></div>
 </form>

@@ -19,6 +19,13 @@ internal sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(e => e.VatNumber).HasColumnType("nvarchar(30)").HasMaxLength(30);
         builder.Property(e => e.Region).HasColumnType("nvarchar(100)").HasMaxLength(100);
         builder.Property(e => e.DateFormat).HasColumnType("nvarchar(20)").HasMaxLength(20).IsRequired();
+        builder.Property(e => e.MfaPolicy).HasColumnType("tinyint").IsRequired().HasDefaultValue((byte)0);
+        builder.Property(e => e.AllowedIpRanges).HasColumnType("nvarchar(1000)").HasMaxLength(1000);
+        builder.Property(e => e.SsoEnabled).HasColumnType("bit").IsRequired().HasDefaultValue(false);
+        builder.Property(e => e.SsoAuthority).HasColumnType("nvarchar(300)").HasMaxLength(300);
+        builder.Property(e => e.SsoClientId).HasColumnType("nvarchar(200)").HasMaxLength(200);
+        builder.Property(e => e.SsoClientSecret).HasColumnType("nvarchar(1000)").HasMaxLength(1000);
+        builder.Property(e => e.SsoAllowedDomain).HasColumnType("nvarchar(200)").HasMaxLength(200);
         builder.HasKey(e => e.CompanyId).HasName("PK_tblCompany");
         builder.Property(e => e.CompanyId).UseIdentityColumn();
         builder.Property(e => e.CompanyCode).HasColumnType("nvarchar(10)").HasMaxLength(10).IsRequired();
